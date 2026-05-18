@@ -1,4 +1,5 @@
 import {
+  byteRgbToHex,
   fitLabToSrgb,
   hexToByteRgb,
   hexToLab,
@@ -217,9 +218,25 @@ function fitOklchToDisplay({l, c, h}) {
   };
 }
 
-function eventFor(type) {
-  if (typeof Event === "function") return new Event(type, {bubbles: true});
-  return {type, bubbles: true};
+function eventFor(target, type, value = null) {
+  const view = target?.ownerDocument?.defaultView || globalThis.window || globalThis;
+  const eventOptions = {bubbles: true, composed: true};
+  if (type === "input" && typeof view.InputEvent === "function") {
+    try {
+      return new view.InputEvent(type, {
+        ...eventOptions,
+        data: value,
+        inputType: "insertReplacementText"
+      });
+    } catch {}
+  }
+  const EventConstructor = typeof view.Event === "function" ? view.Event : (typeof Event === "function" ? Event : null);
+  if (EventConstructor) {
+    try {
+      return new EventConstructor(type, eventOptions);
+    } catch {}
+  }
+  return {type, ...eventOptions};
 }
 
 function eyeDropperClass() {
@@ -230,6 +247,26 @@ function eyeDropperClass() {
 function eyeDropperWasCancelled(error) {
   const text = `${error?.name || ""} ${error?.message || ""}`.toLowerCase();
   return text.includes("abort") || text.includes("cancel");
+}
+
+// The EyeDropper spec says result.sRGBHex must be in "#RRGGBB" form, but Chrome
+// has shipped versions where it returns rgb()/rgba() instead. Coerce whatever
+// we receive into hex so the caller can validate it the same way.
+function hexFromEyeDropperColor(value) {
+  if (typeof value !== "string") return "";
+  const direct = normalizeHexColor(value, "");
+  if (direct) return direct;
+  const match = value.trim().match(/^rgba?\(\s*([^)]+)\s*\)$/i);
+  if (!match) return "";
+  const parts = match[1].split(/[\s,/]+/).filter(Boolean);
+  if (parts.length < 3) return "";
+  const channels = parts.slice(0, 3).map(part => {
+    const numeric = Number.parseFloat(part);
+    if (!Number.isFinite(numeric)) return NaN;
+    return part.endsWith("%") ? numeric * 2.55 : numeric;
+  });
+  if (channels.some(channel => !Number.isFinite(channel))) return "";
+  return byteRgbToHex(channels[0], channels[1], channels[2]);
 }
 
 function labelTextFor(input, fallback = "Choose color") {
@@ -566,8 +603,8 @@ export function attachColorPicker(input, options = {}) {
     drawOklchWheel(plane, fitted.h);
   }
 
-  function emit(type) {
-    input.dispatchEvent(eventFor(type));
+  function emit(type, value = input.value) {
+    input.dispatchEvent(eventFor(input, type, value));
   }
 
   function syncFromInputState() {
@@ -583,7 +620,15 @@ export function attachColorPicker(input, options = {}) {
 
   function refreshAfterPropagation(swatchSync) {
     syncFromInputState();
+    if (fallbackColorInput) fallbackColorInput.value = normalizeHexColor(input.value || FALLBACK_HEX, FALLBACK_HEX);
     swatchSync?.();
+  }
+
+  function queuePropagationRefresh(swatchSync) {
+    Promise.resolve().then(() => refreshAfterPropagation(swatchSync));
+    const raf = globalThis.window?.requestAnimationFrame || globalThis.requestAnimationFrame;
+    if (typeof raf === "function") raf(() => refreshAfterPropagation(swatchSync));
+    else globalThis.setTimeout?.(() => refreshAfterPropagation(swatchSync), 0);
   }
 
   function setHex(hex, {commit = false} = {}) {
@@ -595,11 +640,11 @@ export function attachColorPicker(input, options = {}) {
     renderPicker();
     if (changed) {
       dirty = !commit;
-      emit("input");
+      emit("input", safe);
     }
     if (commit) {
       dirty = false;
-      emit("change");
+      emit("change", safe);
     }
   }
 
@@ -608,13 +653,21 @@ export function attachColorPicker(input, options = {}) {
     if (!safe) return false;
     setHex(safe, {commit});
     refreshAfterPropagation(swatchSync);
-    Promise.resolve().then(() => refreshAfterPropagation(swatchSync));
+    queuePropagationRefresh(swatchSync);
     return true;
   }
 
   function openFallbackColorInput(swatchSync) {
-    if (!fallbackColorInput || typeof fallbackColorInput.click !== "function") return false;
+    if (!fallbackColorInput) return false;
     fallbackColorInput.value = normalizeHexColor(input.value || FALLBACK_HEX, FALLBACK_HEX);
+    try {
+      if (typeof fallbackColorInput.showPicker === "function") {
+        fallbackColorInput.showPicker();
+        refreshAfterPropagation(swatchSync);
+        return true;
+      }
+    } catch {}
+    if (typeof fallbackColorInput.click !== "function") return false;
     fallbackColorInput.click();
     refreshAfterPropagation(swatchSync);
     return true;
@@ -646,7 +699,7 @@ export function attachColorPicker(input, options = {}) {
     }
     try {
       const result = await resultPromise;
-      if (!applyPickedHex(result?.sRGBHex, {commit: true, swatchSync})) {
+      if (!applyPickedHex(hexFromEyeDropperColor(result?.sRGBHex), {commit: true, swatchSync})) {
         openFallbackColorInput(swatchSync);
       }
     } catch (error) {
@@ -670,11 +723,11 @@ export function attachColorPicker(input, options = {}) {
     renderPicker();
     if (changed) {
       dirty = !commit;
-      emit("input");
+      emit("input", fitted.hex);
     }
     if (commit) {
       dirty = false;
-      emit("change");
+      emit("change", fitted.hex);
     }
   }
 

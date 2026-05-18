@@ -369,3 +369,111 @@ test("color picker pick button falls back to native color input", async () => {
   }
 });
 
+
+test("color picker native color fallback prefers showPicker and propagates change", async () => {
+  const restore = installDocument();
+  const previousEyeDropper = globalThis.EyeDropper;
+  try {
+    delete globalThis.EyeDropper;
+    const input = makeElement("input", document);
+    input.value = "#000000";
+    document.body.append(input);
+
+    const propagated = [];
+    input.addEventListener("input", () => propagated.push(["input", input.value]));
+    input.addEventListener("change", () => propagated.push(["change", input.value]));
+
+    const picker = attachColorPicker(input, {label: "Test color"});
+    picker.open({focus: false});
+
+    const eyeDropper = findByClass(document.body, "app-color-picker-eyedropper");
+    const nativeColor = findByClass(document.body, "app-color-picker-native-color");
+    assert.ok(eyeDropper);
+    assert.ok(nativeColor);
+
+    let showPickerCalls = 0;
+    nativeColor.click = () => {
+      throw new Error("click fallback should not run when showPicker exists");
+    };
+    nativeColor.showPicker = () => {
+      showPickerCalls += 1;
+      nativeColor.value = "#778899";
+      nativeColor.dispatchEvent({type: "input"});
+      nativeColor.dispatchEvent({type: "change"});
+    };
+
+    eyeDropper.dispatchEvent({type: "click"});
+    await Promise.resolve();
+
+    assert.equal(showPickerCalls, 1);
+    assert.equal(input.value, "#778899");
+    assert.deepEqual(propagated, [["input", "#778899"], ["change", "#778899"]]);
+  } finally {
+    if (previousEyeDropper === undefined) delete globalThis.EyeDropper;
+    else globalThis.EyeDropper = previousEyeDropper;
+    restore();
+  }
+});
+
+// Chrome has shipped versions of the EyeDropper API where result.sRGBHex is
+// returned as an rgb()/rgba() string instead of "#RRGGBB", contrary to spec.
+// The picker must coerce these into hex rather than silently bailing.
+test("color picker eyedropper accepts rgba() output from non-spec browsers", async () => {
+  const restore = installDocument();
+  const previousEyeDropper = globalThis.EyeDropper;
+  try {
+    globalThis.EyeDropper = class {
+      open() {
+        return Promise.resolve({sRGBHex: "rgba(255, 128, 64, 1)"});
+      }
+    };
+
+    const input = makeElement("input", document);
+    input.value = "#000000";
+    document.body.append(input);
+
+    const picker = attachColorPicker(input, {label: "Test color"});
+    picker.open({focus: false});
+
+    const eyeDropper = findByClass(document.body, "app-color-picker-eyedropper");
+    eyeDropper.dispatchEvent({type: "click"});
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(input.value, "#ff8040");
+  } finally {
+    if (previousEyeDropper === undefined) delete globalThis.EyeDropper;
+    else globalThis.EyeDropper = previousEyeDropper;
+    restore();
+  }
+});
+
+test("color picker eyedropper accepts CSS Color 4 space-separated rgb() output", async () => {
+  const restore = installDocument();
+  const previousEyeDropper = globalThis.EyeDropper;
+  try {
+    globalThis.EyeDropper = class {
+      open() {
+        return Promise.resolve({sRGBHex: "rgb(16 200 96 / 1)"});
+      }
+    };
+
+    const input = makeElement("input", document);
+    input.value = "#000000";
+    document.body.append(input);
+
+    const picker = attachColorPicker(input, {label: "Test color"});
+    picker.open({focus: false});
+
+    const eyeDropper = findByClass(document.body, "app-color-picker-eyedropper");
+    eyeDropper.dispatchEvent({type: "click"});
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(input.value, "#10c860");
+  } finally {
+    if (previousEyeDropper === undefined) delete globalThis.EyeDropper;
+    else globalThis.EyeDropper = previousEyeDropper;
+    restore();
+  }
+});

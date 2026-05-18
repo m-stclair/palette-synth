@@ -569,5 +569,12 @@ window.PALETTE_PRESETS = {
     // Cool green-black, herbal midtones, and soft mint highlight.
     mint: [
         "#0c2018", "#2e5848", "#88b89c", "#e0f0d8"
+    ],
+
+    // warm, restrained, earthy, rural
+    zuhanden: [
+        "#020501", "#341101", "#444c3f", "#8f423a",
+        "#8b604d", "#8b8d7f", "#d2a85c", "#ecbba6"
     ]
+
 };
