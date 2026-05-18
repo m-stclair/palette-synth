@@ -101,7 +101,8 @@ const PRESET_CATEGORY_BY_NAME = {
     synthwaveBbs: "Art + mood",
     vaporwaveDos: "Art + mood",
     victorianAutumn: "Art + mood",
-    witchLuxe: "Art + mood"
+    witchLuxe: "Art + mood",
+    zuhanden: "Art + mood"
 };
 
 function comparePresetLabels(a, b) {
