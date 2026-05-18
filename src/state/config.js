@@ -1,0 +1,341 @@
+import {
+  DEFAULT_HUE_SPREAD_BONUS,
+  HARMONY_REGION_CONTRASTS,
+  HARMONY_RELATIONSHIPS,
+  COSINE_PALETTE_PRESETS,
+  PALETTE_PRESETS
+} from "../constants.js";
+import {
+  clamp,
+  clamp01,
+  normalizeHexColor,
+  normalizeOptionalHexColor,
+  normalizeManualLab,
+  hexToLab,
+  labToHex
+} from "../color-utils.js";
+import { manualCycleKeyForId, uniqueManualSwatchId } from "../manual/ids.js";
+
+export const DEFAULT_COSINE_CUSTOM_VECTORS = {
+  a: [0.58, 0.62, 0.50],
+  b: [0.22, 0.24, 0.50],
+  c: [1.00, 1.00, 1.00],
+  d: [0.00, 0.33, 0.67]
+};
+
+export const COSINE_VECTOR_KEYS = ["a", "b", "c", "d"];
+
+export const DEFAULT_CONFIG = {
+  paletteMode: "generated",
+  presetName: "amigaWorkbench",
+  manualPalette: [
+    {id: "manual-default-1", hex: "#111111", aliasHex: null},
+    {id: "manual-default-2", hex: "#f04a2a", aliasHex: null},
+    {id: "manual-default-3", hex: "#f6d365", aliasHex: null},
+    {id: "manual-default-4", hex: "#2f80ed", aliasHex: null},
+    {id: "manual-default-5", hex: "#eeeeee", aliasHex: null}
+  ],
+  manualMatchAliases: [],
+  paletteRegionRect: null,
+  showPaletteRegion: false,
+  paletteSize: 15,
+  seedSwatch: "#f04a2a",
+  harmonyRelationship: "splitComplement",
+  harmonyRegionContrast: "tonalRamp",
+  cosinePreset: "sinebow",
+  cosineCustomVectors: DEFAULT_COSINE_CUSTOM_VECTORS,
+  deltaL: 30,
+  paletteGamma: 1,
+  gammaC: 1,
+  paletteHue: 0,
+  aliasAllSources: false,
+  cycleOffset: 0,
+  softness: 1,
+  blendK: 2,
+  lumaWeight: 0.75,
+  chromaWeight: 0.5,
+  hueWeight: 0.5,
+  maxDistanceEnabled: false,
+  maxDistance: 30,
+  selectWeights: [0.1, 0, 0],
+  hueSpread: DEFAULT_HUE_SPREAD_BONUS,
+  minDistance: 12,
+  assignMode: "blend",
+  outputMode: "fullReplace",
+  shadowCutoff: 30,
+  highlightCutoff: 70,
+  blendAmount: 1,
+  showPalette: "none",
+  sortMode: "lightness",
+  blockSize: 3,
+  seed: 2,
+  samplingMode: "stratified",
+  CYCLE_MODE: 0,
+  cycleManualKeys: [],
+  cyclePreviewSpeed: 4,
+  ditherPattern: "ordered4",
+  ditherAngle: 45,
+  ditherLumaAmount: 0,
+  ditherScale: 1,
+  generatedAssist: 0,
+  levelsExposure: 0,
+  levelsGamma: 1,
+  levelsShoulder: 2.5,
+  levelsCenter: -1,
+  levelsCurveAmount: 0,
+  clarityAmount: 0,
+  generatedLocks: [],
+  pixelPerfect: false,
+  dynamicSkin: false,
+  pixelBlockSize: 1,
+  pixelBlockSampleMode: "center",
+  despeckleEnabled: false,
+  despeckleStrength: 1,
+  compareEnabled: false,
+  compareSplit: 0.5
+};
+
+export const OUTPUT_MODE = {
+  fullReplace: 0,
+  preserveLuma: 1,
+  preserveChroma: 2,
+  hueWash: 3,
+  shadowHighlight: 4
+};
+
+export const ASSIGN_MODE = {nearest: 0, blend: 1, dither: 2};
+export const DITHER_PATTERN = {
+  ordered2: 0,
+  ordered4: 1,
+  ordered8: 2,
+  hash: 3,
+  lines: 4,
+  halftone: 5,
+  crosshatch: 6,
+  stipple: 7,
+  weave: 8,
+  contour: 9
+};
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+export function cloneDefaultConfig() {
+  return cloneJson(DEFAULT_CONFIG);
+}
+
+export function cloneConfigSnapshot(config) {
+  return cloneJson(config);
+}
+
+export function normalizeManualSwatches(value, legacyAliases = []) {
+  const raw = Array.isArray(value) && value.length ? value.slice(0, 42) : DEFAULT_CONFIG.manualPalette;
+  const aliases = Array.isArray(legacyAliases) ? legacyAliases : [];
+  const used = new Set();
+  const out = [];
+
+  raw.forEach((entry, index) => {
+    const objectEntry = entry && typeof entry === "object" && !Array.isArray(entry);
+    const rawHex = objectEntry ? (entry.hex ?? entry.color ?? entry.value) : entry;
+    const hex = normalizeHexColor(rawHex, "#111111");
+    const fallbackId = `manual-${index + 1}-${hex.slice(1)}`;
+    const id = uniqueManualSwatchId(objectEntry ? (entry.id ?? fallbackId) : fallbackId, used);
+    const aliasCandidate = objectEntry
+      ? (entry.aliasHex ?? entry.matchAliasHex ?? entry.matchAlias ?? entry.alias ?? aliases[index])
+      : aliases[index];
+    const exactLab = objectEntry ? normalizeManualLab(entry.lab ?? entry.sourceLab) : null;
+    const swatch = {
+      id,
+      hex,
+      aliasHex: normalizeOptionalHexColor(aliasCandidate),
+      locked: objectEntry ? !!entry.locked : false
+    };
+    if (exactLab && normalizeHexColor(labToHex(exactLab), "") === hex) {
+      swatch.lab = exactLab;
+      swatch.colorSpace = "oklab-scaled";
+    }
+    out.push(swatch);
+  });
+
+  return out.length ? out : normalizeManualSwatches(DEFAULT_CONFIG.manualPalette, []);
+}
+
+export function normalizeCycleManualKeys(value = [], swatches = []) {
+  const raw = Array.isArray(value) ? value : [];
+  const ids = new Set(swatches.map(swatch => swatch.id));
+  const byLegacyIndex = new Map(swatches.map((swatch, index) => [index, swatch.id]));
+  const seen = new Set();
+  const out = [];
+
+  const pushKey = key => {
+    if (typeof key !== "string" || !key || seen.has(key)) return;
+    seen.add(key);
+    out.push(key);
+  };
+
+  const pushManualId = id => {
+    if (!ids.has(id)) return;
+    pushKey(manualCycleKeyForId(id));
+  };
+
+  for (const value of raw) {
+    if (typeof value !== "string" || !value) continue;
+    if (ids.has(value)) { pushManualId(value); continue; }
+
+    const legacy = value.match(/^manual:manual-(\d+):single:0$/);
+    if (legacy) {
+      const legacyIndex = Number(legacy[1]);
+      if (byLegacyIndex.has(legacyIndex)) pushManualId(byLegacyIndex.get(legacyIndex));
+      continue;
+    }
+
+    const direct = value.match(/^manual:(.+)$/)?.[1];
+    if (direct) {
+      if (ids.has(direct)) pushManualId(direct);
+      continue;
+    }
+
+    // Manual cycle tagging is not limited to manual palettes. Generated-mode
+    // swatches still use their record cycle keys, so preserve those verbatim.
+    pushKey(value);
+  }
+
+  return out.slice(0, 42);
+}
+
+export function normalizePaletteRegionSnapshot(value) {
+  if (!value || typeof value !== "object") return null;
+  const x = Math.max(0, Math.round(Number(value.x) || 0));
+  const y = Math.max(0, Math.round(Number(value.y) || 0));
+  const width = Math.max(1, Math.round(Number(value.width) || 0));
+  const height = Math.max(1, Math.round(Number(value.height) || 0));
+  if (!Number.isFinite(x + y + width + height)) return null;
+  return {x, y, width, height};
+}
+
+function defaultPresetExists(name) {
+  return Object.prototype.hasOwnProperty.call(PALETTE_PRESETS, name);
+}
+
+function finiteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+export function normalizeCosineCustomVectors(value) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return Object.fromEntries(COSINE_VECTOR_KEYS.map(key => {
+    const fallback = DEFAULT_COSINE_CUSTOM_VECTORS[key];
+    const rawVector = Array.isArray(source[key]) ? source[key] : fallback;
+    return [key, [0, 1, 2].map(index => finiteNumber(rawVector[index], fallback[index]))];
+  }));
+}
+
+export function sanitizeConfigSnapshot(raw = {}, options = {}) {
+  const presetExists = typeof options.presetExists === "function" ? options.presetExists : defaultPresetExists;
+  const base = cloneDefaultConfig();
+  const source = raw && typeof raw === "object" ? raw : {};
+  for (const key of Object.keys(base)) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      base[key] = cloneJson(source[key]);
+    }
+  }
+
+  base.paletteMode = ["generated", "generatedReference", "harmony", "cosine", "manual"].includes(base.paletteMode) ? base.paletteMode : DEFAULT_CONFIG.paletteMode;
+  if (!presetExists(base.presetName)) base.presetName = DEFAULT_CONFIG.presetName;
+  base.manualPalette = normalizeManualSwatches(base.manualPalette, base.manualMatchAliases);
+  base.manualMatchAliases = [];
+  base.paletteRegionRect = normalizePaletteRegionSnapshot(base.paletteRegionRect);
+  base.showPaletteRegion = !!base.showPaletteRegion;
+  base.paletteSize = clamp(Math.round(Number(base.paletteSize) || DEFAULT_CONFIG.paletteSize), 3, 42);
+  base.paletteSize = Math.max(3, Math.round(base.paletteSize / 3) * 3);
+  base.seedSwatch = normalizeHexColor(base.seedSwatch, DEFAULT_CONFIG.seedSwatch);
+  base.harmonyRelationship = Object.prototype.hasOwnProperty.call(HARMONY_RELATIONSHIPS, base.harmonyRelationship) ? base.harmonyRelationship : DEFAULT_CONFIG.harmonyRelationship;
+  base.harmonyRegionContrast = Object.prototype.hasOwnProperty.call(HARMONY_REGION_CONTRASTS, base.harmonyRegionContrast) ? base.harmonyRegionContrast : DEFAULT_CONFIG.harmonyRegionContrast;
+  base.cosinePreset = base.cosinePreset === "custom" || Object.prototype.hasOwnProperty.call(COSINE_PALETTE_PRESETS, base.cosinePreset) ? base.cosinePreset : DEFAULT_CONFIG.cosinePreset;
+  base.cosineCustomVectors = normalizeCosineCustomVectors(base.cosineCustomVectors);
+  base.deltaL = clamp(Number(base.deltaL) || DEFAULT_CONFIG.deltaL, 1, 60);
+  {
+    const paletteGamma = Number(base.paletteGamma);
+    const chromaGamma = Number(base.gammaC);
+    const paletteHue = Number(base.paletteHue);
+    base.paletteGamma = clamp(Number.isFinite(paletteGamma) ? paletteGamma : DEFAULT_CONFIG.paletteGamma, 0.2, 4);
+    base.gammaC = clamp(Number.isFinite(chromaGamma) ? chromaGamma : DEFAULT_CONFIG.gammaC, 0.1, 2);
+    base.paletteHue = clamp(Number.isFinite(paletteHue) ? paletteHue : DEFAULT_CONFIG.paletteHue, -180, 180);
+  }
+  base.aliasAllSources = !!base.aliasAllSources;
+  base.cycleOffset = Math.max(0, Math.round(Number(base.cycleOffset) || 0));
+  base.softness = clamp(Number(base.softness) || DEFAULT_CONFIG.softness, 0.5, 4);
+  base.blendK = clamp(Math.round(Number(base.blendK) || DEFAULT_CONFIG.blendK), 1, 5);
+  base.lumaWeight = clamp(Number(base.lumaWeight) || 0, 0, 3);
+  base.chromaWeight = clamp(Number(base.chromaWeight) || 0, 0, 3);
+  base.hueWeight = clamp(Number(base.hueWeight) || 0, 0, 3);
+  base.maxDistanceEnabled = !!base.maxDistanceEnabled;
+  {
+    const maxDistance = Number(base.maxDistance);
+    base.maxDistance = clamp(Number.isFinite(maxDistance) ? maxDistance : DEFAULT_CONFIG.maxDistance, 0, 100);
+  }
+  base.selectWeights = Array.isArray(base.selectWeights)
+    ? [0, 1, 2].map(i => clamp(Number(base.selectWeights[i]) || 0, 0, 1.5))
+    : [...DEFAULT_CONFIG.selectWeights];
+  base.hueSpread = clamp(Number(base.hueSpread ?? DEFAULT_CONFIG.hueSpread) || 0, 0, 0.5);
+  base.minDistance = clamp(Math.round(Number(base.minDistance) || DEFAULT_CONFIG.minDistance), 1, 30);
+  base.assignMode = Object.prototype.hasOwnProperty.call(ASSIGN_MODE, base.assignMode) ? base.assignMode : DEFAULT_CONFIG.assignMode;
+  base.outputMode = Object.prototype.hasOwnProperty.call(OUTPUT_MODE, base.outputMode) ? base.outputMode : DEFAULT_CONFIG.outputMode;
+  base.shadowCutoff = clamp(Number(base.shadowCutoff) || DEFAULT_CONFIG.shadowCutoff, 0, 100);
+  base.highlightCutoff = clamp(Number(base.highlightCutoff) || DEFAULT_CONFIG.highlightCutoff, 0, 100);
+  base.blendAmount = clamp(Number(base.blendAmount) || 0, 0, 1);
+  base.sortMode = ["lightness", "variantBands", "hueFamilies", "labWalk"].includes(base.sortMode) ? base.sortMode : DEFAULT_CONFIG.sortMode;
+  base.blockSize = clamp(Math.round(Number(base.blockSize) || DEFAULT_CONFIG.blockSize), 1, 5);
+  base.seed = clamp(Math.round(Number(base.seed) || DEFAULT_CONFIG.seed), 1, 500);
+  base.samplingMode = ["random", "stratified"].includes(base.samplingMode) ? base.samplingMode : DEFAULT_CONFIG.samplingMode;
+  if (base.CYCLE_MODE === "manual") {
+    base.CYCLE_MODE = "manual";
+  } else {
+    const cycleMode = Number(base.CYCLE_MODE);
+    base.CYCLE_MODE = [0, 1, 2, 3, 4].includes(cycleMode) ? cycleMode : DEFAULT_CONFIG.CYCLE_MODE;
+  }
+  base.cycleManualKeys = normalizeCycleManualKeys(base.cycleManualKeys, base.manualPalette);
+  base.cyclePreviewSpeed = clamp(Number(base.cyclePreviewSpeed) || DEFAULT_CONFIG.cyclePreviewSpeed, 0.5, 12);
+  base.ditherPattern = Object.prototype.hasOwnProperty.call(DITHER_PATTERN, base.ditherPattern) ? base.ditherPattern : DEFAULT_CONFIG.ditherPattern;
+  base.ditherAngle = clamp(Number(base.ditherAngle) || 0, -180, 180);
+  base.ditherLumaAmount = clamp(Number(base.ditherLumaAmount) || 0, 0, 1);
+  base.ditherScale = clamp(Math.round(Number(base.ditherScale) || DEFAULT_CONFIG.ditherScale), 1, 12);
+  base.generatedAssist = clamp(Math.round(Number(base.generatedAssist) || 0), 0, 100);
+  {
+    const exposure = Number(base.levelsExposure);
+    const gamma = Number(base.levelsGamma);
+    const shoulder = Number(base.levelsShoulder);
+    const center = Number(base.levelsCenter);
+    const curveAmount = Number(base.levelsCurveAmount);
+    const clarityAmount = Number(base.clarityAmount);
+    base.levelsExposure = clamp(Number.isFinite(exposure) ? exposure : DEFAULT_CONFIG.levelsExposure, -4, 4);
+    base.levelsGamma = clamp(Number.isFinite(gamma) ? gamma : DEFAULT_CONFIG.levelsGamma, 0.2, 4);
+    base.levelsShoulder = clamp(Number.isFinite(shoulder) ? shoulder : DEFAULT_CONFIG.levelsShoulder, 0.1, 16);
+    base.levelsCenter = clamp(Number.isFinite(center) ? center : DEFAULT_CONFIG.levelsCenter, -8, 0);
+    base.levelsCurveAmount = clamp(Number.isFinite(curveAmount) ? curveAmount : DEFAULT_CONFIG.levelsCurveAmount, 0, 1);
+    base.clarityAmount = clamp(Number.isFinite(clarityAmount) ? clarityAmount : DEFAULT_CONFIG.clarityAmount, 0, 1);
+  }
+  base.generatedLocks = Array.isArray(base.generatedLocks) ? base.generatedLocks.slice(0, 42).map((entry, index) => {
+    const hex = normalizeHexColor(entry?.hex, "#111111");
+    const lab = entry?.colorSpace === "oklab-scaled" && Array.isArray(entry?.lab) && entry.lab.length >= 3
+      ? entry.lab.slice(0, 3).map(Number)
+      : hexToLab(hex);
+    return {
+      id: String(entry?.id || `lock-imported-${index}`),
+      hex,
+      lab,
+      colorSpace: "oklab-scaled"
+    };
+  }) : [];
+  base.pixelPerfect = !!base.pixelPerfect;
+  base.dynamicSkin = !!base.dynamicSkin;
+  base.pixelBlockSize = clamp(Math.round(Number(base.pixelBlockSize) || DEFAULT_CONFIG.pixelBlockSize), 1, 16);
+  base.pixelBlockSampleMode = ["center", "mean", "representative"].includes(base.pixelBlockSampleMode) ? base.pixelBlockSampleMode : DEFAULT_CONFIG.pixelBlockSampleMode;
+  base.despeckleEnabled = !!base.despeckleEnabled;
+  base.despeckleStrength = clamp(Math.round(Number(base.despeckleStrength) || DEFAULT_CONFIG.despeckleStrength), 1, 4);
+  base.compareEnabled = !!base.compareEnabled;
+  base.compareSplit = clamp01(Number.isFinite(Number(base.compareSplit)) ? Number(base.compareSplit) : DEFAULT_CONFIG.compareSplit);
+  return base;
+}

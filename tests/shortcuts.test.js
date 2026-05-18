@@ -1,0 +1,307 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createShortcutDispatcher, shouldIgnoreShortcut } from "../src/ui/shortcuts.js";
+
+function makeElement(overrides = {}) {
+  return {
+    value: "",
+    checked: false,
+    title: "",
+    type: "range",
+    min: "1",
+    max: "500",
+    classList: {toggle() {}},
+    setAttribute(name, value) {
+      this[name] = value;
+    },
+    closest() { return null; },
+    ...overrides
+  };
+}
+
+function makeRoot(elements = {}) {
+  let keydown = null;
+  return {
+    elements,
+    body: {append() {}},
+    createElement() {
+      return makeElement({innerHTML: "", showModal() { this.open = true; }, close() { this.open = false; }});
+    },
+    getElementById(id) {
+      return elements[id] || null;
+    },
+    addEventListener(type, listener) {
+      if (type === "keydown") keydown = listener;
+    },
+    removeEventListener(type, listener) {
+      if (type === "keydown" && keydown === listener) keydown = null;
+    },
+    dispatch(event) {
+      keydown?.(event);
+    }
+  };
+}
+
+function keyEvent(key, options = {}) {
+  let prevented = false;
+  return {
+    key,
+    shiftKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    defaultPrevented: false,
+    target: {closest: () => null},
+    preventDefault() { prevented = true; },
+    get prevented() { return prevented; },
+    ...options
+  };
+}
+
+test("shortcut dispatcher nudges seed and blocks editing controls", () => {
+  const root = makeRoot({
+    seed: makeElement({value: "2", min: "1", max: "500"}),
+    seedValue: makeElement({textContent: "2"})
+  });
+  const dirty = [];
+  let renders = 0;
+  const config = {seed: 2};
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    els: {seed: root.elements.seed},
+    withHistory: (_label, mutator) => mutator(),
+    setOutputText: (_key, out, value) => { if (out) out.textContent = String(value); },
+    handleControlDirty: key => dirty.push(key),
+    queueRender: () => { renders += 1; }
+  });
+
+  const next = keyEvent("ArrowRight");
+  dispatcher.handleKeydown(next);
+  assert.equal(next.prevented, true);
+  assert.equal(config.seed, 3);
+  assert.equal(root.elements.seed.value, 3);
+  assert.equal(root.elements.seedValue.textContent, "3");
+  assert.deepEqual(dirty, ["seed"]);
+  assert.equal(renders, 1);
+
+  const inputTarget = {closest: selector => selector.includes("input") ? {} : null};
+  const blocked = keyEvent("ArrowRight", {target: inputTarget});
+  dispatcher.handleKeydown(blocked);
+  assert.equal(blocked.prevented, false);
+  assert.equal(config.seed, 3);
+});
+
+test("shortcut dispatcher keeps bracket keys on cycle offset and arrows on seed", () => {
+  const root = makeRoot({
+    seed: makeElement({value: "2", min: "1", max: "500"}),
+    seedValue: makeElement({textContent: "2"}),
+    cycleOffset: makeElement({value: "0"}),
+    cycleOffsetValue: makeElement({textContent: "0"})
+  });
+  const dirty = [];
+  const statuses = [];
+  const switchedPresets = [];
+  const config = {seed: 2, cycleOffset: 0};
+  const state = {paletteRecords: [{}, {}, {}, {}]};
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    state,
+    els: {seed: root.elements.seed, cycleOffset: root.elements.cycleOffset},
+    withHistory: (_label, mutator) => mutator(),
+    setOutputText: (_key, out, value) => { if (out) out.textContent = String(value); },
+    handleControlDirty: key => dirty.push(key),
+    normalizedCycleOffset: value => ((value % 4) + 4) % 4,
+    syncCycleControls: () => {},
+    switchPalettePreset: delta => { switchedPresets.push(delta); return true; },
+    queueRender: () => {},
+    setStatus: value => statuses.push(value)
+  });
+
+  const cycleNext = keyEvent("]");
+  dispatcher.handleKeydown(cycleNext);
+  assert.equal(cycleNext.prevented, true);
+  assert.equal(config.cycleOffset, 1);
+  assert.equal(config.seed, 2);
+
+  const presetNext = keyEvent(".");
+  dispatcher.handleKeydown(presetNext);
+  assert.equal(presetNext.prevented, true);
+  assert.deepEqual(switchedPresets, [1]);
+
+  const seedNext = keyEvent("ArrowRight");
+  dispatcher.handleKeydown(seedNext);
+  assert.equal(seedNext.prevented, true);
+  assert.equal(config.seed, 3);
+  assert.equal(config.cycleOffset, 1);
+});
+
+
+test("shortcut dispatcher toggles inspector and gives its keys precedence while open", () => {
+  const root = makeRoot({
+    seed: makeElement({value: "2", min: "1", max: "500"}),
+    seedValue: makeElement({textContent: "2"})
+  });
+  const calls = [];
+  const config = {seed: 2, pixelBlockSize: 4};
+  const state = {diagnostics: {pixel: {sourceHex: "#111111", finalHex: "#222222"}}};
+  let inspectorOpen = false;
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    state,
+    els: {seed: root.elements.seed},
+    withHistory: (_label, mutator) => mutator(),
+    setOutputText: (_key, out, value) => { if (out) out.textContent = String(value); },
+    handleControlDirty: key => calls.push(["dirty", key]),
+    queueRender: () => calls.push(["render"]),
+    togglePixelInspector: () => { inspectorOpen = !inspectorOpen; calls.push(["toggleInspector"]); },
+    pixelInspectorPanelIsOpen: () => inspectorOpen,
+    nudgeDiagnosticPixel: (dx, dy, options) => calls.push(["nudgePixel", dx, dy, options.step]),
+    copyPixelHex: hex => calls.push(["copy", hex]),
+    addPixelSourceToManualPalette: () => calls.push(["addSource"])
+  });
+
+  const toggle = keyEvent("i");
+  dispatcher.handleKeydown(toggle);
+  assert.equal(toggle.prevented, true);
+  assert.equal(inspectorOpen, true);
+
+  dispatcher.handleKeydown(keyEvent("ArrowRight", {shiftKey: true}));
+  dispatcher.handleKeydown(keyEvent("s"));
+  dispatcher.handleKeydown(keyEvent("f"));
+  dispatcher.handleKeydown(keyEvent("a"));
+
+  assert.equal(config.seed, 2);
+  assert.deepEqual(calls, [
+    ["toggleInspector"],
+    ["nudgePixel", 1, 0, 4],
+    ["copy", "#111111"],
+    ["copy", "#222222"],
+    ["addSource"]
+  ]);
+});
+
+
+test("shortcut dispatcher routes requested app actions", () => {
+  const root = makeRoot({
+    paletteMode: makeElement({type: "select", value: "generated"}),
+    pixelPerfectToggle: makeElement({type: "checkbox"})
+  });
+  const calls = [];
+  const config = {paletteMode: "generated", pixelPerfect: false, compareEnabled: false};
+  const state = {diagnostics: {overlay: {mode: "none"}}, paletteRecords: []};
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    state,
+    els: {canvas: makeElement(), pixelPerfectToggle: root.elements.pixelPerfectToggle},
+    withHistory: (label, mutator) => { calls.push(["history", label]); return mutator(); },
+    setOutputText: () => {},
+    handleControlDirty: key => calls.push(["dirty", key]),
+    updateConditionalPanels: () => calls.push(["conditional"]),
+    setCompareEnabled: value => { config.compareEnabled = value; calls.push(["compare", value]); },
+    markTextureDirty: () => calls.push(["texture"]),
+    queueRender: () => calls.push(["render"]),
+    captureCurrentPaletteToManual: strategy => calls.push(["capture", strategy]),
+    exportPalette: () => calls.push(["exportPalette"]),
+    downloadFullImage: () => calls.push(["fullImage"]),
+    setDiagnosticOverlay: next => { state.diagnostics.overlay = next; calls.push(["overlay", next.mode]); },
+    updateDiagnostics: () => calls.push(["diagnostics"])
+  });
+
+  dispatcher.handleKeydown(keyEvent("c"));
+  dispatcher.handleKeydown(keyEvent("p"));
+  dispatcher.handleKeydown(keyEvent("m"));
+  dispatcher.handleKeydown(keyEvent("M", {shiftKey: true}));
+  dispatcher.handleKeydown(keyEvent("x"));
+  dispatcher.handleKeydown(keyEvent("X", {shiftKey: true}));
+  dispatcher.handleKeydown(keyEvent("h"));
+
+  assert.equal(config.compareEnabled, true);
+  assert.equal(config.pixelPerfect, true);
+  assert.equal(config.paletteMode, "manual");
+  assert.deepEqual(calls.filter(call => call[0] === "capture"), [["capture", "replace"]]);
+  assert.deepEqual(calls.filter(call => call[0] === "exportPalette"), [["exportPalette"]]);
+  assert.deepEqual(calls.filter(call => call[0] === "fullImage"), [["fullImage"]]);
+  assert.deepEqual(state.diagnostics.overlay, {mode: "difference"});
+});
+
+test("shortcut dispatcher opens toolbar panels by number chord", () => {
+  const calls = [];
+  const toolPane = makeElement({
+    dispatchEvent(event) {
+      calls.push([event.type, event.detail?.panelKey]);
+      event.preventDefault?.();
+      return false;
+    }
+  });
+  const statuses = [];
+  const root = makeRoot({toolPane});
+  const dispatcher = createShortcutDispatcher({
+    root,
+    setStatus: value => statuses.push(value)
+  });
+
+  const palette = keyEvent("1", {code: "Digit1"});
+  dispatcher.handleKeydown(palette);
+  assert.equal(palette.prevented, true);
+
+  const mask = keyEvent("@", {shiftKey: true, code: "Digit2"});
+  dispatcher.handleKeydown(mask);
+  assert.equal(mask.prevented, true);
+
+  assert.deepEqual(calls, [
+    ["palette-synth:focus-panel", "palette"],
+    ["palette-synth:focus-panel", "mask"]
+  ]);
+  assert.deepEqual(statuses, ["Palette panel focused.", "Mask panel focused."]);
+});
+
+
+test("shift-minus collapses toolbar panels through the collapse-all control", () => {
+  let clicks = 0;
+  const collapseAllPanelsButton = makeElement({
+    click() { clicks += 1; }
+  });
+  const statuses = [];
+  const root = makeRoot({collapseAllPanelsButton});
+  const dispatcher = createShortcutDispatcher({
+    root,
+    setStatus: value => statuses.push(value)
+  });
+
+  const event = keyEvent("_", {shiftKey: true, code: "Minus"});
+  dispatcher.handleKeydown(event);
+
+  assert.equal(event.prevented, true);
+  assert.equal(clicks, 1);
+  assert.deepEqual(statuses, ["Toolbar panels collapsed."]);
+});
+
+test("escape blurs focused controls before shortcut blocking", () => {
+  let blurred = false;
+  const input = makeElement({
+    type: "text",
+    blur() { blurred = true; },
+    closest(selector) {
+      if (selector === "dialog[open]") return null;
+      return selector.includes("input") ? this : null;
+    }
+  });
+  const root = makeRoot();
+  const dispatcher = createShortcutDispatcher({root});
+
+  const escape = keyEvent("Escape", {target: input});
+  dispatcher.handleKeydown(escape);
+
+  assert.equal(escape.prevented, true);
+  assert.equal(blurred, true);
+});
+
+test("shouldIgnoreShortcut blocks modifier chords and editable targets", () => {
+  assert.equal(shouldIgnoreShortcut(keyEvent("o", {ctrlKey: true})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("o", {target: {closest: () => ({})}})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("o")), false);
+});
