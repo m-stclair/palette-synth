@@ -27,7 +27,7 @@ export function createImageController({
   pushHistorySnapshot = () => {},
   ensureLevelAdjustedSources = () => {},
   resetPaletteRegion = () => {},
-  resetCycleMask = () => {},
+  resetMask = () => {},
   resetView = () => {},
   markEverythingDirty = () => {},
   markPaletteDirty = () => {},
@@ -83,7 +83,7 @@ export function createImageController({
     ensureLevelAdjustedSources();
 
     resetPaletteRegion({announce: false, dirty: false});
-    resetCycleMask({announce: false, resize: true, keepEnabled: false});
+    resetMask({announce: false, resize: true, keepEnabled: false});
     resetView(false);
     markEverythingDirty();
     setStatus(`${name}: ${width}×${height}`);

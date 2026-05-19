@@ -319,7 +319,7 @@ test("renderPaletteProgram keeps cycle-within mask active for manual cycle tags"
   assert.equal(renderCall[1].manualCycleEnabled, true);
   assert.equal(renderCall[1].cycleOffset, 0);
   assert.equal(renderCall[1].paletteBaseBlock, paletteBaseBlock);
-  assert.ok(renderCall[1].maskTexture, "manual cycle mask should still be uploaded and bound");
+  assert.ok(renderCall[1].maskTexture, "manual mask should still be uploaded and bound");
 });
 
 test("draw runs the post-process pipeline when enabled and overlay is off", () => {

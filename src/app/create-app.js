@@ -17,7 +17,7 @@ import { createDiagnosticMetrics } from "../diagnostics/metrics.js";
 import { createDiagnosticsPanel } from "../ui/diagnostics-panel.js";
 import { createCompareSplitController } from "../ui/compare-split.js";
 import { createPaletteRegionController } from "../ui/palette-region.js";
-import { createCycleMaskController } from "../ui/cycle-mask.js";
+import { createMaskController } from "../ui/cycle-mask.js";
 import { createViewportController } from "../ui/viewport.js";
 import { createRenderSession } from "../runtime/render-session.js";
 import { createPaletteRuntime } from "../palette/runtime.js";
@@ -79,13 +79,13 @@ export function createPaletteSynthApp({
     getSnapshot: cloneConfigSnapshot,
     applySnapshot: replaceConfigSnapshot,
     setStatus,
-    shouldCancelShortcut: () => state.paletteRegion.enabled || state.paletteRegion.dragging || ((state.mask || state.cycleMask)?.paintMode || "off") !== "off" || !!(state.mask || state.cycleMask)?.dragging,
+    shouldCancelShortcut: () => state.paletteRegion.enabled || state.paletteRegion.dragging || (state.mask?.paintMode || "off") !== "off" || !!state.mask?.dragging,
     cancelShortcut: () => {
-      if (((state.mask || state.cycleMask)?.paintMode || "off") !== "off" || (state.mask || state.cycleMask)?.dragging) {
-        (state.mask || state.cycleMask).paintMode = "off";
-        (state.mask || state.cycleMask).dragging = false;
-        cycleMaskController?.syncCycleMaskUi?.();
-        cycleMaskController?.updateCycleMaskOverlay?.();
+      if ((state.mask?.paintMode || "off") !== "off" || state.mask?.dragging) {
+        state.mask.paintMode = "off";
+        state.mask.dragging = false;
+        maskController?.syncMaskUi?.();
+        maskController?.updateMaskOverlay?.();
         setStatus("Mask painting off.");
         return;
       }
@@ -423,7 +423,7 @@ export function createPaletteSynthApp({
   } = compareSplitController;
 
   let paletteRegionController;
-  let cycleMaskController;
+  let maskController;
   function cancelPaletteRegionDrag(options) {
     return paletteRegionController.cancelPaletteRegionDrag(options);
   }
@@ -451,7 +451,7 @@ export function createPaletteSynthApp({
     togglePaletteRegionSelection
   } = paletteRegionController;
 
-  cycleMaskController = createCycleMaskController({
+  maskController = createMaskController({
     els,
     state,
     getCanvasRenderSize,
@@ -464,11 +464,11 @@ export function createPaletteSynthApp({
     setStatus
   });
   const {
-    bindCycleMaskControls,
-    resetCycleMask,
-    syncCycleMaskUi,
-    updateCycleMaskOverlay
-  } = cycleMaskController;
+    bindMaskControls,
+    resetMask,
+    syncMaskUi,
+    updateMaskOverlay
+  } = maskController;
 
   let renderSessionController;
   function markTextureDirty(options) {
@@ -536,8 +536,8 @@ export function createPaletteSynthApp({
     postProcessFragmentSource: PALETTE_POST_FRAGMENT_SHADER,
     viewCompositeFragmentSource: VIEW_COMPOSITE_FRAGMENT_SHADER,
     updatePaletteRegionOverlay,
-    updateCycleMaskOverlay,
-    syncCycleMaskUi,
+    updateMaskOverlay,
+    syncMaskUi,
     updateDiagnostics
   });
 
@@ -611,7 +611,7 @@ export function createPaletteSynthApp({
     pushHistorySnapshot,
     ensureLevelAdjustedSources,
     resetPaletteRegion,
-    resetCycleMask,
+    resetMask,
     resetView,
     markEverythingDirty,
     markPaletteDirty,
@@ -823,13 +823,13 @@ export function createPaletteSynthApp({
     exportAnimationGif,
     updateReferenceImageStatus,
     updatePaletteRegionUi,
-    bindCycleMaskControls,
-    syncCycleMaskUi,
+    bindMaskControls,
+    syncMaskUi,
     renderManualSwatches,
     viewportController,
     compareSplitController,
     paletteRegionController,
-    cycleMaskController,
+    maskController,
     diagnosticsPanelIsOpen,
     pixelInspectorPanelIsOpen,
     setInspectorTab,

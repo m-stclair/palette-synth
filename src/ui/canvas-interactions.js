@@ -4,7 +4,7 @@ export function bindCanvasInteractions({
   viewport,
   compareSplit,
   paletteRegion,
-  cycleMask,
+  mask,
   diagnosticsPanelIsOpen = () => false,
   pixelInspectorPanelIsOpen = diagnosticsPanelIsOpen,
   inspectDiagnosticPixel
@@ -17,7 +17,7 @@ export function bindCanvasInteractions({
   canvas.addEventListener("pointerdown", event => {
     if (event.button !== 0) return;
     if (state.paletteRegion.enabled && paletteRegion.beginPaletteRegionDrag(event)) return;
-    if (cycleMask?.beginCycleMaskPaint?.(event)) return;
+    if (mask?.beginMaskPaint?.(event)) return;
 
     state.view.pointerId = event.pointerId;
     state.view.lastClientX = event.clientX;
@@ -43,7 +43,7 @@ export function bindCanvasInteractions({
       state.view.movedForClick = true;
     }
     if (paletteRegion.updatePaletteRegionDrag(event)) return;
-    if (cycleMask?.updateCycleMaskPaint?.(event)) return;
+    if (mask?.updateMaskPaint?.(event)) return;
 
     if (state.view.compareDragging && event.pointerId === state.view.pointerId) {
       compareSplit.setCompareSplit(compareSplit.pointerCompareSplit(event.clientX));
@@ -67,7 +67,7 @@ export function bindCanvasInteractions({
   });
 
   const endPointerAction = event => {
-    if (cycleMask?.finishCycleMaskPaint?.(event)) return;
+    if (mask?.finishMaskPaint?.(event)) return;
     if (paletteRegion.finishPaletteRegionDrag(event)) return;
     if (event && state.view.pointerId !== null && event.pointerId !== state.view.pointerId) return;
     state.view.dragging = false;
@@ -77,7 +77,7 @@ export function bindCanvasInteractions({
   };
 
   const cancelPointerAction = event => {
-    if (cycleMask?.cancelCycleMaskPaint?.(event)) return;
+    if (mask?.cancelMaskPaint?.(event)) return;
     if (state.paletteRegion.dragging) {
       paletteRegion.cancelPaletteRegionDrag({announce: false});
       return;
@@ -90,13 +90,13 @@ export function bindCanvasInteractions({
   canvas.addEventListener("lostpointercapture", cancelPointerAction);
 
   canvas.addEventListener("click", event => {
-    if (state.paletteRegion.enabled || state.paletteRegion.dragging || ((state.mask || state.cycleMask)?.paintMode || "off") !== "off" || state.view.movedForClick) return;
+    if (state.paletteRegion.enabled || state.paletteRegion.dragging || (state.mask?.paintMode || "off") !== "off" || state.view.movedForClick) return;
     if (!pixelInspectorPanelIsOpen()) return;
     inspectDiagnosticPixel(event.clientX, event.clientY);
   });
 
   canvas.addEventListener("dblclick", event => {
-    if (state.paletteRegion.enabled || ((state.mask || state.cycleMask)?.paintMode || "off") !== "off") {
+    if (state.paletteRegion.enabled || (state.mask?.paintMode || "off") !== "off") {
       event.preventDefault();
       return;
     }

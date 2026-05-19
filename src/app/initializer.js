@@ -47,13 +47,13 @@ export function createAppInitializer({
   exportAnimationGif,
   updateReferenceImageStatus,
   updatePaletteRegionUi,
-  bindCycleMaskControls,
-  syncCycleMaskUi,
+  bindMaskControls,
+  syncMaskUi,
   renderManualSwatches,
   viewportController,
   compareSplitController,
   paletteRegionController,
-  cycleMaskController,
+  maskController,
   diagnosticsPanelIsOpen,
   pixelInspectorPanelIsOpen,
   setInspectorTab,
@@ -166,11 +166,11 @@ export function createAppInitializer({
     updateConditionalPanels();
     updateReferenceImageStatus();
     updatePaletteRegionUi();
-    syncCycleMaskUi?.();
+    syncMaskUi?.();
     renderManualSwatches();
     els.canvas.classList.toggle("pixel-perfect", config.pixelPerfect);
 
-    bindCycleMaskControls?.();
+    bindMaskControls?.();
 
     bindFloatingPixelInspector({
       els,
@@ -191,7 +191,7 @@ export function createAppInitializer({
       viewport: viewportController,
       compareSplit: compareSplitController,
       paletteRegion: paletteRegionController,
-      cycleMask: cycleMaskController,
+      mask: maskController,
       diagnosticsPanelIsOpen,
       pixelInspectorPanelIsOpen,
       inspectDiagnosticPixel

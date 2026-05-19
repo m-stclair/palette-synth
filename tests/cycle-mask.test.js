@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCycleMaskController } from "../src/ui/cycle-mask.js";
+import { createMaskController, maskForbiddenSourceFlags, MASK_BEHAVIOR_FORBID_COLORS } from "../src/ui/cycle-mask.js";
 
 function classList() {
   const classes = new Set();
@@ -115,7 +115,7 @@ function fakeInput(value = "") {
   };
 }
 
-test("cycle mask overlay becomes the active paint target while painting", () => {
+test("mask overlay becomes the active paint target while painting", () => {
   const createdCanvases = [];
   const doc = {
     createElement(name) {
@@ -139,7 +139,7 @@ test("cycle mask overlay becomes the active paint target while painting", () => 
     imageData: {width: 100, height: 80},
     gl: {canvas: {width: 200, height: 160}},
     view: {centerX: 0.5, centerY: 0.5},
-    cycleMask: {
+    mask: {
       enabled: false,
       paintMode: "off",
       showOverlay: true,
@@ -157,18 +157,18 @@ test("cycle mask overlay becomes the active paint target while painting", () => 
 
   const els = {
     canvas: previewCanvas,
-    cycleMaskOverlay: overlay,
-    cycleMaskEnabled: fakeInput(),
-    cycleMaskPaint: fakeButton(),
-    cycleMaskShow: fakeInput(),
-    cycleMaskErase: fakeButton(),
-    cycleMaskClear: fakeButton(),
-    cycleMaskBrushSize: fakeInput("24"),
-    cycleMaskBrushSizeValue: {textContent: ""},
-    cycleMaskNote: {textContent: ""}
+    maskOverlay: overlay,
+    maskEnabled: fakeInput(),
+    maskPaint: fakeButton(),
+    maskShow: fakeInput(),
+    maskErase: fakeButton(),
+    maskClear: fakeButton(),
+    maskBrushSize: fakeInput("24"),
+    maskBrushSizeValue: {textContent: ""},
+    maskNote: {textContent: ""}
   };
 
-  const controller = createCycleMaskController({
+  const controller = createMaskController({
     els,
     state,
     getCanvasRenderSize: () => ({width: 200, height: 160, dpr: 1}),
@@ -181,11 +181,11 @@ test("cycle mask overlay becomes the active paint target while painting", () => 
     setStatus: message => statuses.push(message)
   });
 
-  controller.bindCycleMaskControls();
-  els.cycleMaskPaint.click();
+  controller.bindMaskControls();
+  els.maskPaint.click();
 
-  assert.equal(state.cycleMask.paintMode, "paint");
-  assert.equal(state.cycleMask.enabled, true);
+  assert.equal(state.mask.paintMode, "paint");
+  assert.equal(state.mask.enabled, true);
   assert.equal(overlay.hidden, false);
   assert.equal(overlay.classList.contains("is-painting-mask"), true);
   assert.equal(previewCanvas.classList.contains("is-painting-mask"), true);
@@ -193,26 +193,26 @@ test("cycle mask overlay becomes the active paint target while painting", () => 
 
   const down = overlay.dispatch("pointerdown", {button: 0, pointerId: 9, clientX: 20, clientY: 30});
   assert.equal(down.defaultPrevented, true);
-  assert.equal(state.cycleMask.dragging, true);
-  assert.equal(state.cycleMask.pointerId, 9);
-  assert.equal(state.cycleMask.hasPaint, true);
+  assert.equal(state.mask.dragging, true);
+  assert.equal(state.mask.pointerId, 9);
+  assert.equal(state.mask.hasPaint, true);
   assert.deepEqual(overlay.captured, [9]);
 
   const move = overlay.dispatch("pointermove", {pointerId: 9, clientX: 40, clientY: 50});
   assert.equal(move.defaultPrevented, true);
-  assert.equal(state.cycleMask.canvas._ctx.calls.some(call => call[0] === "stroke"), true);
+  assert.equal(state.mask.canvas._ctx.calls.some(call => call[0] === "stroke"), true);
 
   const up = overlay.dispatch("pointerup", {pointerId: 9});
   assert.equal(up.defaultPrevented, true);
-  assert.equal(state.cycleMask.dragging, false);
-  assert.equal(state.cycleMask.pointerId, null);
+  assert.equal(state.mask.dragging, false);
+  assert.equal(state.mask.pointerId, null);
   assert.equal(queued > 0, true);
   assert.equal(dirty > 0, true);
-  assert.equal(statuses.at(-1), "Paint the mask on the preview.");
+  assert.equal(statuses.at(-1), "Painting mask.");
 });
 
 
-test("cycle mask can hide its visible overlay while keeping the mask active", () => {
+test("mask can hide its visible overlay while keeping the mask active", () => {
   const doc = {
     createElement(name) {
       assert.equal(name, "canvas");
@@ -232,7 +232,7 @@ test("cycle mask can hide its visible overlay while keeping the mask active", ()
     imageData: {width: 100, height: 80},
     gl: {canvas: {width: 200, height: 160}},
     view: {centerX: 0.5, centerY: 0.5},
-    cycleMask: {
+    mask: {
       enabled: true,
       paintMode: "off",
       showOverlay: true,
@@ -250,18 +250,18 @@ test("cycle mask can hide its visible overlay while keeping the mask active", ()
 
   const els = {
     canvas: previewCanvas,
-    cycleMaskOverlay: overlay,
-    cycleMaskEnabled: fakeInput(),
-    cycleMaskPaint: fakeButton(),
-    cycleMaskShow: fakeInput(),
-    cycleMaskErase: fakeButton(),
-    cycleMaskClear: fakeButton(),
-    cycleMaskBrushSize: fakeInput("24"),
-    cycleMaskBrushSizeValue: {textContent: ""},
-    cycleMaskNote: {textContent: ""}
+    maskOverlay: overlay,
+    maskEnabled: fakeInput(),
+    maskPaint: fakeButton(),
+    maskShow: fakeInput(),
+    maskErase: fakeButton(),
+    maskClear: fakeButton(),
+    maskBrushSize: fakeInput("24"),
+    maskBrushSizeValue: {textContent: ""},
+    maskNote: {textContent: ""}
   };
 
-  const controller = createCycleMaskController({
+  const controller = createMaskController({
     els,
     state,
     getCanvasRenderSize: () => ({width: 200, height: 160, dpr: 1}),
@@ -272,24 +272,39 @@ test("cycle mask can hide its visible overlay while keeping the mask active", ()
     setStatus: message => statuses.push(message)
   });
 
-  controller.bindCycleMaskControls();
+  controller.bindMaskControls();
   controller.ensureMaskCanvas();
-  state.cycleMask.hasPaint = true;
-  controller.updateCycleMaskOverlay();
+  state.mask.hasPaint = true;
+  controller.updateMaskOverlay();
 
   assert.equal(overlay.hidden, false);
-  assert.equal(els.cycleMaskShow.checked, true);
+  assert.equal(els.maskShow.checked, true);
 
-  els.cycleMaskShow.checked = false;
-  els.cycleMaskShow.dispatch("change");
+  els.maskShow.checked = false;
+  els.maskShow.dispatch("change");
 
-  assert.equal(state.cycleMask.enabled, true);
-  assert.equal(state.cycleMask.showOverlay, false);
+  assert.equal(state.mask.enabled, true);
+  assert.equal(state.mask.showOverlay, false);
   assert.equal(overlay.hidden, true);
   assert.equal(statuses.at(-1), "Mask overlay hidden.");
 
-  state.cycleMask.paintMode = "paint";
-  controller.updateCycleMaskOverlay();
+  state.mask.paintMode = "paint";
+  controller.updateMaskOverlay();
 
-  assert.equal(overlay.hidden, false);
+  assert.equal(overlay.hidden, true);
+});
+
+
+test("mask forbidden source flags normalize duplicates and invalid source indices", () => {
+  const flags = maskForbiddenSourceFlags({
+    behavior: MASK_BEHAVIOR_FORBID_COLORS,
+    forbiddenSourceIndices: [4, 2, 4, -1, "bad", 999, 2]
+  });
+
+  assert.equal(flags[2], 1);
+  assert.equal(flags[4], 1);
+  assert.equal(flags[0], 0);
+  assert.equal(flags[1], 0);
+  assert.equal(flags[3], 0);
+  assert.equal([...flags].filter(Boolean).length, 2);
 });

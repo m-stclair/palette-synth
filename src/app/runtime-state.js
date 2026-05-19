@@ -68,7 +68,6 @@ export function createRuntimeState({document: doc = globalThis.document, maxImag
       draftRect: null
     },
     mask,
-    cycleMask: mask,
     paletteRecords: [],
     palette: [],
     paletteBlock: null,

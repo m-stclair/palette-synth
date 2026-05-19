@@ -1,5 +1,5 @@
 import { MAX_PALETTE_SIZE } from "../constants.js";
-import { MASK_BEHAVIOR_CYCLE_WITHIN, MASK_BEHAVIOR_FORBID_COLORS, maskBehaviorCode, maskForbiddenSourceFlags } from "../ui/cycle-mask.js";
+import { maskBehaviorCode, maskForbiddenSourceFlags } from "../ui/cycle-mask.js";
 import { paletteLabs } from "../color-utils.js";
 import { createWebgl2Context, clearFramebuffer } from "../gl/context.js";
 import { disposeCachedProgram } from "../gl/programs.js";
@@ -112,8 +112,7 @@ export function createRenderedCanvasController({
 
     const texture = createTextureFn(gl);
     uploadCanvasTextureFn(gl, texture, state.sourceCanvas, {pixelPerfect: config.pixelPerfect});
-    const mask = state.mask || state.cycleMask || {};
-    const behavior = mask.behavior === MASK_BEHAVIOR_FORBID_COLORS ? MASK_BEHAVIOR_FORBID_COLORS : MASK_BEHAVIOR_CYCLE_WITHIN;
+    const mask = state.mask || {};
     const maskEnabled = !!(mask.enabled && mask.canvas?.width && mask.canvas?.height);
     const maskTexture = maskEnabled ? createTextureFn(gl) : null;
     const maskBehavior = maskBehaviorCode(mask);

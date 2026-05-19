@@ -192,10 +192,10 @@ test("canvas interactions suppress double-click reset while selecting a palette 
 });
 
 
-test("canvas interactions let cycle mask painting own pointer events before pan", () => {
+test("canvas interactions let mask painting own pointer events before pan", () => {
   const canvas = fakeCanvas();
   const state = makeState();
-  state.cycleMask = {paintMode: "paint", dragging: false};
+  state.mask = {paintMode: "paint", dragging: false};
   const calls = [];
   const viewport = {
     zoomBy: (...args) => calls.push(["zoomBy", ...args]),
@@ -221,20 +221,20 @@ test("canvas interactions let cycle mask painting own pointer events before pan"
     viewport,
     compareSplit,
     paletteRegion,
-    cycleMask: {
-      beginCycleMaskPaint: event => {
+    mask: {
+      beginMaskPaint: event => {
         cycleCalls.push(["begin", event.pointerId]);
         return true;
       },
-      updateCycleMaskPaint: event => {
+      updateMaskPaint: event => {
         cycleCalls.push(["update", event.pointerId]);
         return true;
       },
-      finishCycleMaskPaint: event => {
+      finishMaskPaint: event => {
         cycleCalls.push(["finish", event.pointerId]);
         return true;
       },
-      cancelCycleMaskPaint: () => false
+      cancelMaskPaint: () => false
     },
     diagnosticsPanelIsOpen: () => false,
     inspectDiagnosticPixel: () => {}

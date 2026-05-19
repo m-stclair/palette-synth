@@ -6,8 +6,6 @@ export function renderPalettePass(gl, program, {
   maskEnabled = false,
   maskBehavior = 1,
   maskForbiddenSourceFlags = null,
-  cycleMaskTexture = null,
-  cycleMaskEnabled = false,
   viewport,
   resolution,
   viewportOrigin,
@@ -27,8 +25,6 @@ export function renderPalettePass(gl, program, {
   diagnosticOverlaySwatch = -1,
   settings = {}
 }) {
-  const effectiveMaskTexture = maskTexture ?? cycleMaskTexture;
-  const effectiveMaskEnabled = maskEnabled || cycleMaskEnabled;
   const forbiddenFlags = maskForbiddenSourceFlags instanceof Int32Array
     ? maskForbiddenSourceFlags
     : new Int32Array(MAX_PALETTE_SIZE);
@@ -39,9 +35,9 @@ export function renderPalettePass(gl, program, {
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.uniform1i(gl.getUniformLocation(program, "u_image"), 0);
   gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, effectiveMaskTexture);
+  gl.bindTexture(gl.TEXTURE_2D, maskTexture);
   gl.uniform1i(gl.getUniformLocation(program, "u_mask"), 1);
-  gl.uniform1i(gl.getUniformLocation(program, "u_maskEnabled"), effectiveMaskEnabled && effectiveMaskTexture ? 1 : 0);
+  gl.uniform1i(gl.getUniformLocation(program, "u_maskEnabled"), maskEnabled && maskTexture ? 1 : 0);
   gl.uniform1i(gl.getUniformLocation(program, "u_maskBehavior"), Math.max(0, Math.round(Number(maskBehavior) || 0)));
   gl.uniform1iv(gl.getUniformLocation(program, "u_maskForbiddenSourceFlags[0]"), forbiddenFlags);
   gl.activeTexture(gl.TEXTURE0);

@@ -61,29 +61,26 @@ export function createMaskController({
   }
 
   const elementKeys = {
-    overlay: ["maskOverlay", "cycleMaskOverlay"],
-    enabled: ["maskEnabled", "cycleMaskEnabled"],
-    behavior: ["maskBehavior"],
-    paint: ["maskPaint", "cycleMaskPaint"],
-    show: ["maskShow", "cycleMaskShow"],
-    erase: ["maskErase", "cycleMaskErase"],
-    clear: ["maskClear", "cycleMaskClear"],
-    brushSize: ["maskBrushSize", "cycleMaskBrushSize"],
-    brushSizeValue: ["maskBrushSizeValue", "cycleMaskBrushSizeValue"],
-    note: ["maskNote", "cycleMaskNote"],
-    forbidPanel: ["maskForbidPanel"],
-    forbiddenColors: ["maskForbiddenColors"]
+    overlay: "maskOverlay",
+    enabled: "maskEnabled",
+    behavior: "maskBehavior",
+    paint: "maskPaint",
+    show: "maskShow",
+    erase: "maskErase",
+    clear: "maskClear",
+    brushSize: "maskBrushSize",
+    brushSizeValue: "maskBrushSizeValue",
+    note: "maskNote",
+    forbidPanel: "maskForbidPanel",
+    forbiddenColors: "maskForbiddenColors"
   };
 
   function ui(name) {
-    for (const key of elementKeys[name] || [name]) {
-      if (els[key]) return els[key];
-    }
-    return null;
+    return els[elementKeys[name] || name] || null;
   }
 
   function maskState() {
-    const mask = state.mask || state.cycleMask || {};
+    const mask = state.mask || {};
     if (!mask.behavior) mask.behavior = MASK_BEHAVIOR_CYCLE_WITHIN;
     if (!Array.isArray(mask.forbiddenSourceIndices)) {
       mask.forbiddenSourceIndices = uniqueSortedSourceIndices(mask.forbiddenSourceIndices);
@@ -92,7 +89,6 @@ export function createMaskController({
     if (!mask.paintMode) mask.paintMode = "off";
     if (mask.showOverlay !== false) mask.showOverlay = true;
     state.mask = mask;
-    state.cycleMask = mask;
     return mask;
   }
 
@@ -262,21 +258,19 @@ export function createMaskController({
       if (!state.imageData) {
         noteEl.textContent = "Open an image first.";
       } else if (paintMode === "erase") {
-        noteEl.textContent = "Drag to erase. Alt/Option also erases while painting.";
+        noteEl.textContent = "Drag to erase.";
       } else if (paintMode === "paint") {
         noteEl.textContent = "Drag to paint. Alt/Option-drag erases.";
-      } else if (enabled && mask.hasPaint && mask.showOverlay === false) {
-        noteEl.textContent = "Mask overlay hidden; the painted rule is still active.";
       } else if (enabled && behavior === MASK_BEHAVIOR_FORBID_COLORS && forbiddenCount === 0) {
         noteEl.textContent = "Choose palette colors to forbid inside the painted mask.";
       } else if (enabled && behavior === MASK_BEHAVIOR_FORBID_COLORS) {
-        noteEl.textContent = `${forbiddenCount} color${forbiddenCount === 1 ? "" : "s"} forbidden inside the painted mask.`;
+        noteEl.textContent = `${forbiddenCount} color${forbiddenCount === 1 ? "" : "s"} forbidden.`;
       } else if (enabled) {
-        noteEl.textContent = "Cycle offset is gated by the painted mask, including manual cycle tags.";
+        noteEl.textContent = "Cycle offset gated by mask.";
       } else if (mask.hasPaint) {
-        noteEl.textContent = "Mask saved for this image session. Enable it to apply the selected rule.";
+        noteEl.textContent = "Mask disabled.";
       } else {
-        noteEl.textContent = "Paint one session-only mask, then choose what rule it applies.";
+        noteEl.textContent = "No mask.";
       }
     }
     if (els.canvas) els.canvas.classList.toggle("is-painting-mask", paintMode !== "off");
@@ -322,7 +316,7 @@ export function createMaskController({
       updateMaskOverlay();
       markMaskDirty();
       queueRender();
-      setStatus(mask.paintMode === "off" ? "Mask painting off." : "Paint the mask on the preview.");
+      setStatus(mask.paintMode === "off" ? "Mask painting off." : "Painting mask.");
     });
 
     ui("show")?.addEventListener("change", event => {
@@ -462,7 +456,7 @@ export function createMaskController({
     const mask = maskState();
     const overlay = ui("overlay");
     const paintMode = mask.paintMode || "off";
-    const overlayAllowed = mask.showOverlay !== false || paintMode !== "off";
+    const overlayAllowed = mask.showOverlay !== false;
     const shouldShow = !!(
       overlay
       && mask.canvas
@@ -534,18 +528,6 @@ export function createMaskController({
     beginMaskPaint,
     updateMaskPaint,
     finishMaskPaint,
-    cancelMaskPaint,
-
-    // Backward-compatible names for the existing app wiring/tests.
-    bindCycleMaskControls: bindMaskControls,
-    resetCycleMask: resetMask,
-    syncCycleMaskUi: syncMaskUi,
-    updateCycleMaskOverlay: updateMaskOverlay,
-    beginCycleMaskPaint: beginMaskPaint,
-    updateCycleMaskPaint: updateMaskPaint,
-    finishCycleMaskPaint: finishMaskPaint,
-    cancelCycleMaskPaint: cancelMaskPaint
+    cancelMaskPaint
   };
 }
-
-export const createCycleMaskController = createMaskController;

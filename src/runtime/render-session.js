@@ -1,6 +1,6 @@
 import { paletteLabs } from "../color-utils.js";
 import { MAX_PALETTE_SIZE } from "../constants.js";
-import { MASK_BEHAVIOR_CYCLE_WITHIN, MASK_BEHAVIOR_FORBID_COLORS, maskBehaviorCode, maskForbiddenSourceFlags } from "../ui/cycle-mask.js";
+import { maskBehaviorCode, maskForbiddenSourceFlags } from "../ui/cycle-mask.js";
 import { clearFramebuffer, resizeDrawingBuffer } from "../gl/context.js";
 import { renderPalettePass } from "../gl/palette-renderer.js";
 import { blockSamplePassNeeded, blockSampleTextureSize, renderBlockSamplePass } from "../gl/block-sampler.js";
@@ -69,8 +69,8 @@ export function createRenderSession({
   postProcessFragmentSource = "",
   viewCompositeFragmentSource = "",
   updatePaletteRegionOverlay,
-  updateCycleMaskOverlay = () => {},
-  syncCycleMaskUi = () => {},
+  updateMaskOverlay = () => {},
+  syncMaskUi = () => {},
   updateDiagnostics,
   requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
   createTextureFn = createTexture,
@@ -110,7 +110,7 @@ export function createRenderSession({
   }
 
   function markMaskDirty() {
-    const mask = state.mask || state.cycleMask;
+    const mask = state.mask;
     if (mask) mask.textureDirty = true;
     markCompositeCachesDirty();
     if (state.diagnostics) {
@@ -146,10 +146,7 @@ export function createRenderSession({
   }
 
   function currentMask() {
-    const mask = state.mask || state.cycleMask;
-    if (mask && state.mask !== mask) state.mask = mask;
-    if (mask && state.cycleMask !== mask) state.cycleMask = mask;
-    return mask;
+    return state.mask;
   }
 
   function maskApplies() {
@@ -191,7 +188,7 @@ export function createRenderSession({
     }
     if (state.swatchesDirty) {
       renderSwatches();
-      syncCycleMaskUi();
+      syncMaskUi();
       state.swatchesDirty = false;
     }
   }
@@ -263,14 +260,14 @@ export function createRenderSession({
     });
 
     const canUseStateMaskTexture = gl === state.gl;
-    const optionHasMaskTexture = Object.prototype.hasOwnProperty.call(options, "maskTexture") || Object.prototype.hasOwnProperty.call(options, "cycleMaskTexture");
-    const optionHasMaskEnabled = Object.prototype.hasOwnProperty.call(options, "maskEnabled") || Object.prototype.hasOwnProperty.call(options, "cycleMaskEnabled");
+    const optionHasMaskTexture = Object.prototype.hasOwnProperty.call(options, "maskTexture");
+    const optionHasMaskEnabled = Object.prototype.hasOwnProperty.call(options, "maskEnabled");
     const mask = currentMask() || {};
     const maskTexture = optionHasMaskTexture
-      ? (options.maskTexture ?? options.cycleMaskTexture)
+      ? options.maskTexture
       : (canUseStateMaskTexture && maskApplies() ? ensureMaskTexture(gl) : null);
     const maskEnabled = optionHasMaskEnabled
-      ? !!(options.maskEnabled ?? options.cycleMaskEnabled)
+      ? !!options.maskEnabled
       : (canUseStateMaskTexture && maskApplies());
     const maskBehavior = options.maskBehavior ?? maskBehaviorCode(mask);
     const maskForbiddenFlags = options.maskForbiddenSourceFlags ?? maskForbiddenSourceFlags(mask);
@@ -452,7 +449,7 @@ export function createRenderSession({
       state.renderQueued = false;
       draw();
       updatePaletteRegionOverlay();
-      updateCycleMaskOverlay();
+      updateMaskOverlay();
       updateDiagnostics();
     });
   }

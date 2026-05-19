@@ -69,6 +69,7 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "X", label: "Export palette"},
   {key: "Shift+X", label: "Export full image PNG"},
   {key: "H", label: "Toggle difference heatmap"},
+  {key: "B", label: "Pick up / put down mask brush"},
   {key: "M", label: "Switch to manual / preset mode"},
   {key: "Shift+M", label: "Capture current palette to manual"},
   {key: "G", label: "Switch to generated main-image mode"},
@@ -231,6 +232,12 @@ function isCollapseAllShortcut(event) {
   return event.code === "Minus" || event.key === "_" || event.key === "-";
 }
 
+function isMaskBrushToggleShortcut(event) {
+  if (event?.ctrlKey || event?.metaKey || event?.altKey || event?.shiftKey) return false;
+  const key = String(event?.key || "").toLowerCase();
+  return event.code === "KeyB" || key === "b";
+}
+
 function isInspectorTabShortcut(event) {
   if (event?.ctrlKey || event?.metaKey || event?.altKey || !event?.shiftKey) return false;
   const key = String(event?.key || "");
@@ -365,6 +372,7 @@ function annotateShortcutTargets(root) {
     ["exportPalette", "X"],
     ["downloadFullImage", "Shift+X"],
     ["diagnosticsOverlayDifference", "H"],
+    ["maskPaint", "B"],
     ["paletteMode", "M G"],
     ["capturePalette", "Shift+M"]
   ];
@@ -562,6 +570,10 @@ export function createShortcutDispatcher({
     updateDiagnostics();
   }
 
+  function toggleMaskBrush() {
+    return clickElement(els.maskPaint || $("maskPaint", root));
+  }
+
   function inspectorNudgeStep(event) {
     return event.shiftKey ? Math.max(1, Math.round(Number(config.pixelBlockSize) || 1)) : 1;
   }
@@ -685,6 +697,10 @@ export function createShortcutDispatcher({
       toggleDifferenceOverlay();
       return true;
     },
+    "b": event => {
+      if (event.shiftKey) return false;
+      return toggleMaskBrush();
+    },
     "m": event => {
       if (event.shiftKey) captureCurrentPaletteToManual("replace");
       else setPaletteMode("manual", "manual / preset");
@@ -718,7 +734,13 @@ export function createShortcutDispatcher({
     if (handleInspectorTabKeydown(event)) return;
 
     if (shouldIgnoreShortcut(event)) return;
-    if (((state.mask || state.cycleMask)?.paintMode || "off") !== "off" || (state.mask || state.cycleMask)?.dragging) return;
+
+    if (isMaskBrushToggleShortcut(event)) {
+      if (toggleMaskBrush()) event.preventDefault?.();
+      return;
+    }
+
+    if ((state.mask?.paintMode || "off") !== "off" || state.mask?.dragging) return;
 
     if (isCollapseAllShortcut(event)) {
       const collapsed = collapseAllToolbarPanels(root);

@@ -346,6 +346,38 @@ test("shortcut dispatcher routes requested app actions", () => {
   assert.deepEqual(state.diagnostics.overlay, {mode: "difference"});
 });
 
+test("B toggles the mask brush even while brush mode owns other shortcuts", () => {
+  let clicks = 0;
+  const maskPaint = makeElement({
+    click() {
+      clicks += 1;
+      const mask = state.mask;
+      mask.paintMode = mask.paintMode === "off" ? "paint" : "off";
+    }
+  });
+  const root = makeRoot({maskPaint});
+  const state = {mask: {paintMode: "off", dragging: false}};
+  const dispatcher = createShortcutDispatcher({root, state, els: {maskPaint}});
+
+  const pickUp = keyEvent("b", {code: "KeyB"});
+  dispatcher.handleKeydown(pickUp);
+  assert.equal(pickUp.prevented, true);
+  assert.equal(clicks, 1);
+  assert.equal(state.mask.paintMode, "paint");
+
+  const seedWhilePainting = keyEvent("ArrowRight");
+  dispatcher.handleKeydown(seedWhilePainting);
+  assert.equal(seedWhilePainting.prevented, false);
+  assert.equal(clicks, 1);
+
+  const putDown = keyEvent("B", {code: "KeyB"});
+  dispatcher.handleKeydown(putDown);
+  assert.equal(putDown.prevented, true);
+  assert.equal(clicks, 2);
+  assert.equal(state.mask.paintMode, "off");
+});
+
+
 test("shortcut dispatcher opens toolbar panels by number chord", () => {
   const calls = [];
   const toolPane = makeElement({
