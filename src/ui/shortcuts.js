@@ -26,21 +26,24 @@ const TOOLBAR_PANEL_SHORTCUTS = [
   {key: "2", panelKey: "palette-adjustments", label: "Palette adjustments"},
   {key: "3", panelKey: "generation", label: "Generation"},
   {key: "4", panelKey: "source-levels", label: "Source levels"},
-  {key: "5", panelKey: "pixel-art", label: "Pixel art"},
-  {key: "6", panelKey: "mapping", label: "Mapping"},
-  {key: "7", panelKey: "perceptual-weights", label: "Perceptual weights"},
-  {key: "8", panelKey: "blending", label: "Blending"},
-  {key: "9", panelKey: "dither", label: "Dither"},
-  {key: "Shift+1", panelKey: "cycle", label: "Cycle"},
-  {key: "Shift+2", panelKey: "mask", label: "Mask"},
-  {key: "Shift+3", panelKey: "selection-diagnostics", label: "Family selection"},
-  {key: "Shift+4", panelKey: "diagnostics", label: "Palette diagnostics"},
-  {key: "Shift+5", panelKey: "recipes", label: "Recipes"},
-  {key: "Shift+6", panelKey: "animation-export", label: "Animation export"}
+  {key: "5", panelKey: "mapping", label: "Mapping"},
+  {key: "6", panelKey: "perceptual-weights", label: "Perceptual weights"},
+  {key: "7", panelKey: "dither", panelKeys: ["dither", "blending"], label: "Dither / Blend"},
+  {key: "8", panelKey: "pixel-art", label: "Pixel art"},
+  {key: "9", panelKey: "cycle", label: "Cycle"},
+  {key: "Shift+1", panelKey: "mask", label: "Mask"},
+  {key: "Shift+2", panelKey: "recipes", label: "Recipes"},
+  {key: "Shift+3", panelKey: "animation-export", label: "Animation export"}
 ];
 
 const TOOLBAR_PANEL_SHORTCUT_BY_KEY = new Map(TOOLBAR_PANEL_SHORTCUTS.map(item => [item.key, item]));
-const TOOLBAR_PANEL_SHORTCUT_BY_PANEL = new Map(TOOLBAR_PANEL_SHORTCUTS.map(item => [item.panelKey, item.key]));
+const TOOLBAR_PANEL_SHORTCUT_BY_PANEL = new Map();
+for (const item of TOOLBAR_PANEL_SHORTCUTS) {
+  const keys = item.panelKeys || [item.panelKey];
+  for (const panelKey of keys) if (!TOOLBAR_PANEL_SHORTCUT_BY_PANEL.has(panelKey)) TOOLBAR_PANEL_SHORTCUT_BY_PANEL.set(panelKey, item.key);
+}
+
+const INSPECTOR_TABS = ["pixel", "selection", "diagnostics"];
 
 export const SHORTCUT_DEFINITIONS = [
   {key: "?", label: "Show keyboard shortcuts"},
@@ -49,7 +52,8 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "Shift+R", label: "Reset settings"},
   {key: "C", label: "Toggle compare"},
   {key: "P", label: "Toggle pixel-perfect preview"},
-  {key: "I", label: "Toggle floating pixel inspector"},
+  {key: "I", label: "Toggle floating inspector"},
+  {key: "Shift+I", label: "Switch inspector tab"},
   {key: "Inspector: ← / → / ↑ / ↓", label: "Move inspected pixel"},
   {key: "Inspector: S / F / A", label: "Copy source / copy output / add source"},
   {key: "Inspector: Esc", label: "Clear pixel, then close"},
@@ -66,7 +70,7 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "G", label: "Switch to generated main-image mode"},
   {key: "Shift+-", label: "Collapse all toolbar panels"},
   {key: "1…9", label: "Open/focus toolbar panels 1–9"},
-  {key: "Shift+1…6", label: "Open/focus lower toolbar panels"}
+  {key: "Shift+1…3", label: "Open/focus lower panels"}
 ];
 
 export function shouldIgnoreShortcut(event) {
@@ -91,30 +95,38 @@ function toolbarPanelShortcutKey(event) {
   return null;
 }
 
-function dispatchToolbarPanelFocus(root, panelKey) {
+function dispatchToolbarPanelFocus(root, panelShortcut) {
   const toolPane = $("toolPane", root);
-  if (!toolPane || typeof toolPane.dispatchEvent !== "function") return false;
+  const inspectorPane = $("pixelInspectorPane", root);
+  const targets = [toolPane, inspectorPane].filter(target => target && typeof target.dispatchEvent === "function");
+  if (!targets.length) return {handled: false, action: null};
 
+  const panelKey = panelShortcut?.panelKey;
+  const panelKeys = panelShortcut?.panelKeys || (panelKey ? [panelKey] : []);
   const CustomEventCtor = root?.defaultView?.CustomEvent || globalThis.CustomEvent;
-  let event;
-  if (typeof CustomEventCtor === "function") {
-    event = new CustomEventCtor(FOCUS_TOOLBAR_PANEL_EVENT, {
-      bubbles: false,
-      cancelable: true,
-      detail: {panelKey}
-    });
-  } else {
-    event = {
-      type: FOCUS_TOOLBAR_PANEL_EVENT,
-      cancelable: true,
-      defaultPrevented: false,
-      detail: {panelKey},
-      preventDefault() { this.defaultPrevented = true; }
-    };
-  }
 
-  const dispatchResult = toolPane.dispatchEvent(event);
-  return event.defaultPrevented || dispatchResult === false;
+  for (const target of targets) {
+    const detail = {panelKey, panelKeys, toggle: true};
+    let event;
+    if (typeof CustomEventCtor === "function") {
+      event = new CustomEventCtor(FOCUS_TOOLBAR_PANEL_EVENT, {
+        bubbles: false,
+        cancelable: true,
+        detail
+      });
+    } else {
+      event = {
+        type: FOCUS_TOOLBAR_PANEL_EVENT,
+        cancelable: true,
+        defaultPrevented: false,
+        detail,
+        preventDefault() { this.defaultPrevented = true; }
+      };
+    }
+    const dispatchResult = target.dispatchEvent(event);
+    if (event.defaultPrevented || dispatchResult === false) return {handled: true, action: event.detail?.action || "focused"};
+  }
+  return {handled: false, action: null};
 }
 
 function collapseAllToolbarPanels(root) {
@@ -130,6 +142,22 @@ function collapseAllToolbarPanels(root) {
 function isCollapseAllShortcut(event) {
   if (event?.ctrlKey || event?.metaKey || event?.altKey || !event?.shiftKey) return false;
   return event.code === "Minus" || event.key === "_" || event.key === "-";
+}
+
+function isInspectorTabShortcut(event) {
+  if (event?.ctrlKey || event?.metaKey || event?.altKey || !event?.shiftKey) return false;
+  const key = String(event?.key || "");
+  return event.code === "KeyI" || key.toLowerCase() === "i" || key === "İ";
+}
+
+function inspectorTabShortcutTargetIsEditable(event) {
+  const target = event?.target;
+  if (!target?.closest) return false;
+  // Shift+I is an app-level navigation shortcut. Let it work from normal
+  // toolbar controls, including number/text inputs and selects, because those
+  // controls often retain focus after adjustment and otherwise make the
+  // shortcut feel dead. Keep multiline/editor contexts protected.
+  return !!target.closest("dialog[open], textarea, [contenteditable]");
 }
 
 function blurControlOnEscape(event) {
@@ -232,7 +260,7 @@ function annotateShortcutTargets(root) {
     ["collapseAllPanelsButton", "Shift+-"],
     ["compareToggle", "C"],
     ["pixelPerfectToggle", "P"],
-    ["togglePixelInspector", "I"],
+    ["togglePixelInspector", "I Shift+I"],
     ["resetViewButton", "0"],
     ["zoomOutButton", "-"],
     ["zoomInButton", "="],
@@ -282,6 +310,7 @@ export function createShortcutDispatcher({
   copyPixelHex = () => {},
   setPixelInspectorOpen = () => {},
   togglePixelInspector = () => {},
+  setInspectorTab = () => {},
   clearDiagnosticPixel = () => {},
   nudgeDiagnosticPixel = () => {},
   pixelInspectorPanelIsOpen = () => false,
@@ -342,6 +371,43 @@ export function createShortcutDispatcher({
       setStatus(config.pixelPerfect ? "Pixel-perfect preview on." : "Pixel-perfect preview off.");
     });
   }
+
+  function inspectorTabAvailable(tab, button) {
+    if (!button || button.hidden || button.closest?.("[hidden]")) return false;
+    if (button.classList?.contains?.("image-palette-only")) {
+      const mode = root?.body?.dataset?.paletteMode || config.paletteMode;
+      if (mode === "harmony" || mode === "cosine") return false;
+    }
+    const view = button.ownerDocument?.defaultView || root?.defaultView || globalThis;
+    const style = typeof view?.getComputedStyle === "function" ? view.getComputedStyle(button) : null;
+    return !style || (style.display !== "none" && style.visibility !== "hidden");
+  }
+
+  function inspectorTabButton(tab) {
+    if (tab === "pixel") return els.inspectorTabPixel || $("inspectorTabPixel", root);
+    if (tab === "selection") return els.inspectorTabSelection || $("inspectorTabSelection", root);
+    if (tab === "diagnostics") return els.inspectorTabDiagnostics || $("inspectorTabDiagnostics", root);
+    return null;
+  }
+
+  function cycleInspectorTab() {
+    const availableTabs = INSPECTOR_TABS.filter(tab => inspectorTabAvailable(tab, inspectorTabButton(tab)));
+    const tabs = availableTabs.length ? availableTabs : INSPECTOR_TABS;
+    const current = INSPECTOR_TABS.includes(state.diagnostics?.inspectorTab) ? state.diagnostics.inspectorTab : "pixel";
+    const currentIndex = tabs.includes(current) ? tabs.indexOf(current) : -1;
+    const next = tabs[(currentIndex + 1) % tabs.length];
+    const wasOpen = !!state.diagnostics?.pixelInspectorOpen;
+
+    if (!wasOpen) {
+      // Prime the active tab before opening so the first open render lands on
+      // the requested inspector view instead of flashing/sticking on Pixel.
+      setInspectorTab(next, {focus: false, announce: false, update: false});
+      setPixelInspectorOpen(true, {announce: false});
+    }
+
+    setInspectorTab(next, {focus: true, announce: true});
+  }
+
 
   function zoomPreview(delta) {
     const rect = getDisplayViewRect();
@@ -447,8 +513,8 @@ export function createShortcutDispatcher({
       return true;
     },
     "i": event => {
-      if (event.shiftKey) return false;
-      togglePixelInspector({announce: true});
+      if (event.shiftKey) cycleInspectorTab();
+      else togglePixelInspector({announce: true});
       return true;
     },
     "0": event => {
@@ -518,11 +584,22 @@ export function createShortcutDispatcher({
     }
   };
 
+  function handleInspectorTabKeydown(event) {
+    if (event?.defaultPrevented || !isInspectorTabShortcut(event) || inspectorTabShortcutTargetIsEditable(event)) return false;
+    cycleInspectorTab();
+    event.preventDefault?.();
+    event.stopImmediatePropagation?.();
+    event.stopPropagation?.();
+    return true;
+  }
+
   function handleKeydown(event) {
     if (blurControlOnEscape(event)) {
       event.preventDefault?.();
       return;
     }
+    if (handleInspectorTabKeydown(event)) return;
+
     if (shouldIgnoreShortcut(event)) return;
     if (((state.mask || state.cycleMask)?.paintMode || "off") !== "off" || (state.mask || state.cycleMask)?.dragging) return;
 
@@ -537,8 +614,10 @@ export function createShortcutDispatcher({
     if (panelShortcutKey) {
       const panelShortcut = TOOLBAR_PANEL_SHORTCUT_BY_KEY.get(panelShortcutKey);
       if (panelShortcut) {
-        const focused = dispatchToolbarPanelFocus(root, panelShortcut.panelKey);
-        setStatus(focused ? `${panelShortcut.label} panel focused.` : `${panelShortcut.label} panel not found.`);
+        const result = dispatchToolbarPanelFocus(root, panelShortcut);
+        const targetLabel = panelShortcut.label.endsWith("tab") ? panelShortcut.label : `${panelShortcut.label} panel`;
+        const action = result.action === "collapsed" ? "collapsed" : "focused";
+        setStatus(result.handled ? `${targetLabel} ${action}.` : `${targetLabel} not found.`);
         event.preventDefault?.();
         return;
       }
@@ -555,12 +634,19 @@ export function createShortcutDispatcher({
     event.preventDefault?.();
   }
 
+  function handleCaptureKeydown(event) {
+    handleInspectorTabKeydown(event);
+  }
+
   annotateShortcutTargets(root);
+  root?.addEventListener?.("keydown", handleCaptureKeydown, true);
   root?.addEventListener?.("keydown", handleKeydown);
 
   return {
     handleKeydown,
+    handleCaptureKeydown,
     destroy() {
+      root?.removeEventListener?.("keydown", handleCaptureKeydown, true);
       root?.removeEventListener?.("keydown", handleKeydown);
     }
   };

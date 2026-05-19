@@ -104,18 +104,26 @@ test("floating pixel inspector uses state, not DOM panel inference, as its open 
 });
 
 
-test("diagnostics controller refreshes family selection while full diagnostics are closed", () => {
+test("diagnostics controller refreshes family selection only while its inspector tab is visible", () => {
   let selected = 0;
   let computed = 0;
   let rendered = 0;
+  const pixelPanel = makePanel();
+  const selectionPanel = makePanel();
+  const diagnosticsPanel = makePanel();
   const state = {
     imageData: {width: 1, height: 1, data: new Uint8ClampedArray([0, 0, 0, 255])},
-    diagnostics: {stats: "old", signature: "old"},
+    diagnostics: {stats: "old", signature: "old", pixelInspectorOpen: true, inspectorTab: "selection"},
     paletteRecords: [{lab: [0, 0, 0]}],
     paletteDirty: false
   };
   const controller = createDiagnosticsController({
-    els: {},
+    els: {
+      pixelInspectorPane: makePanel(),
+      inspectorPanelPixel: pixelPanel,
+      inspectorPanelSelection: selectionPanel,
+      inspectorPanelDiagnostics: diagnosticsPanel
+    },
     state,
     config: {},
     renderDiagnosticsSelection: () => { selected++; },
@@ -129,6 +137,10 @@ test("diagnostics controller refreshes family selection while full diagnostics a
   assert.equal(computed, 0);
   assert.equal(rendered, 0);
   assert.equal(state.diagnostics.signature, "old");
+
+  controller.setInspectorTab("pixel", {update: false});
+  controller.updateDiagnostics();
+  assert.equal(selected, 1);
 });
 
 test("diagnostics controller runs full diagnostics when the palette diagnostics panel is open", () => {

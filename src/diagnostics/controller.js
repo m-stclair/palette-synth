@@ -5,6 +5,8 @@ export function panelIsOpen(panel) {
   return !!panel && !panel.hidden && !panel.classList.contains("is-collapsed");
 }
 
+const INSPECTOR_TABS = ["pixel", "selection", "diagnostics"];
+
 export function createDiagnosticsController({
   els,
   state,
@@ -29,12 +31,63 @@ export function createDiagnosticsController({
     return state.diagnostics;
   };
 
+  function inspectorTabsEnabled() {
+    return !!(els.inspectorTabs || els.inspectorTabPixel || els.inspectorPanelPixel || els.inspectorPanelDiagnostics);
+  }
+
+  function activeInspectorTab() {
+    const tab = diagnosticsState().inspectorTab;
+    return INSPECTOR_TABS.includes(tab) ? tab : "pixel";
+  }
+
+  function tabButton(tab) {
+    if (tab === "pixel") return els.inspectorTabPixel;
+    if (tab === "selection") return els.inspectorTabSelection;
+    if (tab === "diagnostics") return els.inspectorTabDiagnostics;
+    return null;
+  }
+
+  function tabPanel(tab) {
+    if (tab === "pixel") return els.inspectorPanelPixel || els.diagnosticsPixel?.closest?.("[data-inspector-tab-panel='pixel']");
+    if (tab === "selection") return els.inspectorPanelSelection || els.diagnosticsSelection?.closest?.(".selection-diagnostics-panel");
+    if (tab === "diagnostics") return els.inspectorPanelDiagnostics || els.diagnosticsSummary?.closest?.(".diagnostics-panel");
+    return null;
+  }
+
+  function syncInspectorTabsUi({focus = false} = {}) {
+    if (!inspectorTabsEnabled()) return;
+    const active = activeInspectorTab();
+    for (const tab of INSPECTOR_TABS) {
+      const selected = tab === active;
+      const button = tabButton(tab);
+      const panel = tabPanel(tab);
+      button?.classList?.toggle?.("is-active", selected);
+      button?.setAttribute?.("aria-selected", String(selected));
+      button?.setAttribute?.("tabindex", selected ? "0" : "-1");
+      if (panel) panel.hidden = !selected;
+    }
+    if (els.clearPixelInspector) els.clearPixelInspector.hidden = active !== "pixel";
+    if (focus) tabButton(active)?.focus?.({preventScroll: true});
+  }
+
+  function inspectorPaneIsOpen() {
+    const diagnostic = diagnosticsState();
+    const pane = pixelInspectorPane();
+    if (els.pixelInspectorPane) return !!diagnostic.pixelInspectorOpen;
+    if (pane) return panelIsOpen(pane);
+    return !!diagnostic.pixelInspectorOpen;
+  }
+
   function diagnosticsPanelIsOpen() {
-    return panelIsOpen(els.diagnosticsSummary?.closest?.(".diagnostics-panel"));
+    const panel = tabPanel("diagnostics");
+    if (inspectorTabsEnabled()) return inspectorPaneIsOpen() && activeInspectorTab() === "diagnostics" && panelIsOpen(panel);
+    return panelIsOpen(panel);
   }
 
   function selectionDiagnosticsPanelIsOpen() {
-    return panelIsOpen(els.diagnosticsSelection?.closest?.(".selection-diagnostics-panel"));
+    const panel = tabPanel("selection");
+    if (inspectorTabsEnabled()) return inspectorPaneIsOpen() && activeInspectorTab() === "selection" && panelIsOpen(panel);
+    return panelIsOpen(panel);
   }
 
   function pixelInspectorPane() {
@@ -42,21 +95,23 @@ export function createDiagnosticsController({
   }
 
   function pixelInspectorPanelIsOpen() {
-    const diagnostic = diagnosticsState();
-    if (els.pixelInspectorPane) return !!diagnostic.pixelInspectorOpen;
     const pane = pixelInspectorPane();
+    if (inspectorTabsEnabled()) return inspectorPaneIsOpen() && activeInspectorTab() === "pixel" && (!tabPanel("pixel") || panelIsOpen(tabPanel("pixel")));
+    if (els.pixelInspectorPane) return inspectorPaneIsOpen();
     if (pane) return panelIsOpen(pane);
-    return !!diagnostic.pixelInspectorOpen;
+    return inspectorPaneIsOpen();
   }
 
   function syncPixelInspectorUi() {
-    const open = pixelInspectorPanelIsOpen();
-    if (els.pixelInspectorPane) els.pixelInspectorPane.hidden = !open;
+    syncInspectorTabsUi();
+    const paneOpen = inspectorPaneIsOpen();
+    const pixelOpen = pixelInspectorPanelIsOpen();
+    if (els.pixelInspectorPane) els.pixelInspectorPane.hidden = !paneOpen;
     if (els.togglePixelInspector) {
-      els.togglePixelInspector.classList?.toggle?.("is-active", open);
-      els.togglePixelInspector.setAttribute?.("aria-pressed", String(open));
+      els.togglePixelInspector.classList?.toggle?.("is-active", paneOpen);
+      els.togglePixelInspector.setAttribute?.("aria-pressed", String(paneOpen));
     }
-    els.canvas?.classList?.toggle?.("is-inspecting", open);
+    els.canvas?.classList?.toggle?.("is-inspecting", pixelOpen);
   }
 
 
@@ -200,12 +255,28 @@ export function createDiagnosticsController({
     const diagnostic = diagnosticsState();
     diagnostic.pixelInspectorOpen = !!open;
     syncPixelInspectorUi();
-    if (diagnostic.pixelInspectorOpen) refreshDiagnosticPixel();
+    if (diagnostic.pixelInspectorOpen && pixelInspectorPanelIsOpen()) refreshDiagnosticPixel();
+    else if (diagnostic.pixelInspectorOpen) updateDiagnostics();
     else {
       updateDiagnosticsPixel();
       syncPixelProbeOverlay();
     }
-    if (announce) setStatus(diagnostic.pixelInspectorOpen ? "Pixel inspector open. Click the preview to inspect." : "Pixel inspector closed.");
+    if (announce) {
+      const pixelTab = activeInspectorTab() === "pixel";
+      setStatus(diagnostic.pixelInspectorOpen
+        ? (pixelTab ? "Pixel inspector open. Click the preview to inspect." : "Inspector open.")
+        : (pixelTab ? "Pixel inspector closed." : "Inspector closed."));
+    }
+  }
+
+  function setInspectorTab(tab, {focus = false, announce = false, update = true} = {}) {
+    if (!INSPECTOR_TABS.includes(tab)) return activeInspectorTab();
+    diagnosticsState().inspectorTab = tab;
+    syncPixelInspectorUi();
+    if (focus) tabButton(tab)?.focus?.({preventScroll: true});
+    if (inspectorPaneIsOpen() && update) updateDiagnostics();
+    if (announce) setStatus(tab === "pixel" ? "Pixel inspector selected." : tab === "selection" ? "Family selection selected." : "Palette diagnostics selected.");
+    return tab;
   }
 
   function togglePixelInspector(options = {}) {
@@ -213,7 +284,7 @@ export function createDiagnosticsController({
   }
 
   function diagnosticsUiIsOpen() {
-    return diagnosticsPanelIsOpen() || selectionDiagnosticsPanelIsOpen() || pixelInspectorPanelIsOpen();
+    return inspectorTabsEnabled() ? inspectorPaneIsOpen() : (diagnosticsPanelIsOpen() || selectionDiagnosticsPanelIsOpen() || pixelInspectorPanelIsOpen());
   }
 
   function updateDiagnostics() {
@@ -225,7 +296,8 @@ export function createDiagnosticsController({
     }
 
     const fullDiagnosticsOpen = diagnosticsPanelIsOpen();
-    if (!fullDiagnosticsOpen) renderDiagnosticsSelection();
+    const selectionDiagnosticsOpen = selectionDiagnosticsPanelIsOpen();
+    if (selectionDiagnosticsOpen) renderDiagnosticsSelection();
 
     // Full palette diagnostics sample thousands of pixels. Keep that work
     // tied to the palette diagnostics panel only; the pixel inspector has
@@ -260,6 +332,9 @@ export function createDiagnosticsController({
   syncPixelInspectorUi();
 
   return {
+    inspectorPaneIsOpen,
+    activeInspectorTab,
+    setInspectorTab,
     diagnosticsPanelIsOpen,
     selectionDiagnosticsPanelIsOpen,
     pixelInspectorPanelIsOpen,

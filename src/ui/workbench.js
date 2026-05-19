@@ -17,6 +17,28 @@ function panelKey(panel, heading, index) {
   return panel.dataset.panelKey || normalizePanelKey(heading.textContent) || `panel-${index}`;
 }
 
+function panelIsVisuallyAvailable(panel, win) {
+  if (!panel || panel.hidden || panel.closest?.("[hidden]")) return false;
+  const style = typeof win?.getComputedStyle === "function" ? win.getComputedStyle(panel) : null;
+  return !style || (style.display !== "none" && style.visibility !== "hidden");
+}
+
+
+function elementOffsetWithinScroller(element, scroller, axis) {
+  const scrollProperty = axis === "x" ? "scrollLeft" : "scrollTop";
+  const rectProperty = axis === "x" ? "left" : "top";
+  const offsetProperty = axis === "x" ? "offsetLeft" : "offsetTop";
+  const scrollerScroll = Number(scroller?.[scrollProperty]) || 0;
+
+  if (typeof element?.getBoundingClientRect === "function" && typeof scroller?.getBoundingClientRect === "function") {
+    const elementRect = element.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const delta = Number(elementRect?.[rectProperty]) - Number(scrollerRect?.[rectProperty]);
+    if (Number.isFinite(delta)) return scrollerScroll + delta;
+  }
+
+  return Number(element?.[offsetProperty]) || 0;
+}
 
 function scrollPanelIntoPane(panel, scroller, {behavior = "smooth"} = {}) {
   if (!panel) return false;
@@ -28,24 +50,8 @@ function scrollPanelIntoPane(panel, scroller, {behavior = "smooth"} = {}) {
     return false;
   }
 
-  const viewHeight = Number(scroller.clientHeight) || 0;
-  const viewWidth = Number(scroller.clientWidth) || 0;
-  const panelTop = Number(panel.offsetTop) || 0;
-  const panelBottom = panelTop + (Number(panel.offsetHeight) || 0);
-  const panelLeft = Number(panel.offsetLeft) || 0;
-  const panelRight = panelLeft + (Number(panel.offsetWidth) || 0);
-  let top = Number(scroller.scrollTop) || 0;
-  let left = Number(scroller.scrollLeft) || 0;
-
-  if (viewHeight > 0) {
-    if (panelTop < top) top = Math.max(0, panelTop - 3);
-    else if (panelBottom > top + viewHeight) top = Math.max(0, panelBottom - viewHeight + 3);
-  }
-
-  if (viewWidth > 0) {
-    if (panelLeft < left) left = Math.max(0, panelLeft - 3);
-    else if (panelRight > left + viewWidth) left = Math.max(0, panelRight - viewWidth + 3);
-  }
+  const top = Math.max(0, elementOffsetWithinScroller(panel, scroller, "y") - 3);
+  const left = Math.max(0, elementOffsetWithinScroller(panel, scroller, "x") - 3);
 
   if (typeof scroller.scrollTo === "function") scroller.scrollTo({top, left, behavior});
   else {
@@ -181,9 +187,31 @@ export function initWorkbench({
     queueRender();
   });
 
-  function focusPanel(panelKey, {focus = true, scroll = true} = {}) {
-    const record = panelRecords.find(item => item.key === panelKey);
+  function recordContainsFocus(record) {
+    const active = doc.activeElement;
+    if (!active || !record?.panel) return false;
+    return active === record.heading || active === record.panel || !!record.panel.contains?.(active);
+  }
+
+  function focusPanel(panelKey, {focus = true, scroll = true, panelKeys = null, toggle = false} = {}) {
+    const keys = Array.isArray(panelKeys) && panelKeys.length ? panelKeys : [panelKey];
+    const candidates = keys.map(key => panelRecords.find(item => item.key === key)).filter(Boolean);
+    const focusedRecord = candidates.find(recordContainsFocus);
+    const visibleRecord = candidates.find(item => panelIsVisuallyAvailable(item.panel, win));
+    if (!focusedRecord && !visibleRecord && candidates.length > 1) return false;
+    const record = focusedRecord || visibleRecord || candidates[0];
     if (!record) return false;
+
+    const expanded = !record.panel.classList.contains("is-collapsed");
+    if (toggle && expanded && recordContainsFocus(record)) {
+      setPanelExpanded(record.panel, record.heading, record.key, false);
+      saveWorkbenchPrefs(prefs);
+      queueRender();
+      requestFrame(() => {
+        if (focus && typeof record.heading.focus === "function") record.heading.focus({preventScroll: true});
+      });
+      return "collapsed";
+    }
 
     setPanelExpanded(record.panel, record.heading, record.key, true);
     saveWorkbenchPrefs(prefs);
@@ -197,12 +225,14 @@ export function initWorkbench({
       }
     });
 
-    return true;
+    return "focused";
   }
 
   function handleFocusPanelEvent(event) {
     const targetKey = event?.detail?.panelKey || event?.detail?.key;
-    if (!targetKey || !focusPanel(targetKey, event.detail || {})) return;
+    const action = targetKey ? focusPanel(targetKey, event.detail || {}) : false;
+    if (!action) return;
+    if (event?.detail && typeof event.detail === "object") event.detail.action = action;
     event.preventDefault?.();
   }
 

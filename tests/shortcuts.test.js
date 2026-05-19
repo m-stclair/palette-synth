@@ -20,7 +20,7 @@ function makeElement(overrides = {}) {
 }
 
 function makeRoot(elements = {}) {
-  let keydown = null;
+  const keydown = {capture: [], bubble: []};
   return {
     elements,
     body: {append() {}},
@@ -30,14 +30,23 @@ function makeRoot(elements = {}) {
     getElementById(id) {
       return elements[id] || null;
     },
-    addEventListener(type, listener) {
-      if (type === "keydown") keydown = listener;
+    addEventListener(type, listener, options) {
+      if (type !== "keydown") return;
+      const phase = options === true || options?.capture ? "capture" : "bubble";
+      keydown[phase].push(listener);
     },
-    removeEventListener(type, listener) {
-      if (type === "keydown" && keydown === listener) keydown = null;
+    removeEventListener(type, listener, options) {
+      if (type !== "keydown") return;
+      const phase = options === true || options?.capture ? "capture" : "bubble";
+      const index = keydown[phase].indexOf(listener);
+      if (index >= 0) keydown[phase].splice(index, 1);
     },
     dispatch(event) {
-      keydown?.(event);
+      const run = listener => {
+        if (!event.__stopped) listener(event);
+      };
+      keydown.capture.forEach(run);
+      keydown.bubble.forEach(run);
     }
   };
 }
@@ -52,7 +61,9 @@ function keyEvent(key, options = {}) {
     altKey: false,
     defaultPrevented: false,
     target: {closest: () => null},
-    preventDefault() { prevented = true; },
+    preventDefault() { prevented = true; this.defaultPrevented = true; },
+    stopPropagation() { this.__stopped = true; },
+    stopImmediatePropagation() { this.__stopped = true; },
     get prevented() { return prevented; },
     ...options
   };
@@ -248,7 +259,7 @@ test("shortcut dispatcher opens toolbar panels by number chord", () => {
   dispatcher.handleKeydown(palette);
   assert.equal(palette.prevented, true);
 
-  const mask = keyEvent("@", {shiftKey: true, code: "Digit2"});
+  const mask = keyEvent("!", {shiftKey: true, code: "Digit1"});
   dispatcher.handleKeydown(mask);
   assert.equal(mask.prevented, true);
 
@@ -259,6 +270,167 @@ test("shortcut dispatcher opens toolbar panels by number chord", () => {
   assert.deepEqual(statuses, ["Palette panel focused.", "Mask panel focused."]);
 });
 
+
+test("shortcut dispatcher routes shifted number chords to lower tool panels", () => {
+  const calls = [];
+  const toolPane = makeElement({
+    dispatchEvent(event) {
+      calls.push(["toolbar", event.type, event.detail?.panelKey]);
+      event.preventDefault?.();
+      return false;
+    }
+  });
+  const statuses = [];
+  const root = makeRoot({toolPane});
+  const dispatcher = createShortcutDispatcher({
+    root,
+    setStatus: value => statuses.push(value)
+  });
+
+  const animationExport = keyEvent("#", {shiftKey: true, code: "Digit3"});
+  dispatcher.handleKeydown(animationExport);
+
+  assert.equal(animationExport.prevented, true);
+  assert.deepEqual(calls, [
+    ["toolbar", "palette-synth:focus-panel", "animation-export"]
+  ]);
+  assert.deepEqual(statuses, ["Animation export panel focused."]);
+});
+
+
+test("shortcut dispatcher reports panel collapse actions from the workbench", () => {
+  const toolPane = makeElement({
+    dispatchEvent(event) {
+      event.detail.action = "collapsed";
+      event.preventDefault?.();
+      return false;
+    }
+  });
+  const statuses = [];
+  const root = makeRoot({toolPane});
+  const dispatcher = createShortcutDispatcher({
+    root,
+    setStatus: value => statuses.push(value)
+  });
+
+  const ditherBlend = keyEvent("7", {code: "Digit7"});
+  dispatcher.handleKeydown(ditherBlend);
+
+  assert.equal(ditherBlend.prevented, true);
+  assert.deepEqual(statuses, ["Dither / Blend panel collapsed."]);
+});
+
+
+test("shift-I cycles inspector tabs and opens the floating inspector", () => {
+  const root = makeRoot({
+    inspectorTabPixel: makeElement(),
+    inspectorTabSelection: makeElement(),
+    inspectorTabDiagnostics: makeElement()
+  });
+  const state = {diagnostics: {inspectorTab: "pixel", pixelInspectorOpen: false}};
+  const calls = [];
+  const dispatcher = createShortcutDispatcher({
+    root,
+    state,
+    els: {
+      inspectorTabPixel: root.elements.inspectorTabPixel,
+      inspectorTabSelection: root.elements.inspectorTabSelection,
+      inspectorTabDiagnostics: root.elements.inspectorTabDiagnostics
+    },
+    setPixelInspectorOpen: open => { state.diagnostics.pixelInspectorOpen = open; calls.push(["open", open]); },
+    setInspectorTab: (tab, options) => { state.diagnostics.inspectorTab = tab; calls.push(["tab", tab, options?.focus, options?.announce, options?.update]); }
+  });
+
+  const first = keyEvent("I", {shiftKey: true, code: "KeyI"});
+  dispatcher.handleKeydown(first);
+  assert.equal(first.prevented, true);
+  assert.equal(state.diagnostics.pixelInspectorOpen, true);
+  assert.equal(state.diagnostics.inspectorTab, "selection");
+
+  const rangeInput = makeElement({type: "range"});
+  const second = keyEvent("İ", {
+    shiftKey: true,
+    code: "KeyI",
+    target: {closest: selector => selector === "input" ? rangeInput : null}
+  });
+  dispatcher.handleKeydown(second);
+  assert.equal(second.prevented, true);
+  assert.equal(state.diagnostics.inspectorTab, "diagnostics");
+  assert.deepEqual(calls, [
+    ["tab", "selection", false, false, false],
+    ["open", true],
+    ["tab", "selection", true, true, undefined],
+    ["tab", "diagnostics", true, true, undefined]
+  ]);
+});
+
+
+
+test("shift-I capture handler works from focused controls", () => {
+  const root = makeRoot({
+    inspectorTabPixel: makeElement(),
+    inspectorTabSelection: makeElement(),
+    inspectorTabDiagnostics: makeElement()
+  });
+  const state = {diagnostics: {inspectorTab: "pixel", pixelInspectorOpen: false}};
+  const dispatcher = createShortcutDispatcher({
+    root,
+    state,
+    els: {
+      inspectorTabPixel: root.elements.inspectorTabPixel,
+      inspectorTabSelection: root.elements.inspectorTabSelection,
+      inspectorTabDiagnostics: root.elements.inspectorTabDiagnostics
+    },
+    setPixelInspectorOpen: open => { state.diagnostics.pixelInspectorOpen = open; },
+    setInspectorTab: tab => { state.diagnostics.inspectorTab = tab; }
+  });
+
+  let stopped = false;
+  const focusedInput = makeElement({type: "text"});
+  const event = keyEvent("I", {
+    shiftKey: true,
+    code: "KeyI",
+    target: {closest: selector => selector === "input" ? focusedInput : null},
+    stopPropagation() { stopped = true; }
+  });
+
+  dispatcher.handleCaptureKeydown(event);
+
+  assert.equal(event.prevented, true);
+  assert.equal(stopped, true);
+  assert.equal(state.diagnostics.pixelInspectorOpen, true);
+  assert.equal(state.diagnostics.inspectorTab, "selection");
+});
+
+
+test("unshifted uppercase I toggles inspector instead of cycling tabs", () => {
+  const root = makeRoot({
+    inspectorTabPixel: makeElement(),
+    inspectorTabSelection: makeElement(),
+    inspectorTabDiagnostics: makeElement()
+  });
+  const state = {diagnostics: {inspectorTab: "pixel", pixelInspectorOpen: false}};
+  let toggles = 0;
+  const dispatcher = createShortcutDispatcher({
+    root,
+    state,
+    els: {
+      inspectorTabPixel: root.elements.inspectorTabPixel,
+      inspectorTabSelection: root.elements.inspectorTabSelection,
+      inspectorTabDiagnostics: root.elements.inspectorTabDiagnostics
+    },
+    setPixelInspectorOpen: open => { state.diagnostics.pixelInspectorOpen = open; },
+    setInspectorTab: tab => { state.diagnostics.inspectorTab = tab; },
+    togglePixelInspector: () => { toggles += 1; }
+  });
+
+  const event = keyEvent("I", {code: "KeyI"});
+  dispatcher.handleKeydown(event);
+
+  assert.equal(event.prevented, true);
+  assert.equal(toggles, 1);
+  assert.equal(state.diagnostics.inspectorTab, "pixel");
+});
 
 test("shift-minus collapses toolbar panels through the collapse-all control", () => {
   let clicks = 0;

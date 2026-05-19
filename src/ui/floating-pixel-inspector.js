@@ -2,12 +2,21 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+const FOCUS_TOOLBAR_PANEL_EVENT = "palette-synth:focus-panel";
+
+const INSPECTOR_TAB_BY_PANEL_KEY = {
+  "pixel-inspector": "pixel",
+  "selection-diagnostics": "selection",
+  diagnostics: "diagnostics"
+};
+
 export function bindFloatingPixelInspector({
   els = {},
   state = {},
   config = {},
   setPixelInspectorOpen = () => {},
   togglePixelInspector = () => {},
+  setInspectorTab = () => {},
   refreshDiagnosticPixel = () => {},
   clearDiagnosticPixel = () => {},
   copyPixelHex = () => {},
@@ -22,6 +31,7 @@ export function bindFloatingPixelInspector({
   const clear = els.clearPixelInspector;
   const copySource = els.copyPixelSource;
   const copyFinal = els.copyPixelFinal;
+  const tabButtons = [els.inspectorTabPixel, els.inspectorTabSelection, els.inspectorTabDiagnostics].filter(Boolean);
   if (!pane) return {destroy() {}};
 
   const listeners = [];
@@ -48,6 +58,34 @@ export function bindFloatingPixelInspector({
   add(clear, "click", () => clearDiagnosticPixel({announce: true}));
   add(copySource, "click", () => copy("source"));
   add(copyFinal, "click", () => copy("final"));
+
+  for (const button of tabButtons) {
+    add(button, "click", () => {
+      const tab = button.dataset?.inspectorTab;
+      setInspectorTab(tab, {focus: false, announce: false});
+    });
+  }
+
+  add(els.inspectorTabs, "keydown", event => {
+    if (!tabButtons.length || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault?.();
+    const currentIndex = Math.max(0, tabButtons.findIndex(button => button.getAttribute?.("aria-selected") === "true" || button.classList?.contains?.("is-active")));
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabButtons.length) % tabButtons.length;
+    else if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabButtons.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = tabButtons.length - 1;
+    setInspectorTab(tabButtons[nextIndex]?.dataset?.inspectorTab, {focus: true, announce: false});
+  });
+
+  add(pane, FOCUS_TOOLBAR_PANEL_EVENT, event => {
+    const tab = INSPECTOR_TAB_BY_PANEL_KEY[event?.detail?.panelKey || event?.detail?.key];
+    if (!tab) return;
+    setInspectorTab(tab, {focus: false, announce: false, update: false});
+    setPixelInspectorOpen(true, {announce: false});
+    setInspectorTab(tab, {focus: true, announce: false, update: false});
+    event.preventDefault?.();
+  });
 
   add(pane, "dblclick", event => {
     if (event.target?.closest?.("button")) return;

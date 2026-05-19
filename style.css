@@ -1842,13 +1842,15 @@ canvas {
 
 /* Per-swatch contribution rows. The territory column appears only in
    blend/dither modes, where it carries meaningfully different information
-   from the contribution bar; in nearest mode the two would be identical. */
+   from the contribution bar; in nearest mode the two would be identical.
+   In the floating inspector this list must not become its own tiny scrollbox:
+   it is the primary readout, so the whole diagnostics tab scrolls as one page. */
 .diagnostics-usage {
   display: grid;
   gap: 4px;
-  max-height: 240px;
-  overflow: auto;
-  padding-right: 2px;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
 }
 .diagnostic-usage-row {
   display: grid;
@@ -2744,6 +2746,45 @@ input[type="range"] {
 .pixel-inspector-window-actions .mini-control {
   min-height: 20px;
   padding: 2px 6px;
+}
+.inspector-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.025);
+}
+.inspector-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 24px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.inspector-tab.is-active,
+.inspector-tab[aria-selected="true"] {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(143,180,223,.14);
+}
+.inspector-tab-panel {
+  min-height: 0;
+  max-height: min(560px, calc(100vh - 164px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.inspector-tab-panel[hidden] {
+  display: none !important;
+}
+.pixel-inspector-pane .selection-diagnostics-panel,
+.pixel-inspector-pane .diagnostics-panel {
+  padding: 7px;
 }
 .pixel-inspector-pane .diagnostics-pixel {
   max-height: min(330px, calc(100vh - 220px));

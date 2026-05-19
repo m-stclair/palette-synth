@@ -399,6 +399,7 @@ export function createPaletteSynthApp({
   const {
     diagnosticsPanelIsOpen,
     pixelInspectorPanelIsOpen,
+    setInspectorTab,
     setPixelInspectorOpen,
     togglePixelInspector,
     refreshDiagnosticPixel,
@@ -821,6 +822,7 @@ export function createPaletteSynthApp({
     cycleMaskController,
     diagnosticsPanelIsOpen,
     pixelInspectorPanelIsOpen,
+    setInspectorTab,
     setPixelInspectorOpen,
     togglePixelInspector,
     refreshDiagnosticPixel,

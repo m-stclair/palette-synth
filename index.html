@@ -23,7 +23,7 @@
                   <label class="pixel-toggle mini-control" for="pixelPerfectToggle" title="Pixel-perfect preview"><input id="pixelPerfectToggle" type="checkbox" /> <span>Pixels</span></label>
                   <label class="dynamic-skin-toggle mini-control" for="dynamicSkin" title="Tint the interface from the current palette"><input id="dynamicSkin" type="checkbox" /> <span>Skin</span></label>
                   <label class="compare-toggle mini-control" for="compareToggle" title="Before/after split preview"><input id="compareToggle" type="checkbox" /> <span>Compare</span></label>
-                  <button id="togglePixelInspector" type="button" class="ghost mini-control" aria-pressed="false" title="Toggle floating pixel inspector (I)">Inspect</button>
+                  <button id="togglePixelInspector" type="button" class="ghost mini-control" aria-pressed="false" title="Toggle inspector (I); switch inspector tab (Shift+I)">Inspect</button>
                   <label class="compare-control mini-control" for="compareSplit"><span>Split</span> <output id="compareSplitValue">50%</output><input id="compareSplit" type="range" min="0" max="100" step="1" value="50" /></label>
                 </div>
               </details>
@@ -287,27 +287,6 @@
       </section>
 
       <section class="panel">
-        <h2>Pixel art</h2>
-        <div class="field">
-          <label for="pixelBlockSize">Pixel size <output id="pixelBlockSizeValue"></output></label>
-          <input id="pixelBlockSize" type="range" min="1" max="16" step="1" />
-        </div>
-        <div class="field">
-          <label for="pixelBlockSampleMode">Block sample</label>
-          <select id="pixelBlockSampleMode">
-            <option value="center">Center</option>
-            <option value="mean">Mean</option>
-            <option value="representative">Representative</option>
-          </select>
-        </div>
-        <label class="field checkbox-field" for="despeckleEnabled" title="3x3 mode filter on the paletted output. Removes isolated stray pixels."><span>Despeckle</span><input id="despeckleEnabled" type="checkbox" /></label>
-        <div class="field">
-          <label for="despeckleStrength">Despeckle passes <output id="despeckleStrengthValue"></output></label>
-          <input id="despeckleStrength" type="range" min="1" max="4" step="1" />
-        </div>
-      </section>
-
-      <section class="panel">
         <h2>Mapping</h2>
         <div class="field">
           <label for="assignMode">Assignment</label>
@@ -378,6 +357,27 @@
       </section>
 
       <section class="panel">
+        <h2>Pixel art</h2>
+        <div class="field">
+          <label for="pixelBlockSize">Pixel size <output id="pixelBlockSizeValue"></output></label>
+          <input id="pixelBlockSize" type="range" min="1" max="16" step="1" />
+        </div>
+        <div class="field">
+          <label for="pixelBlockSampleMode">Block sample</label>
+          <select id="pixelBlockSampleMode">
+            <option value="center">Center</option>
+            <option value="mean">Mean</option>
+            <option value="representative">Representative</option>
+          </select>
+        </div>
+        <label class="field checkbox-field" for="despeckleEnabled" title="3x3 mode filter on the paletted output. Removes isolated stray pixels."><span>Despeckle</span><input id="despeckleEnabled" type="checkbox" /></label>
+        <div class="field">
+          <label for="despeckleStrength">Despeckle passes <output id="despeckleStrengthValue"></output></label>
+          <input id="despeckleStrength" type="range" min="1" max="4" step="1" />
+        </div>
+      </section>
+
+      <section class="panel">
         <h2>Cycle</h2>
         <div class="field"><label for="cycleOffset">Offset <output id="cycleOffsetValue"></output></label><input id="cycleOffset" type="range" min="0" max="100" step="1" /></div>
         <div class="cycle-preview-row">
@@ -433,28 +433,6 @@
           </div>
           <div id="maskNote" class="inline-note">Paint one session-only mask, then choose what rule it applies.</div>
         </div>
-      </section>
-
-
-      <section class="panel selection-diagnostics-panel image-palette-only" data-panel-key="selection-diagnostics">
-        <h2>Family selection</h2>
-        <div class="diagnostics-subhead">Why these families?</div>
-        <div id="diagnosticsSelection" class="diagnostics-selection"><div class="diagnostics-summary-empty">Generate from an image to inspect selection forces.</div></div>
-      </section>
-
-      <section class="panel diagnostics-panel" data-panel-key="diagnostics">
-        <h2>Palette diagnostics</h2>
-        <div id="diagnosticsSummary" class="diagnostics-summary"><div class="diagnostics-summary-empty">Open an image to audit palette coverage.</div></div>
-        <div class="diagnostics-subhead">Overlay</div>
-        <div id="diagnosticsOverlayControls" class="diagnostics-overlay-controls" aria-label="Diagnostic overlay controls">
-          <button id="diagnosticsOverlayOff" type="button" class="ghost mini-control" aria-pressed="true">Off</button>
-          <button id="diagnosticsOverlayDifference" type="button" class="ghost mini-control" aria-pressed="false">Difference heatmap</button>
-          <span id="diagnosticsOverlayStatus" class="inline-note">Click a contribution swatch to isolate its pixels.</span>
-        </div>
-        <div id="diagnosticsUsageHeading" class="diagnostics-subhead">Assignment contribution</div>
-        <div id="diagnosticsUsage" class="diagnostics-usage" aria-label="Assignment contribution bars"></div>
-        <div class="diagnostics-subhead">Palette X-Ray</div>
-        <div id="diagnosticsXray" class="diagnostics-xray" role="img" aria-label="OKLCh hue and lightness scatterplot"></div>
       </section>
 
             <section class="panel">
@@ -520,20 +498,44 @@
 
 
   <section id="pixelInspectorPane" class="pixel-inspector-pane pixel-inspector-panel" hidden aria-labelledby="pixelInspectorTitle">
-          <div id="pixelInspectorHandle" class="pixel-inspector-titlebar">
-            <h2 id="pixelInspectorTitle">Pixel inspector</h2>
-            <div class="pixel-inspector-window-actions">
-              <button id="clearPixelInspector" type="button" class="ghost mini-control" title="Clear inspected pixel (Esc)">Clear</button>
-              <button id="closePixelInspector" type="button" class="ghost mini-control" aria-label="Close pixel inspector" title="Close pixel inspector">×</button>
-            </div>
-          </div>
-          <div id="diagnosticsPixel" class="diagnostics-pixel inline-note">Click the preview to interrogate a pixel.</div>
-          <div class="pixel-inspector-actions">
-            <button id="copyPixelSource" type="button" class="ghost" disabled>Copy source</button>
-            <button id="copyPixelFinal" type="button" class="ghost" disabled>Copy fx</button>
-            <button id="addPixelSourceToManualPalette" type="button" class="ghost" disabled>Add source</button>
-          </div>
-        </section>
+    <div id="pixelInspectorHandle" class="pixel-inspector-titlebar">
+      <h2 id="pixelInspectorTitle">Inspector</h2>
+      <div class="pixel-inspector-window-actions">
+        <button id="clearPixelInspector" type="button" class="ghost mini-control" title="Clear inspected pixel (Esc)">Clear</button>
+        <button id="closePixelInspector" type="button" class="ghost mini-control" aria-label="Close inspector" title="Close inspector">×</button>
+      </div>
+    </div>
+    <div id="inspectorTabs" class="inspector-tabs" role="tablist" aria-label="Inspector views" aria-keyshortcuts="Shift+I" title="Switch inspector tab (Shift+I)">
+      <button id="inspectorTabPixel" type="button" class="inspector-tab is-active" role="tab" aria-selected="true" aria-controls="inspectorPanelPixel" data-inspector-tab="pixel" title="Pixel inspector tab">Pixel</button>
+      <button id="inspectorTabSelection" type="button" class="inspector-tab image-palette-only" role="tab" aria-selected="false" aria-controls="inspectorPanelSelection" data-inspector-tab="selection" title="Family selection tab">Families</button>
+      <button id="inspectorTabDiagnostics" type="button" class="inspector-tab" role="tab" aria-selected="false" aria-controls="inspectorPanelDiagnostics" data-inspector-tab="diagnostics" title="Palette diagnostics tab">Diagnostics</button>
+    </div>
+    <div id="inspectorPanelPixel" class="inspector-tab-panel" role="tabpanel" aria-labelledby="inspectorTabPixel" data-inspector-tab-panel="pixel">
+      <div id="diagnosticsPixel" class="diagnostics-pixel inline-note">Click the preview to interrogate a pixel.</div>
+      <div class="pixel-inspector-actions">
+        <button id="copyPixelSource" type="button" class="ghost" disabled>Copy source</button>
+        <button id="copyPixelFinal" type="button" class="ghost" disabled>Copy fx</button>
+        <button id="addPixelSourceToManualPalette" type="button" class="ghost" disabled>Add source</button>
+      </div>
+    </div>
+    <section id="inspectorPanelSelection" class="inspector-tab-panel selection-diagnostics-panel image-palette-only" role="tabpanel" aria-labelledby="inspectorTabSelection" data-inspector-tab-panel="selection" data-panel-key="selection-diagnostics" hidden>
+      <div class="diagnostics-subhead">Why these families?</div>
+      <div id="diagnosticsSelection" class="diagnostics-selection"><div class="diagnostics-summary-empty">Generate from an image to inspect selection forces.</div></div>
+    </section>
+    <section id="inspectorPanelDiagnostics" class="inspector-tab-panel diagnostics-panel" role="tabpanel" aria-labelledby="inspectorTabDiagnostics" data-inspector-tab-panel="diagnostics" data-panel-key="diagnostics" hidden>
+      <div id="diagnosticsSummary" class="diagnostics-summary"><div class="diagnostics-summary-empty">Open an image to audit palette coverage.</div></div>
+      <div class="diagnostics-subhead">Overlay</div>
+      <div id="diagnosticsOverlayControls" class="diagnostics-overlay-controls" aria-label="Diagnostic overlay controls">
+        <button id="diagnosticsOverlayOff" type="button" class="ghost mini-control" aria-pressed="true">Off</button>
+        <button id="diagnosticsOverlayDifference" type="button" class="ghost mini-control" aria-pressed="false">Difference heatmap</button>
+        <span id="diagnosticsOverlayStatus" class="inline-note">Click a contribution swatch to isolate its pixels.</span>
+      </div>
+      <div id="diagnosticsUsageHeading" class="diagnostics-subhead">Assignment contribution</div>
+      <div id="diagnosticsUsage" class="diagnostics-usage" aria-label="Assignment contribution bars"></div>
+      <div class="diagnostics-subhead">Palette X-Ray</div>
+      <div id="diagnosticsXray" class="diagnostics-xray" role="img" aria-label="OKLCh hue and lightness scatterplot"></div>
+    </section>
+  </section>
 
 
   <dialog id="manualPaletteTextDialog" class="palette-text-dialog">
