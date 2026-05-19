@@ -11,10 +11,17 @@ function fakeElement() {
     innerHTML: "",
     textContent: "",
     toggles: [],
+    listeners: {},
     classList: {
       toggle(name, value) {
         this.owner.toggles.push([name, value]);
       }
+    },
+    addEventListener(name, handler) {
+      (this.listeners[name] = this.listeners[name] || []).push(handler);
+    },
+    dispatch(name, event) {
+      for (const handler of this.listeners[name] || []) handler(event);
     }
   };
 }
@@ -148,4 +155,75 @@ test("diagnostics panel renders summary, usage, xray, selection fallback, and pi
   assert.match(els.diagnosticsPixel.innerHTML, /ΔL [0-9]/);
   assert.doesNotMatch(els.diagnosticsPixel.innerHTML, /ΔL —/);
   assert.match(els.diagnosticsPixel.innerHTML, /ΔH ~/);
+});
+
+test("X-Ray renders four distinct modes and switches between them on click", () => {
+  const xray = element();
+  const els = {diagnosticsXray: xray};
+  const records = [
+    {lab: [20, 8, -2],  hex: "#1a2230", displayIndex: 0, familyId: "a", variantIndex: 0},
+    {lab: [55, -18, 22], hex: "#5e8a4a", displayIndex: 1, familyId: "a", variantIndex: 1},
+    {lab: [82, 4,  14],  hex: "#dcc89a", displayIndex: 2, familyId: "b", variantIndex: 0, locked: true},
+    {lab: [40, 30, 18],  hex: "#9b4a3a", displayIndex: 3, familyId: "c", variantIndex: 0}
+  ];
+  const stats = {
+    records,
+    entries: [],
+    collisions: {threshold: 12, closest: {a: records[0], b: records[1], i: 0, j: 1, distance: 18.4}}
+  };
+  const state = {imageData: null, diagnostics: {stats}};
+  const panel = createDiagnosticsPanel({
+    els,
+    getConfig: () => ({lumaWeight: 1, chromaWeight: 1, hueWeight: 1, minDistance: 18}),
+    getState: () => state
+  });
+
+  // Default: scatter. Mode bar must include every mode so it's discoverable.
+  panel.renderDiagnosticsXray(stats);
+  assert.match(xray.innerHTML, /data-xray-mode="scatter"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /data-xray-mode="wheel"/);
+  assert.match(xray.innerHTML, /data-xray-mode="ramp"/);
+  assert.match(xray.innerHTML, /data-xray-mode="proximity"/);
+  // Scatter-specific signatures: hue letter labels and the neutral column.
+  assert.match(xray.innerHTML, />neutral</);
+  assert.match(xray.innerHTML, />R</);
+
+  // Drive the click handler that the panel binds on first render. Each mode
+  // should produce visibly different markup, not just a relabelled scatter.
+  const clickMode = mode => xray.dispatch("click", {target: {closest: sel => sel === `[data-xray-mode]` ? {dataset: {xrayMode: mode}} : null}});
+
+  clickMode("wheel");
+  assert.match(xray.innerHTML, /data-xray-mode="wheel"[^>]*aria-selected="true"/);
+  // Wheel mode reports max chroma as a label and draws concentric chroma rings.
+  assert.match(xray.innerHTML, /C \d+/);
+
+  clickMode("ramp");
+  assert.match(xray.innerHTML, /data-xray-mode="ramp"[^>]*aria-selected="true"/);
+  // Ramp mode labels the lightness axis.
+  assert.match(xray.innerHTML, />Lightness</);
+
+  clickMode("proximity");
+  assert.match(xray.innerHTML, /data-xray-mode="proximity"[^>]*aria-selected="true"/);
+  // Proximity mode shows a closer→farther legend and a collision readout
+  // sourced from cpuDistanceBreakdown over every swatch pair.
+  assert.match(xray.innerHTML, /closer → farther/);
+
+  clickMode("scatter");
+  assert.match(xray.innerHTML, /data-xray-mode="scatter"[^>]*aria-selected="true"/);
+});
+
+test("X-Ray proximity mode degrades gracefully when there are not enough swatches", () => {
+  const xray = element();
+  const stats = {
+    records: [{lab: [50, 0, 0], hex: "#808080", displayIndex: 0}],
+    entries: []
+  };
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getConfig: () => ({lumaWeight: 1, chromaWeight: 1, hueWeight: 1}),
+    getState: () => ({diagnostics: {stats}})
+  });
+  panel.renderDiagnosticsXray(stats);
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-mode]" ? {dataset: {xrayMode: "proximity"}} : null}});
+  assert.match(xray.innerHTML, /Need at least two swatches/);
 });

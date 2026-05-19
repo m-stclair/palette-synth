@@ -1920,8 +1920,10 @@ canvas {
   color: var(--accent);
 }
 
-/* X-Ray plot: hue×lightness scatter of palette records with axis ticks,
-   cardinal-hue markers, and an explicit neutral column band. */
+/* X-Ray plot: a switcher above the SVG selects between four views over the
+   same records (scatter, wheel, ramp, proximity matrix) that each surface a
+   different property — geometry, hue/gamut, tonal coverage, and pairwise
+   relationships. The container is empty until a palette exists. */
 .diagnostics-xray {
   min-height: 144px;
   padding: 6px;
@@ -1941,6 +1943,21 @@ canvas {
   font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
+}
+.diagnostics-xray-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.diagnostics-xray-modes .mini-control {
+  min-height: 20px;
+  padding: 2px 7px;
+}
+.diagnostics-xray-modes .mini-control.is-active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(143,180,223,.14);
 }
 
 /* Pixel inspector: header line plus per-match rows with actual mix weights
