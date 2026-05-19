@@ -199,7 +199,7 @@ test("palette preview renders generated locks, manual aliases, and click actions
       manualEditor: {swatchId: null},
       palette: [],
       paletteRecords: [
-        {id: "generated-1", source: "generated", lab: [20, 0, 0], hex: "#111111", seedLab: [30, 0, 0], familyId: "family-a", variant: "shadow"}
+        {id: "generated-1", source: "generated", lab: [0, 7.4, 0], hex: "#000003", seedLab: [30, 0, 0], familyId: "family-a", variant: "shadow"}
       ]
     };
     const history = [];
@@ -248,6 +248,8 @@ test("palette preview renders generated locks, manual aliases, and click actions
     const chip = els.palettePreview.children[0];
     assert.equal(chip.classList.contains("is-lockable"), true);
     assert.equal(els.paletteCount.textContent, "1 colors · 0 locks");
+    assert.match(chip.title, /#000003 · LCH 4\.4 3\.0 264°/);
+    assert.doesNotMatch(chip.title, /LCH 0\.0 7\.4/);
     assert.match(els.paletteHint.textContent, /Generated palette from current image/);
     assert.equal(syncedCycles, 1);
     assert.equal(syncedEditor, 1);
@@ -261,7 +263,7 @@ test("palette preview renders generated locks, manual aliases, and click actions
     assert.deepEqual(statuses, ["Locked family #2e2e2e."]);
 
     await chip.dispatchEvent({type: "click", shiftKey: true});
-    assert.deepEqual(copied, ["#111111"]);
+    assert.deepEqual(copied, ["#000003"]);
 
     config.paletteMode = "manual";
     state.paletteRecords = [{id: "manual-1", source: "manual", swatchId: "swatch-a", sourceIndex: 0, lab: [80, 0, 0], hex: "#eeeeee"}];

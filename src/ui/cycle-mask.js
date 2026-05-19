@@ -1,4 +1,4 @@
-import { labToHex, makePaletteRecord } from "../color-utils.js";
+import { colorInfoLabel, labToHex, makePaletteRecord } from "../color-utils.js";
 import { MAX_PALETTE_SIZE } from "../constants.js";
 
 export const MASK_BEHAVIOR_CYCLE_WITHIN = "cycleWithin";
@@ -209,7 +209,7 @@ export function createMaskController({
       chip.dataset.sourceIndex = String(sourceIndex);
       chip.setAttribute("aria-pressed", String(forbidden.has(sourceIndex)));
       chip.classList.toggle("is-forbidden", forbidden.has(sourceIndex));
-      chip.title = `${hex} · ${forbidden.has(sourceIndex) ? "Allowed inside mask" : "Forbid inside mask"}`;
+      chip.title = `${colorInfoLabel(hex, record?.lab)} · ${forbidden.has(sourceIndex) ? "Allowed inside mask" : "Forbid inside mask"}`;
       chip.addEventListener("click", () => {
         const added = toggleForbiddenSourceIndex(sourceIndex);
         setStatus(added ? `Forbidden inside mask: ${hex}.` : `Allowed inside mask: ${hex}.`);

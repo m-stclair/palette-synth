@@ -6,6 +6,7 @@ import {
 } from "../constants.js";
 import {
   clamp,
+  colorInfoLabel,
   hexToByteRgb,
   labDistanceComponents,
   labToHex,
@@ -112,7 +113,10 @@ function formatSignedScore(value) {
 }
 
 function swatchListHtml(hexes = []) {
-  return hexes.map(hex => `<i class="selection-swatch" style="background:${hex}" title="${hex}"></i>`).join("");
+  return hexes.map(hex => {
+    const colorInfo = colorInfoLabel(hex);
+    return `<i class="selection-swatch" style="background:${hex}" title="${colorInfo}"></i>`;
+  }).join("");
 }
 
 function pixelInspectorSwatchNumber(match, config = {}) {
@@ -286,21 +290,23 @@ export function createDiagnosticsPanel({
       .sort((a, b) => b.percent - a.percent || b.territoryPercent - a.territoryPercent || usageOrderValue(a, config, records) - usageOrderValue(b, config, records) || a.index - b.index)
       .map(item => {
         const pct = clamp(item.percent * 100, 0, 100);
+        const record = usageRecord(item, records);
         const swatchTitle = usageSwatchTitle(item, config, records);
+        const colorInfo = colorInfoLabel(item.hex, record?.lab);
         const territoryNote = showTerritoryColumn
           ? `<small title="Nearest-only territory: ${formatUsagePercent(item.territoryPercent)}">${formatUsagePercent(item.territoryPercent)}</small>`
           : "";
         const aliasNote = item.aliasPercent > 0
           ? ` · alias ${formatUsagePercent(item.aliasPercent)}`
           : "";
-        const titleParts = [swatchTitle, `contribution ${formatUsagePercent(item.percent)}`];
+        const titleParts = [swatchTitle, colorInfo, `contribution ${formatUsagePercent(item.percent)}`];
         if (showTerritoryColumn) titleParts.push(`nearest ${formatUsagePercent(item.territoryPercent)}`);
         if (item.aliasPercent > 0) titleParts.push(`alias ${formatUsagePercent(item.aliasPercent)}`);
         if (item.load !== "balanced") titleParts.push(item.load);
         const overlayActive = overlay.mode === "swatch" && overlay.swatchIndex === item.index;
         return `<div class="diagnostic-usage-row is-${item.load}${overlayActive ? " is-overlay-target" : ""}" title="${titleParts.join(" · ")}${aliasNote}">
-          <button type="button" class="diagnostic-usage-swatch-button" data-diagnostic-swatch-index="${item.index}" aria-pressed="${overlayActive}" title="Show ${config.assignMode === "blend" ? "blend contribution heatmap" : "assignment mask"} for ${swatchTitle}">
-            <i class="diagnostic-usage-swatch" style="background:${item.hex}"></i>
+          <button type="button" class="diagnostic-usage-swatch-button" data-diagnostic-swatch-index="${item.index}" aria-pressed="${overlayActive}" title="Show ${config.assignMode === "blend" ? "blend contribution heatmap" : "assignment mask"} for ${swatchTitle} · ${colorInfo}">
+            <i class="diagnostic-usage-swatch" style="background:${item.hex}" title="${colorInfo}"></i>
           </button>
           <span class="diagnostic-usage-track"><span class="diagnostic-usage-fill" style="--usage-pct:${pct}%"></span></span>
           <b>${formatUsagePercent(item.percent)}</b>
@@ -434,7 +440,7 @@ export function createDiagnosticsPanel({
       const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.82)";
       const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
       const hex = record.hex || labToHex(record.lab);
-      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.2"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${hex} · L ${record.lab[0].toFixed(1)} · C ${C.toFixed(1)}</title></circle>`;
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.2"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></circle>`;
     }).join("");
 
     return `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
@@ -550,7 +556,7 @@ export function createDiagnosticsPanel({
       const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.82)";
       const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
       const hex = record.hex || labToHex(record.lab);
-      return `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.1"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${hex} · L ${record.lab[0].toFixed(1)} · C ${C.toFixed(1)} · h ${(h * 360 / TAU).toFixed(0)}°</title></circle>`;
+      return `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.1"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></circle>`;
     }).join("");
 
     return `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
@@ -650,7 +656,7 @@ export function createDiagnosticsPanel({
       const lollipopY = trackY + trackH + 14;
       return `<rect x="${(x - 1.2).toFixed(1)}" y="${trackY.toFixed(1)}" width="2.4" height="${trackH}" fill="${hex}" stroke="rgba(3,5,7,.55)" stroke-width="0.5"/>
         <line x1="${x.toFixed(1)}" y1="${(trackY + trackH).toFixed(1)}" x2="${x.toFixed(1)}" y2="${lollipopY.toFixed(1)}" stroke="rgba(184,196,214,.35)" stroke-width="0.6"/>
-        <circle cx="${x.toFixed(1)}" cy="${lollipopY.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${hex} · L ${record.lab[0].toFixed(1)}</title></circle>`;
+        <circle cx="${x.toFixed(1)}" cy="${lollipopY.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></circle>`;
     }).join("");
 
     const axisLabel = `<text x="${padX}" y="${(padY - 4).toFixed(1)}" text-anchor="start" class="xray-axis">Lightness</text>`;
@@ -761,9 +767,9 @@ export function createDiagnosticsPanel({
       const cellMid = startX + (i + 0.5) * cell;
       const rowMid = startY + (i + 0.5) * cell;
       // Top header
-      chips.push(`<rect x="${(cellMid - chipSize / 2).toFixed(1)}" y="${(startY - chipSize - 1).toFixed(1)}" width="${chipSize}" height="${chipSize}" rx="0.8" fill="${hex}" stroke="rgba(8,10,13,.55)" stroke-width="0.4"><title>swatch ${(record.displayIndex ?? 0) + 1} · ${hex}</title></rect>`);
+      chips.push(`<rect x="${(cellMid - chipSize / 2).toFixed(1)}" y="${(startY - chipSize - 1).toFixed(1)}" width="${chipSize}" height="${chipSize}" rx="0.8" fill="${hex}" stroke="rgba(8,10,13,.55)" stroke-width="0.4"><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></rect>`);
       // Left header
-      chips.push(`<rect x="${(startX - chipSize - 1).toFixed(1)}" y="${(rowMid - chipSize / 2).toFixed(1)}" width="${chipSize}" height="${chipSize}" rx="0.8" fill="${hex}" stroke="rgba(8,10,13,.55)" stroke-width="0.4"><title>swatch ${(record.displayIndex ?? 0) + 1} · ${hex}</title></rect>`);
+      chips.push(`<rect x="${(startX - chipSize - 1).toFixed(1)}" y="${(rowMid - chipSize / 2).toFixed(1)}" width="${chipSize}" height="${chipSize}" rx="0.8" fill="${hex}" stroke="rgba(8,10,13,.55)" stroke-width="0.4"><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></rect>`);
     }
 
     // Cells. Diagonal stays muted (a swatch's distance to itself is zero by
@@ -866,7 +872,7 @@ export function createDiagnosticsPanel({
       const tight = closest.distance <= collisions.threshold;
       collisionLine = `<dt title="Closest palette pair in weighted OKLab distance. Below ${formatDistance(collisions.threshold)} swatches may be hard to distinguish in matching.">closest</dt>
         <dd class="diagnostics-summary-pair${tight ? " is-warning" : ""}">
-          <i style="background:${aHex}"></i><i style="background:${bHex}"></i>
+          <i style="background:${aHex}" title="${colorInfoLabel(aHex, a.lab)}"></i><i style="background:${bHex}" title="${colorInfoLabel(bHex, b.lab)}"></i>
           <span>${formatDistance(closest.distance)}</span>
           <small>#${aIndex} ↔ #${bIndex}</small>
         </dd>`;
@@ -970,11 +976,11 @@ export function createDiagnosticsPanel({
       sourceButton.disabled = !pixel || full;
       sourceButton.title = !pixel
         ? "Inspect a pixel first"
-        : (full ? "Manual palette is already full" : `Add ${pixel.sourceHex} to the manual palette`);
+        : (full ? "Manual palette is already full" : `Add ${colorInfoLabel(pixel.sourceHex)} to the manual palette`);
     }
     if (els.copyPixelSource) {
       els.copyPixelSource.disabled = !pixel;
-      els.copyPixelSource.title = pixel ? `Copy ${pixel.sourceHex}` : "Inspect a pixel first";
+      els.copyPixelSource.title = pixel ? `Copy ${colorInfoLabel(pixel.sourceHex)}` : "Inspect a pixel first";
     }
     if (els.copyPixelFinal) {
       const blendAmount = Number(config?.blendAmount);
@@ -982,7 +988,7 @@ export function createDiagnosticsPanel({
       const label = blendActive ? "Copy blend" : "Copy fx";
       els.copyPixelFinal.disabled = !pixel;
       els.copyPixelFinal.textContent = label;
-      els.copyPixelFinal.title = pixel ? `${label} ${blendActive ? pixel.finalHex : (pixel.fxHex || pixel.finalHex)}` : "Inspect a pixel first";
+      els.copyPixelFinal.title = pixel ? `${label} ${colorInfoLabel(blendActive ? pixel.finalHex : (pixel.fxHex || pixel.finalHex))}` : "Inspect a pixel first";
     }
     if (els.clearPixelInspector) els.clearPixelInspector.disabled = !pixel;
   }
@@ -1017,7 +1023,8 @@ export function createDiagnosticsPanel({
         : `<b class="is-inactive" title="weighted distance">${formatDistance(match.distance)}</b>`;
       const swatchNumber = pixelInspectorSwatchNumber(match, config);
       const swatchTitle = pixelInspectorSwatchTitle(match, config);
-      return `<div class="${cls}" title="${swatchTitle} ${match.hex}"><i style="background:${match.hex}" title="${match.hex}"></i><span>#${index + 1} swatch ${swatchNumber}${aliasFlag} ${parts}</span>${weightCell}</div>`;
+      const matchColorInfo = colorInfoLabel(match.hex, match.record?.lab);
+      return `<div class="${cls}" title="${swatchTitle} ${matchColorInfo}"><i style="background:${match.hex}" title="${matchColorInfo}"></i><span>#${index + 1} swatch ${swatchNumber}${aliasFlag} ${parts}</span>${weightCell}</div>`;
     }).join("");
 
     const fxHex = pixel.fxHex || pixel.finalHex;
@@ -1030,12 +1037,12 @@ export function createDiagnosticsPanel({
       : `ΔL — · ΔC — · ΔH —`;
     const blendStage = blendActive
       ? `<span class="diagnostics-pixel-arrow">→</span>
-        <span class="diagnostics-pixel-stage" title="blended output ${pixel.finalHex}"><i class="diagnostics-pixel-chip" style="background:${pixel.finalHex}" title="${pixel.finalHex}"></i><small>blend</small><strong>${pixel.finalHex}</strong></span>`
+        <span class="diagnostics-pixel-stage" title="blended output ${colorInfoLabel(pixel.finalHex)}"><i class="diagnostics-pixel-chip" style="background:${pixel.finalHex}" title="${colorInfoLabel(pixel.finalHex)}"></i><small>blend</small><strong>${pixel.finalHex}</strong></span>`
       : "";
     const header = `<div class="diagnostics-pixel-header">
-        <span class="diagnostics-pixel-stage" title="source color ${pixel.sourceHex}"><i class="diagnostics-pixel-chip" style="background:${pixel.sourceHex}" title="${pixel.sourceHex}"></i><small>src</small><strong>${pixel.sourceHex}</strong></span>
+        <span class="diagnostics-pixel-stage" title="source color ${colorInfoLabel(pixel.sourceHex)}"><i class="diagnostics-pixel-chip" style="background:${pixel.sourceHex}" title="${colorInfoLabel(pixel.sourceHex)}"></i><small>src</small><strong>${pixel.sourceHex}</strong></span>
         <span class="diagnostics-pixel-arrow">→</span>
-        <span class="diagnostics-pixel-stage" title="mapped color before blend ${fxHex}"><i class="diagnostics-pixel-chip" style="background:${fxHex}" title="${fxHex}"></i><small>fx</small><strong>${fxHex}</strong></span>
+        <span class="diagnostics-pixel-stage" title="mapped color before blend ${colorInfoLabel(fxHex)}"><i class="diagnostics-pixel-chip" style="background:${fxHex}" title="${colorInfoLabel(fxHex)}"></i><small>fx</small><strong>${fxHex}</strong></span>
         ${blendStage}
         <span class="diagnostics-pixel-delta" title="${deltaTitle}">${deltaText}</span>
         <span class="diagnostics-pixel-coord">@ ${pixel.x},${pixel.y}</span>

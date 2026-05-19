@@ -75,7 +75,7 @@ test("pixel inspector uses manual palette numbering for manual swatches", () => 
 
   panel.updateDiagnosticsPixel();
 
-  assert.match(els.diagnosticsPixel.innerHTML, /title="manual swatch 4 #abcdef"/);
+  assert.match(els.diagnosticsPixel.innerHTML, /title="manual swatch 4 #abcdef · LCH /);
   assert.match(els.diagnosticsPixel.innerHTML, />#1 swatch 4/);
   assert.doesNotMatch(els.diagnosticsPixel.innerHTML, />#1 swatch 1/);
 });
@@ -130,6 +130,7 @@ test("diagnostics usage sorts by contribution while keeping manual swatch labels
   assert.ok(first >= 0 && second > first && third > second);
   assert.match(els.diagnosticsOverlayStatus.textContent, /manual swatch 1/);
   assert.match(html, /data-diagnostic-swatch-index="1"/);
+  assert.match(html, /title="Show blend contribution heatmap for manual swatch 1 · #111111 · LCH /);
 });
 
 test("diagnostics panel renders summary, usage, xray, selection fallback, and pixel inspector", () => {
@@ -201,6 +202,7 @@ test("diagnostics panel renders summary, usage, xray, selection fallback, and pi
   assert.match(els.diagnosticsUsage.innerHTML, /diagnostic-usage-row/);
   assert.deepEqual(els.diagnosticsUsage.toggles, [["has-territory", true]]);
   assert.match(els.diagnosticsXray.innerHTML, /<svg/);
+  assert.match(els.diagnosticsXray.innerHTML, /#111111 · LCH /);
   assert.match(els.diagnosticsXray.innerHTML, /stroke-dasharray/);
   assert.match(els.diagnosticsSelection.innerHTML, /Generate from an image/);
   assert.match(els.diagnosticsPixel.innerHTML, /#222222/);

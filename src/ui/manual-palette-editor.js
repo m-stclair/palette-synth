@@ -1,4 +1,4 @@
-import { clamp01, hexToLab, labToHex, normalizeHexColor } from "../color-utils.js";
+import { clamp01, colorInfoLabel, hexToLab, labToHex, normalizeHexColor } from "../color-utils.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
 
 export function createManualPaletteEditor({
@@ -91,12 +91,12 @@ export function createManualPaletteEditor({
     const sourceSwatch = document.createElement("span");
     sourceSwatch.className = "palette-editor-swatch";
     sourceSwatch.style.background = sourceHex;
-    sourceSwatch.title = `Source ${sourceHex}`;
+    sourceSwatch.title = `Source ${colorInfoLabel(sourceHex)}`;
 
     const effectiveSwatch = document.createElement("span");
     effectiveSwatch.className = "palette-editor-swatch palette-editor-swatch-effective";
     effectiveSwatch.style.background = effectiveHex;
-    effectiveSwatch.title = `Effective ${effectiveHex}`;
+    effectiveSwatch.title = `Effective ${colorInfoLabel(effectiveHex, currentRecord?.lab)}`;
 
     const summaryText = document.createElement("div");
     summaryText.className = "palette-editor-text";
@@ -115,7 +115,7 @@ export function createManualPaletteEditor({
     const colorInput = document.createElement("input");
     colorInput.type = "text";
     colorInput.value = sourceHex;
-    colorInput.title = "Edit source color";
+    colorInput.title = `Edit source color · ${colorInfoLabel(sourceHex)}`;
     colorInput.setAttribute("aria-label", "Edit source color");
     attachColorPicker(colorInput, {label: "Edit source color"});
     const beginColorInputEdit = () => {
@@ -146,6 +146,7 @@ export function createManualPaletteEditor({
     textInput.value = sourceHex;
     textInput.spellcheck = false;
     textInput.setAttribute("aria-label", "Source hex color");
+    textInput.title = colorInfoLabel(sourceHex);
     textInput.addEventListener("change", () => {
       beginHistory?.("Edit manual swatch");
       const safe = normalizeHexColor(textInput.value, manualSourceHex(swatch.id));
@@ -211,7 +212,7 @@ export function createManualPaletteEditor({
     aliasColorInput.type = "text";
     aliasColorInput.value = aliasHex || sourceHex;
     aliasColorInput.disabled = !aliasToggle.checked;
-    aliasColorInput.title = "Input color this swatch should also catch";
+    aliasColorInput.title = `Input color this swatch should also catch · ${colorInfoLabel(aliasHex || sourceHex)}`;
     aliasColorInput.setAttribute("aria-label", "Match alias color picker");
     attachColorPicker(aliasColorInput, {label: "Match alias color"});
 
@@ -222,6 +223,7 @@ export function createManualPaletteEditor({
     aliasTextInput.spellcheck = false;
     aliasTextInput.disabled = !aliasToggle.checked;
     aliasTextInput.setAttribute("aria-label", "Match alias hex color");
+    aliasTextInput.title = colorInfoLabel(aliasHex || sourceHex);
 
     const aliasCopyButton = document.createElement("button");
     aliasCopyButton.type = "button";

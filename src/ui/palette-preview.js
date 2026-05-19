@@ -1,6 +1,6 @@
 import { COSINE_PALETTE_PRESETS, HARMONY_REGION_CONTRASTS, HARMONY_RELATIONSHIPS } from "../constants.js";
 import { DEFAULT_CONFIG } from "../state/config.js";
-import { labToHex, makePaletteRecord } from "../color-utils.js";
+import { colorInfoLabel, labToHex, makePaletteRecord } from "../color-utils.js";
 import { syncDynamicUiSkin } from "./dynamic-skin.js";
 
 export function swatchSeedLab(record) {
@@ -224,6 +224,7 @@ export function createPalettePreview({
         indicator.className = "chip-alias-indicator";
         indicator.setAttribute("aria-hidden", "true");
         indicator.style.background = aliasHex || sourceAliasHex;
+        indicator.title = colorInfoLabel(aliasHex || sourceAliasHex);
         chip.append(indicator);
       }
       if (tagged) {
@@ -240,15 +241,15 @@ export function createPalettePreview({
         indicator.setAttribute("aria-hidden", "true");
         chip.append(indicator);
       }
-      const titleParts = [hex];
+      const titleParts = [colorInfoLabel(hex, record.lab)];
       if (record.variant && record.variant !== "single") titleParts.push(record.variant);
       if (cycleTagMode) titleParts.push(tagged ? "Click to remove from manual cycle" : "Click to tag for manual cycle", "Shift-click to copy hex");
       else if (lockable) titleParts.push(locked ? "Click to unlock family" : "Click to lock family", "Shift-click to copy hex");
       else if (editable) {
         const sourceHex = manualSourceHex(record.swatchId ?? record.sourceIndex);
-        if (sourceHex !== hex) titleParts.push(`source ${sourceHex}`);
-        if (aliasHex) titleParts.push(`also matches ${aliasHex}`);
-        if (sourceAliasHex && sourceAliasHex !== hex) titleParts.push(`also matches source ${sourceAliasHex}`);
+        if (sourceHex !== hex) titleParts.push(`source ${colorInfoLabel(sourceHex)}`);
+        if (aliasHex) titleParts.push(`also matches ${colorInfoLabel(aliasHex)}`);
+        if (sourceAliasHex && sourceAliasHex !== hex) titleParts.push(`also matches source ${colorInfoLabel(sourceAliasHex)}`);
         titleParts.push("Click to edit source/alias", "Shift-click to copy effective hex");
       }
       else titleParts.push("Click to copy hex");

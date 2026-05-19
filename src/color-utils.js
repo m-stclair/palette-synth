@@ -146,6 +146,26 @@ export function labToOklch([L, a, b]) {
     return [L, C, h < 0 ? h + TAU : h];
   }
 
+export function formatLch(lab, {prefix = "LCH"} = {}) {
+    const safe = normalizeManualLab(lab);
+    if (!safe) return "";
+    const [L, C, h] = labToOklch(safe);
+    const degrees = C < NEUTRAL_CHROMA_EPSILON ? 0 : h * 360 / TAU;
+    return `${prefix} ${L.toFixed(1)} ${C.toFixed(1)} ${degrees.toFixed(0)}°`;
+  }
+
+export function colorInfoLabel(hex, lab = null) {
+    const safeHex = normalizeHexColor(hex, "");
+    // A visible swatch is painted from its sRGB hex. Generated records can keep
+    // internal OKLab coordinates that clamp to that hex but do not equal the
+    // displayed color, so tooltip LCH must prefer the normalized hex whenever
+    // one is available. Lab remains a fallback for lab-only diagnostics.
+    const safeLab = safeHex ? hexToLab(safeHex) : normalizeManualLab(lab);
+    const lch = safeLab ? formatLch(safeLab) : "";
+    if (safeHex && lch) return `${safeHex} · ${lch}`;
+    return safeHex || lch || "";
+  }
+
 export function oklchToLab([L, C, h]) {
     const safeL = clamp(Number(L) || 0, 0, 100);
     const safeC = Math.max(0, Number(C) || 0);

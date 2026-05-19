@@ -1,5 +1,6 @@
 import {
   byteRgbToHex,
+  colorInfoLabel,
   fitLabToSrgb,
   hexToByteRgb,
   hexToLab,
@@ -300,7 +301,8 @@ function setInputPresentation(input, hex) {
   input.value = normalizeHexColor(hex, FALLBACK_HEX);
   if (typeof input.style?.setProperty === "function") input.style.setProperty("--picker-color", input.value);
   else if (input.style) input.style["--picker-color"] = input.value;
-  input.title = input.title || "Choose color";
+  const label = input.getAttribute?.("aria-label") || "Choose color";
+  input.title = `${label} · ${colorInfoLabel(input.value)}`;
 }
 
 function triangleVertices() {
@@ -580,7 +582,10 @@ export function attachColorPicker(input, options = {}) {
     const maxC = Math.max(0.0001, maxChromaFor(fitted.l, fitted.h));
     setInputPresentation(input, hex);
     presentedHex = hex;
-    if (hexInput) hexInput.value = hex;
+    if (hexInput) {
+      hexInput.value = hex;
+      hexInput.title = colorInfoLabel(hex);
+    }
     if (rgbOutput) rgbOutput.value = rgbCodeForHex(hex);
     if (lightnessInput) lightnessInput.value = formatNumber(fitted.l, 1);
     if (chromaInput) {
@@ -870,7 +875,12 @@ export function attachColorPicker(input, options = {}) {
     popover.append(head, planeWrap, channelRow, rgbRow, hexRow);
     doc.body.append(popover);
 
-    const swatchSync = () => swatch.style.background = input.value;
+    const swatchSync = () => {
+      const colorInfo = colorInfoLabel(input.value);
+      swatch.style.background = input.value;
+      swatch.title = colorInfo;
+      if (hexInput) hexInput.title = colorInfo;
+    };
 
     const canvasPointForEvent = event => {
       const rect = plane.getBoundingClientRect();

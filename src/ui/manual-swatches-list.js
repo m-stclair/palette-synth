@@ -1,4 +1,4 @@
-import { normalizeHexColor } from "../color-utils.js";
+import { colorInfoLabel, normalizeHexColor } from "../color-utils.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
 
 export function createManualSwatchesList({
@@ -28,15 +28,17 @@ export function createManualSwatchesList({
       const input = document.createElement("input");
       input.type = "text";
       input.value = color;
-      input.title = `Swatch ${index + 1}`;
+      input.title = `Swatch ${index + 1} · ${colorInfoLabel(color)}`;
       input.setAttribute("aria-label", `Swatch ${index + 1} color picker`);
       attachColorPicker(input, {label: `Swatch ${index + 1}`});
       input.addEventListener("input", () => {
         beginHistory("Edit manual swatch");
         swatch.hex = normalizeHexColor(input.value, swatch.hex);
         input.value = swatch.hex;
+        input.title = `Swatch ${index + 1} · ${colorInfoLabel(swatch.hex)}`;
         syncColorPickerInput(input);
         text.value = swatch.hex;
+        text.title = colorInfoLabel(swatch.hex);
         config.manualPalette[index] = swatch;
         markPaletteDirty();
         queueRender();
@@ -48,14 +50,17 @@ export function createManualSwatchesList({
       text.type = "text";
       text.value = color;
       text.spellcheck = false;
+      text.title = colorInfoLabel(color);
       text.addEventListener("change", () => {
         beginHistory("Edit manual swatch");
         const safe = normalizeHexColor(text.value, swatch.hex);
         swatch.hex = safe;
         config.manualPalette[index] = swatch;
         input.value = safe;
+        input.title = `Swatch ${index + 1} · ${colorInfoLabel(safe)}`;
         syncColorPickerInput(input);
         text.value = safe;
+        text.title = colorInfoLabel(safe);
         markPaletteDirty();
         queueRender();
         commitHistory("Edit manual swatch");
