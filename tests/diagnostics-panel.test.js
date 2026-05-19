@@ -214,6 +214,55 @@ test("diagnostics panel renders summary, usage, xray, selection fallback, and pi
   assert.match(els.diagnosticsPixel.innerHTML, /ΔH ~/);
 });
 
+test("histogram swatch markers use visible swatch color for placement and tooltip value", () => {
+  const els = {
+    diagnosticsTabs: element(),
+    diagnosticsContributionPanel: element(),
+    diagnosticsHistogramPanel: element(),
+    diagnosticsHistogramHeading: element(),
+    diagnosticsHistogram: element()
+  };
+  const records = [
+    {lab: [0, 7.4, 0], hex: "#000003", displayIndex: 0}
+  ];
+  const histogram = {
+    kind: "sourceChromaDetail",
+    scope: "source",
+    channel: "chroma",
+    label: "source chroma",
+    axisLabel: "C",
+    bins: [1, 0, 0, 0],
+    segments: {shadow: [1, 0, 0, 0], midtone: [0, 0, 0, 0], highlight: [0, 0, 0, 0]},
+    segmentNames: ["shadow", "midtone", "highlight"],
+    max: 1,
+    total: 1,
+    step: 1,
+    domain: {min: 0, max: 16},
+    stats: {p10: 3, median: 3, p90: 3, mean: 3, mode: 2, max: 3, saturatedPercent: 0}
+  };
+  const state = {
+    imageData: {width: 1, height: 1},
+    diagnostics: {
+      histogramTab: "chroma",
+      stats: {records},
+      histogramStats: {
+        "source-chroma": {records, histogram},
+        "output-chroma": {records, histogram: {...histogram, kind: "outputChromaDetail", scope: "output", label: "output chroma"}}
+      }
+    }
+  };
+  const panel = createDiagnosticsPanel({
+    els,
+    getConfig: () => ({assignMode: "nearest"}),
+    getState: () => state
+  });
+
+  panel.renderHistogramPanel(state.diagnostics.histogramStats);
+
+  assert.match(els.diagnosticsHistogram.innerHTML, /swatch 1 · C 3\.04 · #000003 · LCH 4\.4 3\.0 264°/);
+  assert.doesNotMatch(els.diagnosticsHistogram.innerHTML, /swatch 1 · C 7\.4/);
+});
+
 test("histogram inspector tab renders paired source and output charts from its active tab state", () => {
   const els = {
     diagnosticsTabs: element(),

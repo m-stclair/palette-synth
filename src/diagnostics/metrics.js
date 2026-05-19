@@ -102,6 +102,10 @@ export function maxDistanceRejectsMatch(match, config = {}) {
   return Number.isFinite(maxDistance) && match.distance > Math.max(0, maxDistance);
 }
 
+// Match objects are report rows, not swatches. `featureLab` explains why a
+// pixel matched; `renderLab` explains what color the output estimator/shader will
+// blend; `record.hex`/`record.displayIndex` explain which visible swatch gets
+// credited. Keeping all three is noisy, but collapsing them loses real state.
 export function topPaletteMatches(lab, entries, {config = {}, records = [], limit = DIAGNOSTIC.matchLimit, maxPaletteSize = MAX_PALETTE_SIZE} = {}) {
   const matches = [];
   const safeEntries = Array.isArray(entries) ? entries : [];

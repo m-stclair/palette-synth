@@ -13,7 +13,8 @@ import {
   labToOklch,
   oklchToLab,
   fitLabToSrgb,
-  rgb8ToLab
+  rgb8ToLab,
+  visibleSwatchLab
 } from "../color-utils.js";
 import { cpuDistanceBreakdown } from "../diagnostics/metrics.js";
 
@@ -350,6 +351,13 @@ export function createDiagnosticsPanel({
     return parts.lightness;
   }
 
+  function histogramMarkerLabForRecord(record) {
+    // Histogram markers represent the visible swatch chips, not the internal
+    // matcher coordinates. This is deliberately hex-first; see PaletteRecord's
+    // object-model comment in color-utils.js.
+    return visibleSwatchLab(record);
+  }
+
   function histogramAxisValues(histogram, domainMax) {
     if (histogram.channel === "hue") return [0, 60, 120, 180, 240, 300, 360];
     if (histogram.channel === "chroma") return [0, domainMax * 0.25, domainMax * 0.5, domainMax * 0.75, domainMax];
@@ -429,12 +437,13 @@ export function createDiagnosticsPanel({
       ? histogramStats.records
       : (Array.isArray(state.diagnostics?.stats?.records) ? state.diagnostics.stats.records : []);
     const paletteMarkers = records.map((record, index) => {
-      const value = histogramValueForLab(record?.lab, histogram.channel);
+      const markerLab = histogramMarkerLabForRecord(record);
+      const value = histogramValueForLab(markerLab, histogram.channel);
       if (!Number.isFinite(Number(value))) return "";
       const x = xForValue(value);
-      const hex = record.hex || labToHex(record.lab);
+      const hex = record.hex || labToHex(markerLab || record.lab);
       const displayIndex = (record.displayIndex ?? index) + 1;
-      return `<line class="diagnostics-histogram-marker" style="--marker-color:${hex}" x1="${x.toFixed(2)}" y1="${(padTop + plotH + 3).toFixed(2)}" x2="${x.toFixed(2)}" y2="${(axisY - 2).toFixed(2)}"><title>swatch ${displayIndex} · ${axisLabel} ${formatDistance(value)} · ${colorInfoLabel(hex, record.lab)}</title></line>`;
+      return `<line class="diagnostics-histogram-marker" style="--marker-color:${hex}" x1="${x.toFixed(2)}" y1="${(padTop + plotH + 3).toFixed(2)}" x2="${x.toFixed(2)}" y2="${(axisY - 2).toFixed(2)}"><title>swatch ${displayIndex} · ${axisLabel} ${formatDistance(value)} · ${colorInfoLabel(hex, markerLab)}</title></line>`;
     }).join("");
 
     const axis = histogramAxisValues(histogram, domainMax).map(value => {

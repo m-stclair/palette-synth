@@ -48,3 +48,30 @@ The runtime still owns app state and chooses which source image/config/manual sw
 - `export/animation-zip.js` owns animation frame naming/packaging and ZIP download mechanics.
 
 The runtime still chooses *what* to export and supplies rendered canvases; the export modules own the file/download machinery.
+
+
+## Important object shapes
+
+A few color objects intentionally carry several almost-the-same-looking fields. They are not aliases. This is the part that bites.
+
+### `PaletteRecord`
+
+Created by `makePaletteRecord()` in `color-utils.js`.
+
+- `record.lab` is the feature coordinate. Matching, sorting, generated-family spacing, distance diagnostics, and palette adjustments use it.
+- `record.hex` is the visible swatch color. The UI paints chips from it. Tooltips and histogram swatch markers should derive visible LCH from this value first, because sRGB byte quantization and gamut clamping can make `hex → Lab` disagree with the original `record.lab`.
+- `record.sourceLab` and `record.seedLab` are provenance. They answer “where did this come from?”, not “what is on screen?”
+- `record.adjustedLab` and `record.unadjustedLab` explain palette gamma/chroma/hue transforms. They should not be used as generic display colors.
+
+Rule of thumb: if the user is looking at a swatch chip, use `visibleSwatchLab(record)` or `record.hex`. If the app is deciding which swatch a source pixel belongs to, use the feature/matching fields.
+
+### `PaletteUniformEntry`
+
+Created by `paletteUniformEntries()` in `palette/runtime.js`.
+
+- `featureLab` is what source pixels match against.
+- `renderLab` is what the shader, pixel inspector, and CPU histogram estimator blend toward.
+- `sourceRecord` is the visible swatch that receives credit in contribution diagnostics.
+- Alias entries add extra `featureLab` coordinates that map back to the same `renderLab` and `sourceRecord`.
+
+This split is why contribution, pixel inspection, and output histograms can agree without reading the rendered canvas back from the GPU. It is also why using `record.lab` everywhere creates subtle, believable-looking bugs.

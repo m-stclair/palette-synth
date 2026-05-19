@@ -154,12 +154,20 @@ export function formatLch(lab, {prefix = "LCH"} = {}) {
     return `${prefix} ${L.toFixed(1)} ${C.toFixed(1)} ${degrees.toFixed(0)}°`;
   }
 
+export function visibleSwatchLab(record) {
+    // A PaletteRecord's visible swatch is painted from `record.hex`, not from
+    // `record.lab`. Those often start as the same color, but sRGB quantization,
+    // gamut clamping, manual/effective swatch edits, and aliases can make them
+    // diverge. Anything that labels or positions the *visible chip* must derive
+    // Lab/LCH from the hex first. `record.lab` is the matcher/feature fallback.
+    const safeHex = normalizeHexColor(record?.hex, "");
+    return safeHex ? hexToLab(safeHex) : normalizeManualLab(record?.lab);
+  }
+
 export function colorInfoLabel(hex, lab = null) {
     const safeHex = normalizeHexColor(hex, "");
-    // A visible swatch is painted from its sRGB hex. Generated records can keep
-    // internal OKLab coordinates that clamp to that hex but do not equal the
-    // displayed color, so tooltip LCH must prefer the normalized hex whenever
-    // one is available. Lab remains a fallback for lab-only diagnostics.
+    // Visible-color readouts must describe the sRGB color the user sees. Lab is
+    // only a fallback for lab-only diagnostics, not a correction layer over hex.
     const safeLab = safeHex ? hexToLab(safeHex) : normalizeManualLab(lab);
     const lch = safeLab ? formatLch(safeLab) : "";
     if (safeHex && lch) return `${safeHex} · ${lch}`;
@@ -243,6 +251,24 @@ export function sortLabWalkRecords(records, labForRecord = record => record.lab)
     return path;
   }
 
+/**
+ * PaletteRecord is the app's main swatch object. Treat the similarly named
+ * color fields as different contracts, not synonyms:
+ *
+ * - `lab`: feature/matcher Lab. Distance sorting, assignment, family spacing,
+ *   and generated-palette math use this coordinate.
+ * - `hex`: visible sRGB chip. UI paint, visible-color tooltips, and histogram
+ *   swatch markers should derive display LCH from this, because gamut clamping
+ *   and byte quantization mean `labToHex(record.lab)` may not round-trip to the
+ *   same Lab values.
+ * - `sourceLab` / `seedLab`: provenance. These tell us where the swatch came
+ *   from before edits/variants/assist, not necessarily what is displayed.
+ * - `adjustedLab` / `unadjustedLab`: palette-adjustment bookkeeping. They are
+ *   useful for explaining gamma/hue/chroma transforms, not for painting chips.
+ *
+ * Footgun: do not grab `record.lab` just because you need a swatch's L/C/H. If
+ * the thing on screen is the subject, use `visibleSwatchLab(record)`.
+ */
 export function makePaletteRecord({
     lab,
     source = "unknown",

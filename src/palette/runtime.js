@@ -215,6 +215,17 @@ export function createPaletteRuntime({
     return {paletteBlock, paletteFeatures};
   }
 
+  // PaletteUniformEntry is what both the shader and CPU diagnostics consume.
+  // It deliberately splits matching from rendering:
+  //
+  // - `featureLab`: the coordinate a source pixel is compared against.
+  // - `renderLab`: the color the shader/CPU output estimator blends toward.
+  // - `sourceRecord`: the visible/original swatch row this entry contributes to.
+  // - aliases: extra feature coordinates that route to the same renderLab and
+  //   same sourceRecord, so "also catch this color" does not create a new chip.
+  //
+  // Do not collapse these back into `record.lab`. That is the footgun: a swatch
+  // can match in one place, render as another, and display as quantized sRGB hex.
   function paletteUniformEntries(records, renderPalette = paletteLabs(records)) {
     const safeRecords = Array.isArray(records) ? records : [];
     const safeRenderPalette = Array.isArray(renderPalette) ? renderPalette : paletteLabs(safeRecords);
