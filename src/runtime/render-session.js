@@ -188,7 +188,6 @@ export function createRenderSession({
       state.paletteVersion = (Number(state.paletteVersion) || 0) + 1;
       markCompositeCachesDirty();
       state.paletteDirty = false;
-      state.swatchesDirty = true;
     }
     if (state.swatchesDirty) {
       renderSwatches();

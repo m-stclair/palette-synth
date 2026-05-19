@@ -222,6 +222,22 @@ test("ensurePalette refreshes records, uniforms, and swatches once", () => {
   assert.deepEqual(calls.filter(call => call === "renderSwatches"), ["renderSwatches"]);
 });
 
+test("palette-only refresh keeps existing swatch buttons mounted", () => {
+  const {session, state, calls} = makeSession();
+
+  session.ensurePalette();
+  calls.length = 0;
+  const previousPaletteVersion = state.paletteVersion;
+
+  session.markPaletteDirty({swatches: false});
+  session.ensurePalette();
+
+  assert.equal(state.paletteDirty, false);
+  assert.equal(state.swatchesDirty, false);
+  assert.equal(state.paletteVersion, previousPaletteVersion + 1);
+  assert.deepEqual(calls.filter(call => call === "renderSwatches"), []);
+});
+
 test("queueRender coalesces frames and runs draw plus after-render hooks", () => {
   const {session, state, calls} = makeSession();
 

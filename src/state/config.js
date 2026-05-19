@@ -163,8 +163,10 @@ export function normalizeManualSwatches(value, legacyAliases = []) {
 
 export function normalizeCycleManualKeys(value = [], swatches = []) {
   const raw = Array.isArray(value) ? value : [];
-  const ids = new Set(swatches.map(swatch => swatch.id));
-  const byLegacyIndex = new Map(swatches.map((swatch, index) => [index, swatch.id]));
+  const safeSwatches = Array.isArray(swatches) ? swatches.filter(swatch => swatch?.id) : [];
+  const ids = new Set(safeSwatches.map(swatch => swatch.id));
+  const manualIdByCycleKey = new Map(safeSwatches.map(swatch => [manualCycleKeyForId(swatch.id), swatch.id]));
+  const byLegacyIndex = new Map(safeSwatches.map((swatch, index) => [index, swatch.id]));
   const seen = new Set();
   const out = [];
 
@@ -175,13 +177,20 @@ export function normalizeCycleManualKeys(value = [], swatches = []) {
   };
 
   const pushManualId = id => {
-    if (!ids.has(id)) return;
+    if (!ids.has(id)) return false;
     pushKey(manualCycleKeyForId(id));
+    return true;
+  };
+
+  const pushManualCycleKey = key => {
+    const id = manualIdByCycleKey.get(key);
+    return id ? pushManualId(id) : false;
   };
 
   for (const value of raw) {
     if (typeof value !== "string" || !value) continue;
-    if (ids.has(value)) { pushManualId(value); continue; }
+    if (pushManualId(value)) continue;
+    if (pushManualCycleKey(value)) continue;
 
     const legacy = value.match(/^manual:manual-(\d+):single:0$/);
     if (legacy) {
@@ -192,7 +201,7 @@ export function normalizeCycleManualKeys(value = [], swatches = []) {
 
     const direct = value.match(/^manual:(.+)$/)?.[1];
     if (direct) {
-      if (ids.has(direct)) pushManualId(direct);
+      pushManualId(direct);
       continue;
     }
 

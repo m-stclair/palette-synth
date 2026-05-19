@@ -54,6 +54,28 @@ test("cycle manual keys migrate legacy index keys and preserve generated keys", 
   );
 });
 
+test("cycle manual keys survive mixed-case saved swatch IDs", () => {
+  const swatches = [
+    {id: "Manual-One"},
+    {id: "manual-two"},
+    {id: "Preset-AmigaWorkbench"}
+  ];
+
+  assert.deepEqual(
+    normalizeCycleManualKeys([
+      "manual:manual-one",
+      "Manual-One",
+      "manual-two",
+      "generated:family:single:0"
+    ], swatches),
+    [
+      "manual:manual-one",
+      "manual:manual-two",
+      "generated:family:single:0"
+    ]
+  );
+});
+
 test("config sanitization clamps values and honors injected preset lookup", () => {
   const clean = sanitizeConfigSnapshot({
     paletteMode: "nonsense",

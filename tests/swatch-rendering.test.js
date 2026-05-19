@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createManualSwatchesList } from "../src/ui/manual-swatches-list.js";
 import { createPalettePreview } from "../src/ui/palette-preview.js";
+import { cycleTagged, manualCycleIndices, syncCycleManualKeys } from "../src/palette/cycle.js";
+import { manualCycleKeyForId } from "../src/manual/ids.js";
 
 function makeElement(tagName = "div") {
   const listeners = new Map();
@@ -271,6 +273,86 @@ test("palette preview renders generated locks, manual aliases, and click actions
     assert.equal(els.paletteCount.textContent, "1 colors · 1 match alias");
     manualChip.dispatchEvent({type: "click", shiftKey: false});
     assert.equal(state.manualEditor.swatchId, "swatch-a");
+  } finally {
+    restore();
+  }
+});
+
+
+test("palette preview keeps manual cycle tags on mixed-case manual swatch IDs", () => {
+  const restore = installFakeDocument();
+  try {
+    const els = {
+      palettePreview: makeElement("div"),
+      paletteCount: makeElement("div"),
+      paletteHint: makeElement("div"),
+      clearCycleTags: makeElement("button")
+    };
+    const config = {
+      paletteMode: "manual",
+      CYCLE_MODE: "manual",
+      cycleManualKeys: [],
+      manualPalette: [{id: "Manual-One", hex: "#111111"}]
+    };
+    const state = {
+      imageData: null,
+      manualEditor: {swatchId: null},
+      palette: [],
+      paletteRecords: [{
+        id: "manual:Manual-One",
+        source: "manual",
+        swatchId: "Manual-One",
+        sourceIndex: 0,
+        lab: [12, 0, 0],
+        hex: "#111111",
+        cycleKey: manualCycleKeyForId("Manual-One")
+      }]
+    };
+    let dirty = 0;
+    let renders = 0;
+    const statuses = [];
+
+    const preview = createPalettePreview({
+      els,
+      config,
+      state,
+      syncGeneratedLocks: () => [],
+      activeGeneratedLocks: () => [],
+      generatedFamilyCount: () => 0,
+      isGeneratedPaletteMode: () => false,
+      activePaletteImageData: () => null,
+      activePaletteImageLabel: () => "current image",
+      manualCycleModeEnabled: () => true,
+      syncCycleManualKeys: () => syncCycleManualKeys(config, config.manualPalette),
+      cycleTaggable: record => config.CYCLE_MODE === "manual" && !!record?.cycleKey,
+      cycleTagged: record => cycleTagged(config, record, config.manualPalette),
+      manualCycleIndices: records => manualCycleIndices(config, records, new Set(syncCycleManualKeys(config, config.manualPalette))),
+      manualSwatchEditable: () => false,
+      manualMatchAliasHex: () => null,
+      manualSourceHex: () => "#111111",
+      activeManualMatchAliasCount: () => 0,
+      withHistory: (label, fn) => fn(),
+      markPaletteDirty: () => { dirty += 1; },
+      queueRender: () => { renders += 1; },
+      syncCycleControls: () => {},
+      syncManualPaletteEditor: () => {},
+      openManualPaletteEditor: () => {},
+      copyPaletteHex: () => {},
+      setStatus: message => statuses.push(message)
+    });
+
+    preview.renderSwatches();
+    const chip = els.palettePreview.children[0];
+    chip.dispatchEvent({type: "click", shiftKey: false});
+
+    assert.deepEqual(config.cycleManualKeys, ["manual:manual-one"]);
+    assert.equal(dirty, 1);
+    assert.equal(renders, 1);
+    assert.equal(statuses.at(-1), "Tagged #111111 for manual cycling.");
+
+    preview.renderSwatches();
+    assert.equal(els.palettePreview.children[0].classList.contains("is-cycle-tagged"), true);
+    assert.equal(els.paletteCount.textContent, "1 colors · 1 cycle tag");
   } finally {
     restore();
   }
