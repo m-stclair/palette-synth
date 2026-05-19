@@ -168,10 +168,8 @@ export function createAnimationExportController({
 
   return {
     animationLoopSpan,
-    setAnimationExporting,
     syncAnimationExportUi,
     useAnimationLoopSpan,
-    currentAnimationExportSettings,
     buildAnimationFramePlan,
     exportAnimationPngZip,
     exportAnimationGif,

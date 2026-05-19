@@ -10,5 +10,5 @@ export function createStatusController({els, state}) {
     els.status.classList.toggle("is-transient", next !== idleStatusText());
   }
 
-  return {idleStatusText, setStatus};
+  return {setStatus};
 }

@@ -372,18 +372,13 @@ export function createDiagnosticsController({
   syncPixelInspectorUi();
 
   return {
-    inspectorPaneIsOpen,
-    activeInspectorTab,
     setInspectorTab,
     diagnosticsPanelIsOpen,
-    selectionDiagnosticsPanelIsOpen,
     pixelInspectorPanelIsOpen,
-    diagnosticsUiIsOpen,
     setPixelInspectorOpen,
     togglePixelInspector,
     refreshDiagnosticPixel,
     inspectDiagnosticPixel,
-    inspectDiagnosticImagePixel,
     nudgeDiagnosticPixel,
     clearDiagnosticPixel,
     updateDiagnostics

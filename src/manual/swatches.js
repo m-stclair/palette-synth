@@ -166,7 +166,6 @@ export function createManualSwatchModel({getConfig, getRecords = () => [], onAli
     removeManualSwatchAt: index => removeManualSwatchAt(config(), index),
     manualSwatchEditable: record => manualSwatchEditable(config(), record),
     paletteRecordForManualSwatchId: (swatchId, inputRecords = undefined) => paletteRecordForManualSwatchId(swatchId, records(inputRecords)),
-    paletteRecordForManualSourceIndex: (index, inputRecords = undefined) => paletteRecordForManualSourceIndex(config(), index, records(inputRecords)),
     activeManualMatchAliasCount: (inputRecords = undefined) => activeManualMatchAliasCount(config(), records(inputRecords))
   };
 }

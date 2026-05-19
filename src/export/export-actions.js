@@ -53,10 +53,8 @@ export function createExportActions({
   }
 
   return {
-    reportExportError,
     downloadCanvas,
     downloadFullImage,
-    currentPaletteHexColors,
     exportPalette
   };
 }

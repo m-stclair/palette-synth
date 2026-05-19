@@ -87,7 +87,6 @@ export function createCyclePreviewController({
   return {
     syncCycleControls,
     stopCyclePreview,
-    startCyclePreview,
     toggleCyclePreview
   };
 }

@@ -395,18 +395,6 @@ export function hueInfoForSeedLab(lab) {
     };
   }
 
-export function familyHueInfo(family) {
-    // Back-compat helper for older diagnostics/tests. Selection now uses seed-only
-    // hue anchors so tint/shade expansion and chroma expansion cannot erase hue novelty.
-    const labs = Array.isArray(family) ? family : [];
-    let best = null;
-    for (const lab of labs) {
-      const info = hueInfoForSeedLab(lab);
-      if (!best || info.chroma > best.chroma) best = info;
-    }
-    return best || {hue: 0, chroma: 0, reliability: 0};
-  }
-
 export function nearestHueAnchorMatch(candidate, selectedHueAnchors) {
     const anchors = Array.isArray(selectedHueAnchors) ? selectedHueAnchors : [];
     const reliableAnchors = anchors

@@ -46,7 +46,6 @@ export function createShaderProgramController({
   }
 
   return {
-    shaderDefineLines,
     buildProgramForContext,
     buildProgram
   };
