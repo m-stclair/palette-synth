@@ -71,7 +71,7 @@ export function createRenderSession({
   updatePaletteRegionOverlay,
   updateMaskOverlay = () => {},
   syncMaskUi = () => {},
-  updateDiagnostics,
+  updateDiagnostics = () => {},
   requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
   createTextureFn = createTexture,
   uploadCanvasTextureFn = uploadCanvasTexture,
@@ -445,12 +445,12 @@ export function createRenderSession({
     if (state.renderQueued) return;
     state.renderQueued = true;
     const schedule = requestFrame || (callback => callback(0));
-    schedule(() => {
+    schedule(frameTime => {
       state.renderQueued = false;
       draw();
       updatePaletteRegionOverlay();
       updateMaskOverlay();
-      updateDiagnostics();
+      updateDiagnostics({immediate: true, frameTime});
     });
   }
 

@@ -24,7 +24,9 @@ export function createDiagnosticsController({
   getViewSpan = () => [1, 1],
   topPaletteMatches,
   assignmentWeights,
-  setStatus = () => {}
+  setStatus = () => {},
+  requestFrame = null,
+  cancelFrame = null
 } = {}) {
   const diagnosticsState = () => {
     if (!state.diagnostics) state.diagnostics = {};
@@ -287,7 +289,22 @@ export function createDiagnosticsController({
     return inspectorTabsEnabled() ? inspectorPaneIsOpen() : (diagnosticsPanelIsOpen() || selectionDiagnosticsPanelIsOpen() || pixelInspectorPanelIsOpen());
   }
 
-  function updateDiagnostics() {
+  const scheduleFrame = typeof requestFrame === "function" ? requestFrame : null;
+  const cancelScheduledFrame = typeof cancelFrame === "function" ? cancelFrame : null;
+  let diagnosticsQueued = false;
+  let diagnosticsFrameId = null;
+  let lastDiagnosticsFrameTime = null;
+
+  function frameTimeKnown(frameTime) {
+    return frameTime !== undefined && frameTime !== null;
+  }
+
+  function runDiagnosticsNow({frameTime} = {}) {
+    if (frameTimeKnown(frameTime)) {
+      if (lastDiagnosticsFrameTime === frameTime) return;
+      lastDiagnosticsFrameTime = frameTime;
+    }
+
     const inspectorOpen = pixelInspectorPanelIsOpen();
     if (inspectorOpen) refreshDiagnosticPixel();
     else {
@@ -327,6 +344,29 @@ export function createDiagnosticsController({
       state.diagnostics.signature = stats?.signature || signature;
     }
     renderDiagnosticsPanel(state.diagnostics.stats);
+  }
+
+  function clearQueuedDiagnostics() {
+    if (diagnosticsQueued && diagnosticsFrameId !== null && cancelScheduledFrame) {
+      cancelScheduledFrame(diagnosticsFrameId);
+    }
+    diagnosticsQueued = false;
+    diagnosticsFrameId = null;
+  }
+
+  function updateDiagnostics(options = {}) {
+    if (!scheduleFrame || options.immediate) {
+      clearQueuedDiagnostics();
+      runDiagnosticsNow({frameTime: options.frameTime});
+      return;
+    }
+    if (diagnosticsQueued) return;
+    diagnosticsQueued = true;
+    diagnosticsFrameId = scheduleFrame(frameTime => {
+      diagnosticsQueued = false;
+      diagnosticsFrameId = null;
+      runDiagnosticsNow({frameTime});
+    });
   }
 
   syncPixelInspectorUi();

@@ -171,6 +171,76 @@ test("diagnostics controller runs full diagnostics when the palette diagnostics 
   assert.equal(state.diagnostics.signature, "new");
 });
 
+test("diagnostics controller coalesces scheduled diagnostics updates into one frame", () => {
+  const frames = [];
+  let computed = 0;
+  let rendered = 0;
+  const diagnosticsPanel = makePanel();
+  const state = {
+    imageData: {width: 1, height: 1, data: new Uint8ClampedArray([0, 0, 0, 255])},
+    diagnostics: {stats: null, signature: "old"},
+    paletteRecords: [{lab: [0, 0, 0]}],
+    paletteDirty: false
+  };
+  const controller = createDiagnosticsController({
+    els: {diagnosticsSummary: elementIn(diagnosticsPanel)},
+    state,
+    config: {},
+    renderPaletteLabs: () => [[0, 0, 0]],
+    paletteUniformEntries: () => [{renderLab: [0, 0, 0]}],
+    diagnosticsSignature: () => "new",
+    computeDiagnostics: () => { computed++; return {signature: "new"}; },
+    renderDiagnosticsPanel: () => { rendered++; },
+    requestFrame: callback => {
+      frames.push(callback);
+      return frames.length;
+    }
+  });
+
+  controller.updateDiagnostics();
+  controller.updateDiagnostics();
+
+  assert.equal(frames.length, 1);
+  assert.equal(computed, 0);
+  frames[0](100);
+  assert.equal(computed, 1);
+  assert.equal(rendered, 1);
+});
+
+test("diagnostics controller skips queued same-frame work after an immediate render refresh", () => {
+  const frames = [];
+  let computed = 0;
+  let rendered = 0;
+  const diagnosticsPanel = makePanel();
+  const state = {
+    imageData: {width: 1, height: 1, data: new Uint8ClampedArray([0, 0, 0, 255])},
+    diagnostics: {stats: null, signature: "old"},
+    paletteRecords: [{lab: [0, 0, 0]}],
+    paletteDirty: false
+  };
+  const controller = createDiagnosticsController({
+    els: {diagnosticsSummary: elementIn(diagnosticsPanel)},
+    state,
+    config: {},
+    renderPaletteLabs: () => [[0, 0, 0]],
+    paletteUniformEntries: () => [{renderLab: [0, 0, 0]}],
+    diagnosticsSignature: () => "new",
+    computeDiagnostics: () => { computed++; return {signature: "new"}; },
+    renderDiagnosticsPanel: () => { rendered++; },
+    requestFrame: callback => {
+      frames.push(callback);
+      return frames.length;
+    }
+  });
+
+  controller.updateDiagnostics();
+  controller.updateDiagnostics({immediate: true, frameTime: 200});
+  frames[0](200);
+
+  assert.equal(computed, 1);
+  assert.equal(rendered, 1);
+});
+
 test("diagnostics controller inspects a client point and refreshes pixel UI", () => {
   let refreshed = 0;
   const state = {

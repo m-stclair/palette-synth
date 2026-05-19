@@ -63,6 +63,9 @@ export function createPaletteSynthApp({
 
   const state = createRuntimeState({document});
 
+  const requestFrame = typeof requestAnimationFrame === "function" ? requestAnimationFrame.bind(window || globalThis) : undefined;
+  const cancelFrame = typeof cancelAnimationFrame === "function" ? cancelAnimationFrame.bind(window || globalThis) : undefined;
+
   const els = {};
 
   const config = cloneDefaultConfig();
@@ -395,7 +398,9 @@ export function createPaletteSynthApp({
     getViewSpan,
     topPaletteMatches,
     assignmentWeights,
-    setStatus
+    setStatus,
+    requestFrame,
+    cancelFrame
   });
   const {
     diagnosticsPanelIsOpen,
@@ -538,7 +543,8 @@ export function createPaletteSynthApp({
     updatePaletteRegionOverlay,
     updateMaskOverlay,
     syncMaskUi,
-    updateDiagnostics
+    updateDiagnostics,
+    requestFrame
   });
 
   configController = createConfigController({

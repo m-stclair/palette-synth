@@ -123,7 +123,7 @@ export function initWorkbench({
   }
 
   function maybeUpdateDiagnostics(key, expanded) {
-    if (key === "diagnostics" && expanded) requestFrame(() => updateDiagnostics({force: true}));
+    if (key === "diagnostics" && expanded) updateDiagnostics();
   }
 
   setCssPx(doc, "--tool-pane-width", clamp(Number(prefs.width) || 308, 232, 520));

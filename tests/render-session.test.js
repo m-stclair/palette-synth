@@ -83,7 +83,7 @@ function makeSession(overrides = {}) {
     postProcessFragmentSource: overrides.postProcessFragmentSource ?? "",
     viewCompositeFragmentSource: overrides.viewCompositeFragmentSource ?? "",
     updatePaletteRegionOverlay: () => calls.push("overlay"),
-    updateDiagnostics: () => calls.push("diagnostics"),
+    updateDiagnostics: options => calls.push(["diagnostics", options]),
     requestFrame: callback => calls.push(["requestFrame", callback]),
     createTextureFn: () => ({id: "texture"}),
     uploadCanvasTextureFn: (...args) => calls.push(["upload", ...args]),
@@ -247,11 +247,13 @@ test("queueRender coalesces frames and runs draw plus after-render hooks", () =>
   const frames = calls.filter(call => Array.isArray(call) && call[0] === "requestFrame");
   assert.equal(frames.length, 1);
 
-  frames[0][1]();
+  frames[0][1](77);
   assert.equal(state.renderQueued, false);
   assert.equal(calls.some(call => Array.isArray(call) && call[0] === "render"), true);
   assert.equal(calls.includes("overlay"), true);
-  assert.equal(calls.includes("diagnostics"), true);
+  assert.deepEqual(calls.filter(call => Array.isArray(call) && call[0] === "diagnostics"), [
+    ["diagnostics", {immediate: true, frameTime: 77}]
+  ]);
 });
 
 test("renderPaletteProgram supplies cached palette defaults and render settings", () => {
