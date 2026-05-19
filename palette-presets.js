@@ -583,6 +583,102 @@ window.PALETTE_PRESETS = {
         "#475062", "#8a520e", "#6963a3", "#cd462d",
         "#877778", "#fa2f32", "#ebad71", "#c3bfff",
         "#ffa88b", "#e6d4d5", "#fff135", "#ffffff"
+    ],
+    // Tarnished brass, soot, wet olive, and an old ivory label.
+    brassLichen: [
+        "#080907", "#2a2412", "#4f4a25", "#7b6a32",
+        "#8fa06a", "#d8d0a8"
+    ],
+
+    // Blue hour concrete, sodium window-glow, and rain caught on glass.
+    rainMotel: [
+        "#05070c", "#111827", "#26384d", "#5f6f7f",
+        "#c27842", "#f0c08a", "#e8e0d2"
+    ],
+
+    // Dusty arcade carpet: bruised purple, hot coin-slot red, gum blue.
+    arcadeCarpet: [
+        "#090611", "#27143f", "#542b6e", "#a43b74",
+        "#e84a5f", "#35a7b8", "#f3d06b"
+    ],
+
+    // Frosted hospital mint, pale plastic, cold steel, one anxious red LED.
+    clinicGlow: [
+        "#05090a", "#102022", "#244448", "#78a8a0",
+        "#d7eee6", "#f6fff8", "#d93838"
+    ],
+
+    // Plum ink, brown paper, candle cream, and foxglove pink.
+    letterWitch: [
+        "#100812", "#32162d", "#5c3044", "#8b4f54",
+        "#c98c86", "#ead8b8", "#fff2d0"
+    ],
+
+    // Sea cave green-blacks, mussel blue, foam, and dead-gold sand.
+    tidalCave: [
+        "#02090a", "#08201f", "#123b3d", "#1c5b62",
+        "#4f8890", "#b8d8d6", "#d8c38a"
+    ],
+
+    // Old monitor phosphor, matte black plastic, amber terminal burn.
+    greenScreen: [
+        "#030806", "#07150e", "#0e2a18", "#1f6b36",
+        "#63c06b", "#c8ffd0", "#d79a31"
+    ],
+
+    // Soft brutalism: concrete, faded blue paint, rust leak, chalky sky.
+    concreteRust: [
+        "#0c0d0d", "#343735", "#6b7068", "#9a9f94",
+        "#31506d", "#b05a35", "#e1ded0"
+    ],
+    // Sun-bleached pool chair, old sunscreen, turquoise shadow.
+    resortGhost: [
+        "#061014", "#123440", "#246c78", "#62aeb0",
+        "#d2e8df", "#f4dfac", "#e58f6f"
+    ],
+
+    // Tiny chapel palette: black wood, wine velvet, gold leaf, candle smoke.
+    chapelVelvet: [
+        "#050304", "#1a0b10", "#43151e", "#6f2830",
+        "#8a6a32", "#d8b86a", "#f3e4bd"
+    ],
+
+    // Bad VHS fantasy forest: crushed black, fern, violet fog, fairy peach.
+    vhsFern: [
+        "#030403", "#10220e", "#27451e", "#5c7042",
+        "#55406e", "#9c7caf", "#ffc0a8"
+    ],
+
+
+
+    // Warm manuscript: ink, oxblood margin note, ochre glue, vellum.
+    scriptorium: [
+        "#120d08", "#352617", "#694522", "#9b6d32",
+        "#8e2524", "#d6b878", "#f4ead0"
+    ],
+
+    // Deep lake green, moon zinc, dock wood, and one mosquito-coil orange.
+    dockLight: [
+        "#010607", "#07191b", "#133436", "#31514c",
+        "#6f6a52", "#b7b6a0", "#f28b3c"
+    ],
+
+    // Powder room at midnight: black tile, rose soap, brass, milk glass.
+    powderRoom: [
+        "#08070a", "#241822", "#59324a", "#a85f78",
+        "#e2a9b7", "#b58a45", "#fff1e8"
+    ],
+
+    // Dead mall fountain: tile blue, beige stone, gum pink, shadow under skylights.
+    mallFountain: [
+        "#07090b", "#183044", "#346a7a", "#8bb8b6",
+        "#d6c6aa", "#d98c9f"
+    ],
+
+     // Black ice and taillights: asphalt blue, slush gray, brake red, sodium haze.
+    blackIce: [
+        "#020406", "#0b1420", "#233446", "#59646a",
+        "#9b9a8f", "#c8322e", "#e6b46a"
     ]
 
 };

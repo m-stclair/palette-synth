@@ -60,6 +60,7 @@ export const SIMPLE_CONTROL_KEYS = [
   "seedSwatch",
   "harmonyRelationship",
   "harmonyRegionContrast",
+  "harmonyRampSteepness",
   "cosinePreset",
   "deltaL",
   "paletteGamma",
@@ -144,7 +145,7 @@ export function bindControls({
       syncColorPickerInput(el);
     }
     const out = $(`${key}Value`);
-    if (out) out.textContent = el.type === "checkbox" ? String(!!el.checked) : el.value;
+    setOutputText(key, out, el.type === "checkbox" ? !!el.checked : el.value);
 
     const applyControlValue = () => {
       let nextValue = controlValue(el);

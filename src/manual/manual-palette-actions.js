@@ -103,7 +103,21 @@ const PRESET_CATEGORY_BY_NAME = {
     vaporwaveDos: "Art + mood",
     victorianAutumn: "Art + mood",
     witchLuxe: "Art + mood",
-    zuhanden: "Art + mood"
+    zuhanden: "Art + mood",
+    clinicGlow: "Art + mood",
+    tidalCave: "Art + mood",
+    greenScreen: "Art + mood",
+    concreteRust: "Art + mood",
+    resortGhost: "Art + mood",
+    vhsFern: "Art + mood",
+    scriptorium: "Art + mood",
+    dockLight: "Art + mood",
+    powderRoom: "Art + mood",
+    brassLichen: "Art + mood",
+    rainMotel: "Art + mood",
+    arcadeCarpet: "Art + mood",
+    chapelVelvet: "Art + mood",
+    letterWitch: "Art + mood"
 };
 
 function comparePresetLabels(a, b) {

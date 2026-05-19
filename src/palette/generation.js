@@ -25,8 +25,8 @@ import { DEFAULT_COSINE_CUSTOM_VECTORS, normalizeCosineCustomVectors } from "../
 import { blockSampleLab, buildPatchOrigins } from "./sampling.js";
 import { selectTopNScoredSwatches } from "./selection.js";
 
-const DEFAULT_HARMONY_RELATIONSHIP = "splitComplement";
-const DEFAULT_HARMONY_REGION_CONTRAST = "tonalRamp";
+const DEFAULT_HARMONY_RELATIONSHIP = "monochrome";
+const DEFAULT_HARMONY_REGION_CONTRAST = "triadicRegions";
 const DEFAULT_COSINE_PRESET = "sinebow";
 
 const FAMILY_VARIANTS = [
@@ -129,6 +129,25 @@ function positiveFraction(value) {
   return n - Math.floor(n);
 }
 
+function harmonyRampSteepnessForConfig(config) {
+  const value = Number(config?.harmonyRampSteepness);
+  return clamp(Number.isFinite(value) ? value : 1, 0, 2.5);
+}
+
+function harmonyLightnessRampOffset(familyIndex, familyCount, relationship, config, rampSteepness) {
+  if (familyCount <= 1 || rampSteepness <= 0) return 0;
+  const baseGroupCount = Math.max(1, relationship.offsets.length);
+  if (baseGroupCount === 1) {
+    const monoT = (familyIndex / (familyCount - 1)) - 0.5;
+    return monoT * config.deltaL * 1.4 * rampSteepness;
+  }
+  if (familyIndex === 0) return 0;
+  const direction = familyIndex % 2 === 1 ? 1 : -1;
+  const magnitude = Math.ceil(familyIndex / 2);
+  const perFamilyStep = 3 / baseGroupCount;
+  return direction * magnitude * perFamilyStep * rampSteepness;
+}
+
 function relationshipOffsetsForCount(relationshipKey, count, seed = 0) {
   const relationship = HARMONY_RELATIONSHIPS[relationshipKey] ?? HARMONY_RELATIONSHIPS[DEFAULT_HARMONY_RELATIONSHIP];
   const baseOffsets = relationship.offsets.length ? relationship.offsets : [0];
@@ -153,13 +172,13 @@ export function createHarmonyPalette(config) {
   const familyCount = generatedFamilyCount(config);
   const offsets = relationshipOffsetsForCount(config.harmonyRelationship, familyCount, config.seed);
   const usableC = Math.max(baseC, baseC < NEUTRAL_CHROMA_EPSILON ? 24 : baseC);
+  const rampSteepness = harmonyRampSteepnessForConfig(config);
   const records = offsets.flatMap((offset, familyIndex) => {
     const baseGroupCount = Math.max(1, relationship.offsets.length);
     const ring = Math.floor(familyIndex / baseGroupCount);
     const monoT = familyCount <= 1 ? 0 : (familyIndex / (familyCount - 1)) - 0.5;
-    const seedL = relationship.offsets.length === 1
-      ? clamp(baseL + monoT * config.deltaL * 1.4, 4, 96)
-      : clamp(baseL + (ring % 2 === 0 ? -1 : 1) * Math.ceil(ring / 2) * 3, 4, 96);
+    const lightnessOffset = harmonyLightnessRampOffset(familyIndex, familyCount, relationship, config, rampSteepness);
+    const seedL = clamp(baseL + lightnessOffset, 4, 96);
     const seedC = relationship.offsets.length === 1
       ? clamp(usableC * (1 + monoT * 0.55), 0, OKLCH_PROCEDURAL_CHROMA_MAX)
       : clamp(usableC * Math.max(0.55, 1 - ring * 0.08), 0, OKLCH_PROCEDURAL_CHROMA_MAX);

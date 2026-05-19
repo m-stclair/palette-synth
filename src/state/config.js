@@ -39,9 +39,10 @@ export const DEFAULT_CONFIG = {
   paletteRegionRect: null,
   showPaletteRegion: false,
   paletteSize: 15,
-  seedSwatch: "#f04a2a",
+  seedSwatch: "#735747",
   harmonyRelationship: "splitComplement",
-  harmonyRegionContrast: "tonalRamp",
+  harmonyRegionContrast: "triadicRegions",
+  harmonyRampSteepness: 1.5,
   cosinePreset: "sinebow",
   cosineCustomVectors: DEFAULT_COSINE_CUSTOM_VECTORS,
   deltaL: 30,
@@ -262,6 +263,10 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.seedSwatch = normalizeHexColor(base.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   base.harmonyRelationship = Object.prototype.hasOwnProperty.call(HARMONY_RELATIONSHIPS, base.harmonyRelationship) ? base.harmonyRelationship : DEFAULT_CONFIG.harmonyRelationship;
   base.harmonyRegionContrast = Object.prototype.hasOwnProperty.call(HARMONY_REGION_CONTRASTS, base.harmonyRegionContrast) ? base.harmonyRegionContrast : DEFAULT_CONFIG.harmonyRegionContrast;
+  {
+    const harmonyRampSteepness = Number(base.harmonyRampSteepness);
+    base.harmonyRampSteepness = clamp(Number.isFinite(harmonyRampSteepness) ? harmonyRampSteepness : DEFAULT_CONFIG.harmonyRampSteepness, 0, 2.5);
+  }
   base.cosinePreset = base.cosinePreset === "custom" || Object.prototype.hasOwnProperty.call(COSINE_PALETTE_PRESETS, base.cosinePreset) ? base.cosinePreset : DEFAULT_CONFIG.cosinePreset;
   base.cosineCustomVectors = normalizeCosineCustomVectors(base.cosineCustomVectors);
   base.deltaL = clamp(Number(base.deltaL) || DEFAULT_CONFIG.deltaL, 1, 60);

@@ -84,6 +84,7 @@ test("config sanitization clamps values and honors injected preset lookup", () =
     seedSwatch: "not-a-color",
     harmonyRelationship: "bad",
     harmonyRegionContrast: "bad",
+    harmonyRampSteepness: 99,
     cosinePreset: "bad",
     selectWeights: [2, -1, "0.25"],
     CYCLE_MODE: "manual",
@@ -108,6 +109,7 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.paletteSize, 18);
   assert.equal(clean.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   assert.equal(clean.harmonyRegionContrast, DEFAULT_CONFIG.harmonyRegionContrast);
+  assert.equal(clean.harmonyRampSteepness, 2.5);
   assert.deepEqual(clean.selectWeights, [1.5, 0, 0.25]);
   assert.equal(clean.CYCLE_MODE, "manual");
   assert.deepEqual(clean.cycleManualKeys, ["manual:manual-one"]);

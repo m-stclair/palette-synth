@@ -7,7 +7,7 @@ import {
 } from "../state/config.js";
 
 export const PALETTE_DIRTY_KEYS = new Set([
-  "paletteMode", "presetName", "paletteSize", "seedSwatch", "harmonyRelationship", "harmonyRegionContrast", "cosinePreset", "cosineCustomVectors", "deltaL", "paletteGamma", "gammaC", "paletteHue", "hueSpread", "minDistance",
+  "paletteMode", "presetName", "paletteSize", "seedSwatch", "harmonyRelationship", "harmonyRegionContrast", "harmonyRampSteepness", "cosinePreset", "cosineCustomVectors", "deltaL", "paletteGamma", "gammaC", "paletteHue", "hueSpread", "minDistance",
   "sortMode", "blockSize", "seed", "samplingMode", "generatedAssist", "aliasAllSources", "manualMatchAliases", "CYCLE_MODE"
 ]);
 
@@ -89,6 +89,7 @@ export function createConfigController({
   function setOutputText(key, out, value = config[key]) {
     if (!out) return;
     if (key === "cyclePreviewSpeed") out.textContent = `${Number(value).toFixed(1)} steps/s`;
+    else if (key === "harmonyRampSteepness") out.textContent = `${Number(value).toFixed(2)}×`;
     else out.textContent = String(value);
   }
 

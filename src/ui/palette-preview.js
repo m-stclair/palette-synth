@@ -79,7 +79,8 @@ export function createPalettePreview({
       } else if (config.paletteMode === "harmony") {
         const relationship = HARMONY_RELATIONSHIPS[config.harmonyRelationship] ?? HARMONY_RELATIONSHIPS[DEFAULT_CONFIG.harmonyRelationship];
         const regionContrast = HARMONY_REGION_CONTRASTS[config.harmonyRegionContrast] ?? HARMONY_REGION_CONTRASTS[DEFAULT_CONFIG.harmonyRegionContrast];
-        els.paletteHint.textContent = `${relationship.label} from ${config.seedSwatch}; ${regionContrast.label}. Shift-click copies hex.`;
+        const rampSteepness = Number(config.harmonyRampSteepness ?? DEFAULT_CONFIG.harmonyRampSteepness);
+        els.paletteHint.textContent = `${relationship.label} from ${config.seedSwatch}; ${regionContrast.label}; ramp ${rampSteepness.toFixed(2)}×. Shift-click copies hex.`;
       } else if (config.paletteMode === "cosine") {
         const preset = config.cosinePreset === "custom"
           ? {label: "Custom"}

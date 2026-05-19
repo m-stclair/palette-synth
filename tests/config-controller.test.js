@@ -60,12 +60,15 @@ test("config controller formats output labels", () => {
   const controller = createConfigController({config, els: {}, state: {}, root: makeRoot()});
   const speed = makeElement();
   const generic = makeElement();
+  const ramp = makeElement();
 
   controller.setOutputText("cyclePreviewSpeed", speed);
   controller.setOutputText("paletteSize", generic, 21);
+  controller.setOutputText("harmonyRampSteepness", ramp, 1.25);
 
   assert.equal(speed.textContent, "3.3 steps/s");
   assert.equal(generic.textContent, "21");
+  assert.equal(ramp.textContent, "1.25×");
 });
 
 test("config controller replaces snapshots and syncs the app surface", () => {
