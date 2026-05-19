@@ -11,7 +11,14 @@ function makeElement() {
   };
 }
 
-test("app initializer collects UI elements and reports WebGL startup failure", () => {
+test("app initializer requires grouped app deps", () => {
+  assert.throws(
+    () => createAppInitializer({els: {}, state: {}, config: {}}),
+    /requires grouped app dependencies/
+  );
+});
+
+test("app initializer collects UI elements and reports WebGL startup failure from grouped deps", () => {
   const canvas = makeElement();
   const error = makeElement();
   const elements = {canvas, error};
@@ -20,12 +27,16 @@ test("app initializer collects UI elements and reports WebGL startup failure", (
   };
   const els = {};
   const initializer = createAppInitializer({
-    els,
-    state: {},
-    config: {},
-    root,
-    createWebgl2Context() {
-      throw new Error("missing gpu");
+    core: {
+      els,
+      state: {},
+      config: {}
+    },
+    startup: {
+      root,
+      createWebgl2Context() {
+        throw new Error("missing gpu");
+      }
     }
   });
 

@@ -1,657 +1,167 @@
-import {
-  DEFAULT_CONFIG,
-  cloneDefaultConfig
-} from "../state/config.js";
+// Composition root only.
+// Wire app domains here; keep behavior inside domain modules or lower-level controllers.
+
 import {
   clamp,
-  positiveMod,
-  gcdInt,
-  normalizeHexColor
+  positiveMod
 } from "../color-utils.js";
-import {
-  createManualSwatchModel
-} from "../manual/swatches.js";
 
-import { createPaletteCycle } from "../palette/cycle.js";
-import { createDiagnosticMetrics } from "../diagnostics/metrics.js";
-import { createDiagnosticsPanel } from "../ui/diagnostics-panel.js";
-import { createCompareSplitController } from "../ui/compare-split.js";
-import { createPaletteRegionController } from "../ui/palette-region.js";
-import { createMaskController } from "../ui/cycle-mask.js";
-import { createViewportController } from "../ui/viewport.js";
-import { createRenderSession } from "../runtime/render-session.js";
-import { createPaletteRuntime } from "../palette/runtime.js";
-import { createHistoryController } from "../state/history.js";
-import { createManualPaletteEditor } from "../ui/manual-palette-editor.js";
-import { createManualSwatchesList } from "../ui/manual-swatches-list.js";
-import { createPalettePreview } from "../ui/palette-preview.js";
-import { createRuntimeState } from "./runtime-state.js";
-import { createConfigController } from "./config-controller.js";
-import { createDiagnosticsController } from "../diagnostics/controller.js";
-import { createImageController } from "../runtime/image-controller.js";
-import { createShaderProgramController } from "../runtime/shader-programs.js";
-import { createLevelSourceController } from "../runtime/level-sources.js";
-import { createRenderedCanvasController } from "../export/rendered-canvas.js";
-import { createAnimationExportController } from "../export/animation-controller.js";
 import { createCyclePreviewController } from "../runtime/cycle-preview.js";
-import { createManualPaletteActions } from "../manual/manual-palette-actions.js";
-import { createResetController } from "./reset-controller.js";
-import { createConditionalPanelsController } from "./conditional-panels.js";
-import { createStatusController } from "./status-controller.js";
-import { createRandomizerController } from "./randomizer.js";
 import { createAppInitializer } from "./initializer.js";
-import { createExportActions } from "../export/export-actions.js";
+import { createAppCore } from "./core.js";
+import { createStatusDomain } from "./domains/status-domain.js";
+import { createHistoryDomain } from "./domains/history-domain.js";
+import { createManualDomain } from "./domains/manual-domain.js";
+import { createPaletteDomain } from "./domains/palette-domain.js";
+import { createDiagnosticsDomain } from "./domains/diagnostics-domain.js";
+import { createViewDomain } from "./domains/view-domain.js";
+import { createRenderDomain } from "./domains/render-domain.js";
+import { createExportDomain } from "./domains/export-domain.js";
+import { createImageDomain } from "./domains/image-domain.js";
+import { createAppActionsDomain } from "./domains/app-actions-domain.js";
+import { createAppPorts } from "./ports.js";
 
 
-export function createPaletteSynthApp({
-  shaders = {},
-  document = globalThis.document,
-  window = globalThis.window,
-  requestAnimationFrame = globalThis.requestAnimationFrame,
-  cancelAnimationFrame = globalThis.cancelAnimationFrame,
-  Image = globalThis.Image,
-  URL = globalThis.URL
-} = {}) {
-  const FRAGMENT_SHADER_BODY = shaders.FRAGMENT_SHADER_BODY || "";
-  const VERTEX_SHADER = shaders.VERTEX_SHADER || "";
-  const LEVELS_FRAGMENT_SHADER = shaders.LEVELS_FRAGMENT_SHADER || "";
-  const CLARITY_SHARP_FRAGMENT_SHADER = shaders.CLARITY_SHARP_FRAGMENT_SHADER || "";
-  const CLARITY_FRAGMENT_SHADER = shaders.CLARITY_FRAGMENT_SHADER || "";
-  const BLOCK_SAMPLE_FRAGMENT_SHADER = shaders.BLOCK_SAMPLE_FRAGMENT_SHADER || "";
-  const PALETTE_POST_FRAGMENT_SHADER = shaders.PALETTE_POST_FRAGMENT_SHADER || "";
-  const VIEW_COMPOSITE_FRAGMENT_SHADER = shaders.VIEW_COMPOSITE_FRAGMENT_SHADER || "";
+export function createPaletteSynthApp(options = {}) {
+  const core = createAppCore(options);
+  const {
+    env,
+    shaders,
+    state,
+    els,
+    config
+  } = core;
+  const {
+    document,
+    window,
+    Image,
+    URL,
+    requestAnimationFrame,
+    cancelAnimationFrame,
+    requestFrame,
+    cancelFrame
+  } = env;
+  const ports = createAppPorts();
+  const {
+    cloneConfigSnapshot,
+    replaceConfigSnapshot
+  } = ports.configActions;
+  const {
+    markPaletteDirty,
+    queueRender
+  } = ports.render;
 
-  const state = createRuntimeState({document});
+  const status = createStatusDomain({els, state});
+  const {setStatus} = status;
 
-  const requestFrame = typeof requestAnimationFrame === "function" ? requestAnimationFrame.bind(window || globalThis) : undefined;
-  const cancelFrame = typeof cancelAnimationFrame === "function" ? cancelAnimationFrame.bind(window || globalThis) : undefined;
-
-  const els = {};
-
-  const config = cloneDefaultConfig();
-
-  const statusController = createStatusController({els, state});
-
-  function setStatus(text) {
-    return statusController.setStatus(text);
-  }
-
-  const historyController = createHistoryController({
+  const history = createHistoryDomain({
     els,
     state,
     getSnapshot: cloneConfigSnapshot,
     applySnapshot: replaceConfigSnapshot,
     setStatus,
-    shouldCancelShortcut: () => state.paletteRegion.enabled || state.paletteRegion.dragging || (state.mask?.paintMode || "off") !== "off" || !!state.mask?.dragging,
-    cancelShortcut: () => {
-      if ((state.mask?.paintMode || "off") !== "off" || state.mask?.dragging) {
-        state.mask.paintMode = "off";
-        state.mask.dragging = false;
-        maskController?.syncMaskUi?.();
-        maskController?.updateMaskOverlay?.();
-        setStatus("Mask painting off.");
-        return;
-      }
-      cancelPaletteRegionDrag();
-    }
+    maskActions: ports.maskActions,
+    paletteRegionActions: ports.paletteRegionActions
   });
-  const {
-    beginHistory,
-    commitHistory,
-    cancelPendingHistory,
-    withHistory,
-    pushHistorySnapshot,
-    undoHistory,
-    redoHistory,
-    bindHistoryShortcuts,
-    updateHistoryButtons
-  } = historyController;
 
-  const manualSwatches = createManualSwatchModel({
-    getConfig: () => config,
-    getRecords: () => state.paletteRecords,
-    onAliasChange: () => {
-      markPaletteDirty();
-      queueRender();
-    }
-  });
-  const {
-    syncManualSwatches,
-    manualSwatchIndex,
-    manualSwatchAt,
-    manualSwatchIndexForId,
-    manualSourceHex,
-    manualSwatchLab,
-    manualMatchAliasHex,
-    setManualMatchAlias,
-    insertManualSwatchAfter,
-    removeManualSwatchAt,
-    manualSwatchEditable,
-    paletteRecordForManualSwatchId,
-    activeManualMatchAliasCount
-  } = manualSwatches;
-
-  const manualSwatchesList = createManualSwatchesList({
+  const manual = createManualDomain({
     els,
-    config,
     state,
-    syncManualSwatches,
-    manualSwatchIndexForId,
-    removeManualSwatchAt,
-    beginHistory,
-    commitHistory,
-    withHistory,
-    markPaletteDirty,
-    queueRender
-  });
-  const {renderManualSwatches} = manualSwatchesList;
-
-  const manualPaletteEditor = createManualPaletteEditor({
-    els,
-    getConfig: () => config,
-    getState: () => state,
-    syncManualSwatches,
-    manualSwatchIndex,
-    manualSwatchAt,
-    manualSwatchIndexForId,
-    manualSourceHex,
-    manualMatchAliasHex,
-    setManualMatchAlias,
-    manualSwatchEditable,
-    paletteRecordForManualSwatchId,
-    beginHistory,
-    commitHistory,
-    withHistory,
-    onSourceColorChange: (identifier, color) => {
-      const index = manualSwatchIndex(identifier);
-      if (index < 0) return null;
-      const safe = normalizeHexColor(color, manualSourceHex(index));
-      const {lab, colorSpace, ...swatch} = config.manualPalette[index];
-      config.manualPalette[index] = {...swatch, hex: safe};
-      renderManualSwatches();
-      markPaletteDirty();
-      queueRender();
-      return safe;
-    },
-    onDuplicateSwatch: ({index, sourceHex, aliasHex}) => {
-      const copy = insertManualSwatchAfter(index, sourceHex, aliasHex, "copy");
-      if (!copy) return null;
-      renderManualSwatches();
-      markPaletteDirty();
-      queueRender();
-      return copy;
-    },
-    onRemoveSwatch: ({index}) => {
-      const next = removeManualSwatchAt(index);
-      renderManualSwatches();
-      markPaletteDirty();
-      queueRender();
-      return next;
-    },
+    config,
+    history,
+    render: ports.render,
     copyPaletteHex,
     setStatus
   });
-  const {
-    closeManualPaletteEditor,
-    openManualPaletteEditor,
-    syncManualPaletteEditor
-  } = manualPaletteEditor;
 
-  const paletteCycle = createPaletteCycle({
-    getConfig: () => config,
-    getRecords: () => state.paletteRecords,
-    syncManualSwatches: () => syncManualSwatches()
-  });
-  const {
-    manualCycleModeEnabled,
-    syncCycleManualKeys,
-    cycleTaggable,
-    cycleTagged,
-    manualCycleIndices,
-    cyclePeriod,
-    normalizedCycleOffset,
-    applyManualCycle,
-    renderPaletteLabs
-  } = paletteCycle;
-
-
-  const paletteRuntime = createPaletteRuntime({
-    config,
-    state,
-    syncManualSwatches,
-    manualSwatchLab,
-    manualSwatchEditable,
-    manualMatchAliasHex
-  });
-  const {
-    manualPresetName,
-    presetExists,
-    presetColors,
-    presetSize,
-    generatedFamilyCount,
-    syncGeneratedLocks,
-    activeGeneratedLocks,
-    isGeneratedPaletteMode,
-    activePaletteImageData,
-    activePaletteImageLabel,
-    activePaletteRegionRect,
-    paletteUniformEntries,
-    preprocessPaletteEntries,
-    fallbackPaletteRecords,
-    getPaletteRecords
-  } = paletteRuntime;
-
-  const palettePreview = createPalettePreview({
+  const palette = createPaletteDomain({
     els,
-    config,
     state,
-    syncGeneratedLocks,
-    activeGeneratedLocks,
-    generatedFamilyCount,
-    isGeneratedPaletteMode,
-    activePaletteImageData,
-    activePaletteImageLabel,
-    manualCycleModeEnabled,
-    syncCycleManualKeys,
-    cycleTaggable,
-    cycleTagged,
-    manualCycleIndices,
-    manualSwatchEditable,
-    manualMatchAliasHex,
-    manualSourceHex,
-    activeManualMatchAliasCount,
-    withHistory,
-    markPaletteDirty,
-    queueRender,
-    syncCycleControls,
-    syncManualPaletteEditor,
-    openManualPaletteEditor,
+    config,
+    manual,
+    history,
+    render: ports.render,
+    cyclePreviewActions: ports.cyclePreviewActions,
     copyPaletteHex,
     setStatus
   });
-  const {
-    updateGeneratedLockUi,
-    clearManualCycleTags,
-    clearGeneratedLocks,
-    renderSwatches
-  } = palettePreview;
 
-  const diagnosticMetrics = createDiagnosticMetrics({
-    getConfig: () => config,
-    getImageData: () => state.imageData,
-    getRecords: () => state.paletteRecords,
-    getEntries: records => paletteUniformEntries(records, renderPaletteLabs(records)),
-    includeCycleOffset: () => manualCycleModeEnabled()
-  });
-  const {
-    diagnosticsSignature,
-    topPaletteMatches,
-    assignmentWeights,
-    computeDiagnostics,
-    sourceHistogramSignature,
-    outputHistogramSignature,
-    computeSourceHistogramDiagnostics,
-    computeOutputHistogramDiagnostics
-  } = diagnosticMetrics;
-
-  function setDiagnosticOverlay(next = {}) {
-    const mode = ["swatch", "difference"].includes(next.mode) ? next.mode : "none";
-    const swatchValue = Number(next.swatchIndex);
-    const swatchIndex = mode === "swatch" && Number.isInteger(swatchValue)
-      ? Math.max(0, Math.min(63, swatchValue))
-      : null;
-    if (!state.diagnostics) state.diagnostics = {};
-    state.diagnostics.overlay = {mode, swatchIndex};
-
-    if (mode === "difference") setStatus("Diagnostic overlay: difference heatmap.");
-    else if (mode === "swatch" && swatchIndex !== null) setStatus(`Diagnostic overlay: swatch ${swatchIndex + 1}.`);
-    else setStatus("Diagnostic overlay off.");
-
-    queueRender();
-  }
-
-  let diagnosticsController;
-  const diagnosticsPanel = createDiagnosticsPanel({
-    els,
-    getConfig: () => config,
-    getState: () => state,
-    cycleTagged,
-    isGeneratedPaletteMode,
-    activePaletteImageData,
-    syncGeneratedLocks,
-    setDiagnosticOverlay,
-    onDiagnosticsTabChange: () => diagnosticsController?.updateDiagnostics({immediate: true})
-  });
-  const {renderDiagnosticsPanel, renderDiagnosticsSelection, renderHistogramPanel, updateDiagnosticsPixel, activeHistogramTab} = diagnosticsPanel;
-
-  let configController;
-  let renderedCanvasController;
-  let animationExportController;
-  let cyclePreviewController;
-  let resetController;
-  let conditionalPanelsController;
-
-  function cloneConfigSnapshot() {
-    return configController.cloneConfigSnapshot();
-  }
-
-  function sanitizeConfigSnapshot(raw = {}) {
-    return configController.sanitizeConfigSnapshot(raw);
-  }
-
-  function replaceConfigSnapshot(snapshot, options) {
-    return configController.replaceConfigSnapshot(snapshot, options);
-  }
-
-  function setOutputText(key, out, value = config[key]) {
-    return configController.setOutputText(key, out, value);
-  }
-
-  function handleControlDirty(key) {
-    return configController.handleControlDirty(key);
-  }
-
-  function updateConditionalPanels() {
-    return conditionalPanelsController.updateConditionalPanels();
-  }
-
-  const shaderProgramController = createShaderProgramController({
-    config,
-    state,
-    vertexSource: VERTEX_SHADER,
-    fragmentSource: FRAGMENT_SHADER_BODY,
-    manualCycleModeEnabled
-  });
-  const {buildProgramForContext, buildProgram} = shaderProgramController;
-
-  const levelSourceController = createLevelSourceController({
-    state,
-    config,
-    vertexSource: VERTEX_SHADER,
-    fragmentSource: LEVELS_FRAGMENT_SHADER,
-    claritySharpFragmentSource: CLARITY_SHARP_FRAGMENT_SHADER,
-    clarityFragmentSource: CLARITY_FRAGMENT_SHADER,
-    defaults: DEFAULT_CONFIG
-  });
-  const {ensureLevelAdjustedSources} = levelSourceController;
-
-  const viewportController = createViewportController({els, state, queueRender});
-  const {
-    getCanvasRenderSize,
-    getViewRect,
-    getDisplayViewRect,
-    getViewSpan,
-    updateViewStatus,
-    resetView,
-    zoomBy,
-    clientPointToImagePixel
-  } = viewportController;
-
-  diagnosticsController = createDiagnosticsController({
+  const view = createViewDomain({
     els,
     state,
     config,
-    ensurePalette,
-    renderPaletteLabs,
-    paletteUniformEntries,
-    diagnosticsSignature,
-    computeDiagnostics,
-    sourceHistogramSignature,
-    outputHistogramSignature,
-    computeSourceHistogramDiagnostics,
-    computeOutputHistogramDiagnostics,
-    diagnosticsActiveTab: activeHistogramTab,
-    renderDiagnosticsPanel,
-    renderHistogramPanel,
-    renderDiagnosticsSelection,
-    updateDiagnosticsPixel,
-    clientPointToImagePixel,
-    getDisplayViewRect,
-    getViewSpan,
-    topPaletteMatches,
-    assignmentWeights,
-    setStatus,
-    requestFrame,
-    cancelFrame
-  });
-  const {
-    diagnosticsPanelIsOpen,
-    pixelInspectorPanelIsOpen,
-    setInspectorTab,
-    setPixelInspectorOpen,
-    togglePixelInspector,
-    refreshDiagnosticPixel,
-    clearDiagnosticPixel,
-    updateDiagnostics,
-    inspectDiagnosticPixel,
-    nudgeDiagnosticPixel
-  } = diagnosticsController;
-
-  const compareSplitController = createCompareSplitController({
-    els,
-    config,
-    getDisplayViewRect,
-    queueRender
-  });
-  const {
-    setCompareSplit,
-    setCompareEnabled,
-    syncCompareControls
-  } = compareSplitController;
-
-  let paletteRegionController;
-  let maskController;
-  function cancelPaletteRegionDrag(options) {
-    return paletteRegionController.cancelPaletteRegionDrag(options);
-  }
-
-  paletteRegionController = createPaletteRegionController({
-    els,
-    state,
-    config,
-    getCanvasRenderSize,
-    getViewRect,
-    getDisplayViewRect,
-    getViewSpan,
-    clientPointToImagePixel,
-    cloneConfigSnapshot,
-    pushHistorySnapshot,
-    markPaletteDirty,
-    updateConditionalPanels,
-    queueRender,
+    render: ports.render,
+    configActions: ports.configActions,
+    history,
+    conditionalPanelsActions: ports.conditionalPanelsActions,
     setStatus
   });
-  const {
-    updatePaletteRegionUi,
-    updatePaletteRegionOverlay,
-    resetPaletteRegion,
-    togglePaletteRegionSelection
-  } = paletteRegionController;
+  ports.paletteRegion.attach(view.paletteRegionController);
+  ports.mask.attach(view.maskController);
 
-  maskController = createMaskController({
+  const diagnostics = createDiagnosticsDomain({
     els,
     state,
-    getCanvasRenderSize,
-    getViewRect,
-    getDisplayViewRect,
-    getViewSpan,
-    clientPointToImagePixel,
-    markMaskDirty,
-    queueRender,
+    config,
+    palette,
+    render: ports.render,
+    view,
+    env: {
+      requestFrame,
+      cancelFrame
+    },
     setStatus
   });
-  const {
-    bindMaskControls,
-    resetMask,
-    syncMaskUi,
-    updateMaskOverlay
-  } = maskController;
+  ports.diagnostics.attach(diagnostics.controller);
 
-  let renderSessionController;
-  function markTextureDirty(options) {
-    return renderSessionController.markTextureDirty(options);
-  }
-
-  function markPaletteDirty(options) {
-    return renderSessionController.markPaletteDirty(options);
-  }
-
-  function markMaskDirty(options) {
-    return renderSessionController.markMaskDirty(options);
-  }
-
-  function markLevelsDirty(options) {
-    return renderSessionController.markLevelsDirty(options);
-  }
-
-  function markEverythingDirty(options) {
-    return renderSessionController.markEverythingDirty(options);
-  }
-
-  function ensureTexture(options) {
-    return renderSessionController.ensureTexture(options);
-  }
-
-  function ensurePalette(options) {
-    return renderSessionController.ensurePalette(options);
-  }
-
-  function currentRenderSettings(options) {
-    return renderSessionController.currentRenderSettings(options);
-  }
-
-  function renderPaletteProgram(gl, program, options) {
-    return renderSessionController.renderPaletteProgram(gl, program, options);
-  }
-
-  function draw(options) {
-    return renderSessionController.draw(options);
-  }
-
-  function queueRender(options) {
-    return renderSessionController.queueRender(options);
-  }
-
-  renderSessionController = createRenderSession({
+  const render = createRenderDomain({
     els,
     state,
     config,
-    ensureLevelAdjustedSources,
-    getPaletteRecords,
-    paletteUniformEntries,
-    renderPaletteLabs,
-    preprocessPaletteEntries,
-    renderSwatches,
-    manualCycleModeEnabled,
-    normalizedCycleOffset,
-    getCanvasRenderSize,
-    getViewRect,
-    getViewSpan,
-    buildProgram,
-    vertexSource: VERTEX_SHADER,
-    blockSampleFragmentSource: BLOCK_SAMPLE_FRAGMENT_SHADER,
-    postProcessFragmentSource: PALETTE_POST_FRAGMENT_SHADER,
-    viewCompositeFragmentSource: VIEW_COMPOSITE_FRAGMENT_SHADER,
-    updatePaletteRegionOverlay,
-    updateMaskOverlay,
-    syncMaskUi,
-    updateDiagnostics,
-    requestFrame
+    shaders,
+    palette,
+    view,
+    diagnostics,
+    env: {requestFrame}
   });
+  ports.renderSession.attach(render.renderSessionController);
 
-  configController = createConfigController({
-    config,
+  const exporting = createExportDomain({
     els,
     state,
+    config,
     root: document,
-    presetExists,
-    stopCyclePreview,
-    cancelPendingHistory,
-    closeManualPaletteEditor,
-    markEverythingDirty,
-    markLevelsDirty,
-    markPaletteDirty,
-    markTextureDirty,
-    queueRender,
-    renderManualSwatches,
-    updateConditionalPanels,
-    updatePaletteRegionUi,
-    updatePaletteRegionOverlay,
-    syncCycleControls,
-    updateViewStatus,
-    updateHistoryButtons,
-    syncCompareControls
-  });
-
-  renderedCanvasController = createRenderedCanvasController({
-    state,
-    config,
-    document,
-    ensurePalette,
-    getPaletteRecords,
-    fallbackPaletteRecords,
-    paletteUniformEntries,
-    preprocessPaletteEntries,
-    manualCycleModeEnabled,
-    applyManualCycle,
-    normalizedCycleOffset,
-    buildProgramForContext,
-    renderPaletteProgram,
-    vertexSource: VERTEX_SHADER,
-    postProcessFragmentSource: PALETTE_POST_FRAGMENT_SHADER,
-    viewCompositeFragmentSource: VIEW_COMPOSITE_FRAGMENT_SHADER
-  });
-
-  animationExportController = createAnimationExportController({
-    els,
-    state,
-    config,
-    clamp,
-    cyclePeriod,
-    gcdInt,
-    positiveMod,
-    normalizedCycleOffset,
-    manualCycleModeEnabled,
-    getPaletteRecords,
-    ensurePalette,
-    renderFullImageCanvas,
+    shaders,
+    palette,
+    render,
     setStatus
   });
+  ports.renderedCanvas.attach(exporting.renderedCanvasController);
+  ports.animationExport.attach(exporting.animationExportController);
+  const {syncAnimationExportUi} = exporting;
 
-  const imageController = createImageController({
+  const image = createImageDomain({
+    els,
     state,
     config,
-    els,
     root: document,
-    Image,
-    URL,
-    cloneConfigSnapshot,
-    pushHistorySnapshot,
-    ensureLevelAdjustedSources,
-    resetPaletteRegion,
-    resetMask,
-    resetView,
-    markEverythingDirty,
-    markPaletteDirty,
-    updateConditionalPanels,
-    queueRender,
+    env: {Image, URL},
+    configActions: ports.configActions,
+    history,
+    render,
+    view,
+    conditionalPanelsActions: ports.conditionalPanelsActions,
     setStatus
   });
-  const {
-    updateReferenceImageStatus,
-    loadReferenceFile,
-    loadFile,
-    loadDemo
-  } = imageController;
 
-  cyclePreviewController = createCyclePreviewController({
+  const cyclePreviewController = createCyclePreviewController({
     els,
     state,
     config,
-    cyclePeriod,
-    normalizedCycleOffset,
+    cyclePeriod: palette.cyclePeriod,
+    normalizedCycleOffset: palette.normalizedCycleOffset,
     positiveMod,
-    manualCycleModeEnabled,
+    manualCycleModeEnabled: palette.manualCycleModeEnabled,
     markPaletteDirty,
     queueRender,
     setStatus,
@@ -659,18 +169,7 @@ export function createPaletteSynthApp({
     requestAnimationFrame,
     cancelAnimationFrame
   });
-
-  function syncCycleControls(records) {
-    return cyclePreviewController.syncCycleControls(records);
-  }
-
-  function stopCyclePreview() {
-    return cyclePreviewController.stopCyclePreview();
-  }
-
-  function toggleCyclePreview() {
-    return cyclePreviewController.toggleCyclePreview();
-  }
+  ports.cyclePreview.attach(cyclePreviewController);
 
   async function copyPaletteHex(hex) {
     try {
@@ -681,224 +180,42 @@ export function createPaletteSynthApp({
     }
   }
 
-  function renderFullImageCanvas(options) {
-    return renderedCanvasController.renderFullImageCanvas(options);
-  }
-
-
-  const exportActions = createExportActions({
-    els,
-    state,
-    root: document,
-    draw,
-    renderFullImageCanvas,
-    ensurePalette,
-    getPaletteRecords
-  });
-  const {downloadCanvas, downloadFullImage, exportPalette} = exportActions;
-
-  function animationLoopSpan(records = state.paletteRecords, step = state.animationExport.step) {
-    return animationExportController.animationLoopSpan(records, step);
-  }
-
-  function syncAnimationExportUi(records = state.paletteRecords) {
-    return animationExportController.syncAnimationExportUi(records);
-  }
-
-  function sanitizeExportPrefix(value, fallback) {
-    return animationExportController.sanitizeExportPrefix(value, fallback);
-  }
-
-  function useAnimationLoopSpan() {
-    return animationExportController.useAnimationLoopSpan();
-  }
-
-  function exportAnimationPngZip() {
-    return animationExportController.exportAnimationPngZip();
-  }
-
-  function exportAnimationGif() {
-    return animationExportController.exportAnimationGif();
-  }
-
-  const manualPaletteActions = createManualPaletteActions({
+  const appActions = createAppActionsDomain({
     els,
     state,
     config,
     root: document,
-    window,
-    Image,
-    URL,
-    cloneConfigSnapshot,
-    pushHistorySnapshot,
-    withHistory,
-    presetExists,
-    presetColors,
-    presetSize,
-    manualPresetName,
-    activePaletteImageData,
-    activePaletteRegionRect,
-    getPaletteRecords,
-    syncManualSwatches,
-    renderManualSwatches,
-    markPaletteDirty,
-    updateConditionalPanels,
-    queueRender,
-    setStatus,
-    setOutputText
-  });
-  const {
-    loadStoredManualPresets,
-    populatePresetSelect,
-    loadPresetAsManual,
-    switchPalettePreset,
-    updateCapturePaletteUi,
-    captureCurrentPaletteToManual,
-    closeCapturePaletteMenu,
-    importLut,
-    addManualSwatch,
-    addPixelSourceToManualPalette,
-    copyCurrentPaletteHexStrings,
-    openManualPaletteTextDialog,
-    closeManualPaletteTextDialog,
-    importManualPaletteText
-  } = manualPaletteActions;
-
-  const randomizerController = createRandomizerController({
-    config,
-    cloneConfigSnapshot,
-    replaceConfigSnapshot,
-    withHistory,
+    env: {window, Image, URL},
+    ports,
+    history,
+    manual,
+    palette,
+    view,
+    render: ports.render,
+    exporting,
     setStatus
   });
-  const {randomizePalette} = randomizerController;
-
-  conditionalPanelsController = createConditionalPanelsController({
-    config,
-    state,
-    els,
-    root: document,
-    manualCycleModeEnabled,
-    cancelPaletteRegionDrag,
-    closeManualPaletteEditor,
-    updateGeneratedLockUi,
-    updateCapturePaletteUi,
-    syncCycleControls,
-    updatePaletteRegionUi,
-    updatePaletteRegionOverlay
-  });
-
-  resetController = createResetController({
-    state,
-    config,
-    replaceConfigSnapshot,
-    resetView,
-    resetPaletteRegion,
-    syncAnimationExportUi,
-    setStatus
-  });
-
-  function resetSettings() {
-    return resetController.resetSettings();
-  }
-
-  function resetPanelControls(panel, options = {}) {
-    const label = options.label || "panel";
-    return withHistory(`Reset ${label} controls`, () => resetController.resetPanelControls(panel, options));
-  }
-
-  function panelHasResettableControls(panel) {
-    return resetController.panelHasResettableControls(panel);
-  }
-
   const appInitializer = createAppInitializer({
-    els,
-    state,
-    config,
-    root: document,
-    clamp,
-    normalizedCycleOffset,
-    setOutputText,
-    handleControlDirty,
-    manualCycleModeEnabled,
-    markPaletteDirty,
-    markTextureDirty,
-    syncCycleControls,
-    updateConditionalPanels,
-    queueRender,
-    beginHistory,
-    commitHistory,
-    cloneConfigSnapshot,
-    sanitizeConfigSnapshot,
-    replaceConfigSnapshot,
-    pushHistorySnapshot,
-    setStatus,
-    setDiagnosticOverlay,
-    animationLoopSpan,
-    syncAnimationExportUi,
-    sanitizeExportPrefix,
-    useAnimationLoopSpan,
-    exportAnimationPngZip,
-    exportAnimationGif,
-    updateReferenceImageStatus,
-    updatePaletteRegionUi,
-    bindMaskControls,
-    syncMaskUi,
-    renderManualSwatches,
-    viewportController,
-    compareSplitController,
-    paletteRegionController,
-    maskController,
-    diagnosticsPanelIsOpen,
-    pixelInspectorPanelIsOpen,
-    setInspectorTab,
-    setPixelInspectorOpen,
-    togglePixelInspector,
-    refreshDiagnosticPixel,
-    clearDiagnosticPixel,
-    inspectDiagnosticPixel,
-    nudgeDiagnosticPixel,
-    updateDiagnostics,
-    withHistory,
-    bindHistoryShortcuts,
-    updateHistoryButtons,
-    setCompareEnabled,
-    setCompareSplit,
-    loadFile,
-    loadReferenceFile,
-    downloadCanvas,
-    downloadFullImage,
-    exportPalette,
-    copyCurrentPaletteHexStrings,
-    randomizePalette,
-    captureCurrentPaletteToManual,
-    closeCapturePaletteMenu,
-    loadPresetAsManual,
-    switchPalettePreset,
-    addManualSwatch,
-    addPixelSourceToManualPalette,
-    copyPixelHex: copyPaletteHex,
-    importLut,
-    openManualPaletteTextDialog,
-    closeManualPaletteTextDialog,
-    importManualPaletteText,
-    clearManualCycleTags,
-    clearGeneratedLocks,
-    togglePaletteRegionSelection,
-    resetPaletteRegion,
-    updatePaletteRegionOverlay,
-    toggleCyclePreview,
-    getDisplayViewRect,
-    zoomBy,
-    resetView,
-    undoHistory,
-    redoHistory,
-    resetSettings,
-    resetPanelControls,
-    panelHasResettableControls,
-    loadStoredManualPresets,
-    populatePresetSelect,
-    loadDemo
+    core,
+    env,
+    startup: {
+      root: document,
+      windowRef: window,
+      clamp,
+      createWebgl2Context: options.createWebgl2Context
+    },
+    history,
+    render,
+    palette,
+    cyclePreview: cyclePreviewController,
+    manual,
+    view,
+    diagnostics,
+    files: image,
+    exporting,
+    appActions,
+    status,
+    copyPixelHex: copyPaletteHex
   });
   const {init} = appInitializer;
 

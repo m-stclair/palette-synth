@@ -152,18 +152,19 @@ index.html
       └─ src/app-runtime.js
           ├─ loads GLSL through src/shaders/index.js
           └─ creates src/app/create-app.js
-              ├─ state/config/history/runtime-state
-              ├─ ui controllers
-              ├─ image/runtime/render controllers
-              ├─ palette generation/runtime/cycling
-              ├─ diagnostics
-              ├─ recipes/storage
-              └─ export controllers
+              ├─ createAppCore()              # env, state, config, shader sources
+              ├─ createAppPorts()             # named late-bound cross-domain ports
+              ├─ status/history domains
+              ├─ manual/palette domains
+              ├─ view/diagnostics/render domains
+              ├─ export/image/app-actions domains
+              └─ createAppInitializer()       # DOM collection, WebGL startup, event binding
 ```
 
 The CPU side builds palette records, config snapshots, diagnostics, and UI state. The GPU side handles levels and
-palette remapping passes. The shader is the furnace; the controllers are plumbing; `create-app.js` is the manifold where
-the pipes meet.
+palette remapping passes. The shader is the furnace; the controllers are plumbing; `create-app.js` is now mostly the
+manifold where named domain pipes meet. Behavior should live in domain modules or lower-level controllers, not grow back
+inside the composition root.
 
 ## Source map
 
@@ -192,15 +193,27 @@ the pipes meet.
 
 ### `src/app/`
 
-| Path                            | Purpose                                                                                     |
-|---------------------------------|---------------------------------------------------------------------------------------------|
-| `src/app/create-app.js`         | Composes the full application graph and wires controllers together.                         |
-| `src/app/initializer.js`        | Collects DOM elements, initializes WebGL, binds controls, and performs startup loading.     |
-| `src/app/config-controller.js`  | Applies config changes, marks render/session dirty flags, and syncs labels.                 |
-| `src/app/runtime-state.js`      | Creates isolated mutable runtime state for canvases, images, palette records, and UI flags. |
-| `src/app/status-controller.js`  | Writes status text and transient messages.                                                  |
-| `src/app/conditional-panels.js` | Shows, hides, and annotates controls based on active palette/output/assignment modes.       |
-| `src/app/reset-controller.js`   | Applies the reset snapshot through the config controller.                                   |
+| Path                                      | Purpose                                                                                         |
+|-------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `src/app/create-app.js`                   | Composition root. Constructs domains, attaches ports, and returns the public app surface.       |
+| `src/app/core.js`                         | Normalizes browser/env dependencies, shader sources, runtime state, cached elements, and config.|
+| `src/app/ports.js`                        | Named late-bound ports for cross-domain callbacks that cannot be wired in strict construction order. |
+| `src/app/initializer.js`                  | Consumes grouped domain deps, collects DOM elements, initializes WebGL, binds controls, and starts loading. |
+| `src/app/domains/status-domain.js`        | Wires status text behavior.                                                                      |
+| `src/app/domains/history-domain.js`       | Wires undo/redo plus Escape cancellation policy for mask/region interaction.                    |
+| `src/app/domains/manual-domain.js`        | Wires manual swatch model, swatch list, and manual swatch editor.                               |
+| `src/app/domains/palette-domain.js`       | Wires palette cycling, active palette runtime, preview swatches, locks, aliases, and cycle tags.|
+| `src/app/domains/view-domain.js`          | Wires viewport, compare split, palette region selection, and mask painting.                     |
+| `src/app/domains/diagnostics-domain.js`   | Wires diagnostics metrics, panels, overlay state, and pixel inspection controller.              |
+| `src/app/domains/render-domain.js`        | Wires shader programs, level sources, and render session scheduling/dirty flags.                |
+| `src/app/domains/export-domain.js`        | Wires full-image rendering, animation export, and image/palette download actions.               |
+| `src/app/domains/image-domain.js`         | Wires main/reference image loading, object URL management, and demo image loading.              |
+| `src/app/domains/app-actions-domain.js`   | Wires config, manual palette actions, randomization, conditional panels, and reset behavior.    |
+| `src/app/config-controller.js`            | Applies config changes, marks render/session dirty flags, and syncs labels.                    |
+| `src/app/runtime-state.js`                | Creates isolated mutable runtime state for canvases, images, palette records, and UI flags.    |
+| `src/app/status-controller.js`            | Writes status text and transient messages.                                                     |
+| `src/app/conditional-panels.js`           | Shows, hides, and annotates controls based on active palette/output/assignment modes.          |
+| `src/app/reset-controller.js`             | Applies reset snapshots through the config controller.                                         |
 
 ### `src/ui/`
 
@@ -333,8 +346,17 @@ behavior must stay nailed down.
 3. Add default state and sanitization in `src/state/config.js`.
 4. Bind control behavior in `src/ui/controls.js` or a dedicated controller.
 5. Route dirty flags in `src/app/config-controller.js`.
-6. Use the config in the runtime, palette module, or shader path.
+6. Use the config in the owning domain or lower-level runtime/palette/shader module. Avoid adding behavior directly to `src/app/create-app.js`.
 7. Add or update tests.
+
+
+### Change app wiring
+
+1. Find the owning domain in `src/app/domains/`.
+2. Add behavior to that domain or to the lower-level controller it already wraps.
+3. If another domain needs access, expose a named capability on the domain return object or through `src/app/ports.js`.
+4. Keep `src/app/create-app.js` as a readable graph of constructors and port attachments. It should explain the machine, not become the machine again.
+5. Add domain-level tests in `tests/app-domains.test.js` when the wiring surface changes.
 
 ### Add a new shader option
 
