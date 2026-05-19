@@ -38,6 +38,7 @@ import { createManualPaletteActions } from "../manual/manual-palette-actions.js"
 import { createResetController } from "./reset-controller.js";
 import { createConditionalPanelsController } from "./conditional-panels.js";
 import { createStatusController } from "./status-controller.js";
+import { createRandomizerController } from "./randomizer.js";
 import { createAppInitializer } from "./initializer.js";
 import { createExportActions } from "../export/export-actions.js";
 
@@ -744,6 +745,15 @@ export function createPaletteSynthApp({
     importManualPaletteText
   } = manualPaletteActions;
 
+  const randomizerController = createRandomizerController({
+    config,
+    cloneConfigSnapshot,
+    replaceConfigSnapshot,
+    withHistory,
+    setStatus
+  });
+  const {randomizePalette} = randomizerController;
+
   conditionalPanelsController = createConditionalPanelsController({
     config,
     state,
@@ -841,6 +851,7 @@ export function createPaletteSynthApp({
     downloadFullImage,
     exportPalette,
     copyCurrentPaletteHexStrings,
+    randomizePalette,
     captureCurrentPaletteToManual,
     closeCapturePaletteMenu,
     loadPresetAsManual,

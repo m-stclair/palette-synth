@@ -10,6 +10,7 @@ export const UI_ELEMENT_IDS = [
   "palettePreview",
   "paletteCount",
   "paletteHint",
+  "randomizePalette",
   "clearCycleTags",
   "clearPaletteLocks",
   "viewStatus",

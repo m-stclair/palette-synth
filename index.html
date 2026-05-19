@@ -114,13 +114,16 @@
         <h2>Palette</h2>
         <div class="field">
           <label for="paletteMode">Mode</label>
-          <select id="paletteMode">
-            <option value="generated">Generated from main image</option>
-            <option value="generatedReference">Generated from reference image</option>
-            <option value="harmony">Seed harmony</option>
-            <option value="cosine">Procedural cosine</option>
-            <option value="manual">Manual / preset</option>
-          </select>
+          <div class="mode-row">
+            <select id="paletteMode">
+              <option value="generated">Generated from main image</option>
+              <option value="generatedReference">Generated from reference image</option>
+              <option value="harmony">Seed harmony</option>
+              <option value="cosine">Procedural cosine</option>
+              <option value="manual">Manual / preset</option>
+            </select>
+            <button id="randomizePalette" type="button" class="ghost" title="Randomize palette, matching, and finishing settings">Randomize</button>
+          </div>
         </div>
         <div class="field generated-only">
           <label for="paletteSize">Size <output id="paletteSizeValue"></output></label>

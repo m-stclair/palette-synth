@@ -335,6 +335,7 @@ export function bindAppControls({
   downloadFullImage,
   exportPalette,
   copyCurrentPaletteHexStrings,
+  randomizePalette,
   captureCurrentPaletteToManual,
   closeCapturePaletteMenu,
   loadPresetAsManual,
@@ -390,6 +391,7 @@ export function bindAppControls({
   $("downloadFullImage")?.addEventListener("click", downloadFullImage);
   $("exportPalette")?.addEventListener("click", exportPalette);
   $("copyPaletteHexStrings")?.addEventListener("click", copyCurrentPaletteHexStrings);
+  $("randomizePalette")?.addEventListener("click", () => randomizePalette?.());
   $("capturePalette")?.addEventListener("click", () => captureCurrentPaletteToManual("replace"));
   $("capturePaletteMenu")?.querySelectorAll("[data-capture-strategy]").forEach(button => {
     button.addEventListener("click", () => {

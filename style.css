@@ -464,6 +464,18 @@ select:focus, textarea:focus, input:focus, button:focus-visible, .file-button:fo
   outline: 1px solid var(--accent);
   outline-offset: 1px;
 }
+
+.mode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.mode-row select {
+  min-width: 0;
+}
+
 .preset-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
