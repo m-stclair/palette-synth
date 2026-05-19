@@ -3,6 +3,7 @@ import {
   byteRgbToHex,
   clamp,
   clamp01,
+  labDistanceComponents,
   labToHex,
   rgb8ToLab
 } from "../color-utils.js";
@@ -35,26 +36,51 @@ export const DIAGNOSTIC = {
   ditherMinShare: 0.0625
 };
 
-export function cpuDistanceBreakdown(lab, featureLab, config = {}) {
-  const labC = Math.hypot(lab[1], lab[2]);
-  const [L, a, b] = featureLab;
-  const C = Math.hypot(a, b);
-  const dL = lab[0] - L;
-  const dC = labC - C;
+function safeScaledHue(hue) {
+  return Array.isArray(hue) && hue.length >= 2
+    ? [Number(hue[0]) || 0, Number(hue[1]) || 0]
+    : [0, 0];
+}
 
-  // Hue is undefined for neutral / near-neutral colors. The older metric used
-  // a tiny 1e-6 guard, which let floating-point residue from colors like
-  // #efefef become a fake hue vector. CPU and GPU precision can disagree on
-  // that residue, and blend-mode top-k selection then flips in narrow weight
-  // ranges. Use the same neutral cutoff the rest of the app uses and remove
-  // hue pressure whenever either side has no meaningful hue.
-  const hueSuppressed = labC < NEUTRAL_CHROMA_EPSILON || C < NEUTRAL_CHROMA_EPSILON;
+function recordDistanceComponents(record) {
+  if (Number.isFinite(Number(record?.lightness)) && Number.isFinite(Number(record?.chroma)) && Array.isArray(record?.scaledHue)) {
+    return {
+      lightness: Number(record.lightness),
+      chroma: Math.max(0, Number(record.chroma) || 0),
+      scaledHue: safeScaledHue(record.scaledHue)
+    };
+  }
+  return labDistanceComponents(record?.lab);
+}
+
+function entryFeatureDistanceComponents(entry) {
+  if (Number.isFinite(Number(entry?.featureLightness)) && Number.isFinite(Number(entry?.featureChroma)) && Array.isArray(entry?.featureHue)) {
+    return {
+      lightness: Number(entry.featureLightness),
+      chroma: Math.max(0, Number(entry.featureChroma) || 0),
+      scaledHue: safeScaledHue(entry.featureHue)
+    };
+  }
+  if (!entry?.alias && entry?.sourceRecord && entry.featureLab === entry.sourceRecord.lab) {
+    return recordDistanceComponents(entry.sourceRecord);
+  }
+  return labDistanceComponents(entry?.featureLab);
+}
+
+export function cpuDistanceBreakdown(labLightness, labChroma, labHue, featureLightness, featureChroma, featureHue, config = {}) {
+  const dL = labLightness - featureLightness;
+  const dC = labChroma - featureChroma;
+
+  // Hue is undefined for neutral / near-neutral colors. By contract callers
+  // pass already-normalized hue vectors, and this function does not inspect
+  // those vectors unless both chroma values are meaningful. That keeps neutral
+  // colors from inventing a fake hue and keeps the hot path free of duplicate
+  // hue normalization work.
+  const hueSuppressed = labChroma < NEUTRAL_CHROMA_EPSILON || featureChroma < NEUTRAL_CHROMA_EPSILON;
   let hueBias = 0;
   if (!hueSuppressed) {
-    const labHue = [lab[1] / labC, lab[2] / labC];
-    const featureHue = [a / C, b / C];
     const theta = clamp(labHue[0] * featureHue[0] + labHue[1] * featureHue[1], -1, 1);
-    hueBias = 0.5 * (labC + C) * (1 - theta);
+    hueBias = 0.5 * (labChroma + featureChroma) * (1 - theta);
   }
 
   const luma = Math.max(0, Number(config.lumaWeight) || 0) * Math.abs(dL);
@@ -73,9 +99,19 @@ export function topPaletteMatches(lab, entries, {config = {}, records = [], limi
   const matches = [];
   const safeEntries = Array.isArray(entries) ? entries : [];
   const safeRecords = Array.isArray(records) ? records : [];
+  const labParts = labDistanceComponents(lab);
   for (let i = 0; i < safeEntries.length; i++) {
     const entry = safeEntries[i];
-    const parts = cpuDistanceBreakdown(lab, entry.featureLab, config);
+    const featureParts = entryFeatureDistanceComponents(entry);
+    const parts = cpuDistanceBreakdown(
+      labParts.lightness,
+      labParts.chroma,
+      labParts.scaledHue,
+      featureParts.lightness,
+      featureParts.chroma,
+      featureParts.scaledHue,
+      config
+    );
     const record = entry.sourceRecord || safeRecords[i] || null;
     const displayIndex = Number.isInteger(record?.displayIndex) ? record.displayIndex : Math.min(i, maxPaletteSize - 1);
     matches.push({
@@ -344,7 +380,17 @@ export function computePaletteCollisions(records, config = {}) {
   let closeCount = 0;
   for (let i = 0; i < safeRecords.length; i++) {
     for (let j = i + 1; j < safeRecords.length; j++) {
-      const parts = cpuDistanceBreakdown(safeRecords[i].lab, safeRecords[j].lab, config);
+      const aParts = recordDistanceComponents(safeRecords[i]);
+      const bParts = recordDistanceComponents(safeRecords[j]);
+      const parts = cpuDistanceBreakdown(
+        aParts.lightness,
+        aParts.chroma,
+        aParts.scaledHue,
+        bParts.lightness,
+        bParts.chroma,
+        bParts.scaledHue,
+        config
+      );
       const pair = {i, j, distance: parts.total, a: safeRecords[i], b: safeRecords[j]};
       if (!closest || pair.distance < closest.distance) closest = pair;
       if (pair.distance <= threshold) closeCount += 1;

@@ -7,6 +7,7 @@ import {
 import {
   clamp,
   hexToByteRgb,
+  labDistanceComponents,
   labToHex,
   labToOklch,
   oklchToLab,
@@ -66,7 +67,17 @@ function deltaFromPixel(pixel, {blendActive = false, config = {}} = {}) {
     ? (Array.isArray(pixel.finalLab) ? pixel.finalLab : labFromHex(pixel.finalHex))
     : (Array.isArray(pixel.outputLab) ? pixel.outputLab : labFromHex(pixel.fxHex || pixel.finalHex));
   if (!sourceLab || !targetLab) return null;
-  return cpuDistanceBreakdown(sourceLab, targetLab, config);
+  const sourceParts = labDistanceComponents(sourceLab);
+  const targetParts = labDistanceComponents(targetLab);
+  return cpuDistanceBreakdown(
+    sourceParts.lightness,
+    sourceParts.chroma,
+    sourceParts.scaledHue,
+    targetParts.lightness,
+    targetParts.chroma,
+    targetParts.scaledHue,
+    config
+  );
 }
 
 
@@ -662,7 +673,17 @@ export function createDiagnosticsPanel({
       distances.push([]);
       for (let j = 0; j < n; j++) {
         if (i === j) { distances[i].push(0); continue; }
-        const parts = cpuDistanceBreakdown(records[i].lab, records[j].lab, config);
+        const aParts = labDistanceComponents(records[i].lab);
+        const bParts = labDistanceComponents(records[j].lab);
+        const parts = cpuDistanceBreakdown(
+          aParts.lightness,
+          aParts.chroma,
+          aParts.scaledHue,
+          bParts.lightness,
+          bParts.chroma,
+          bParts.scaledHue,
+          config
+        );
         distances[i].push(parts.total);
         if (parts.total > maxDistance) maxDistance = parts.total;
       }

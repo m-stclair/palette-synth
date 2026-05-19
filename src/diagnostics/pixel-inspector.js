@@ -3,6 +3,7 @@ import {
   clamp,
   clamp01,
   hexToByteRgb,
+  labDistanceComponents,
   labToHex,
   linear2SRGB,
   rgb8ToLab,
@@ -233,8 +234,27 @@ export function analyzePixelAtImagePoint({
   const finalHex = blendHexes(sourceHex, fxHex, config.blendAmount);
   const finalRgb = hexToByteRgb(finalHex);
   const finalLab = rgb8ToLab(finalRgb[0], finalRgb[1], finalRgb[2]);
-  const blendDelta = cpuDistanceBreakdown(sourceLab, finalLab, config);
-  const fxDelta = cpuDistanceBreakdown(sourceLab, outputLab, config);
+  const sourceParts = labDistanceComponents(sourceLab);
+  const finalParts = labDistanceComponents(finalLab);
+  const outputParts = labDistanceComponents(outputLab);
+  const blendDelta = cpuDistanceBreakdown(
+    sourceParts.lightness,
+    sourceParts.chroma,
+    sourceParts.scaledHue,
+    finalParts.lightness,
+    finalParts.chroma,
+    finalParts.scaledHue,
+    config
+  );
+  const fxDelta = cpuDistanceBreakdown(
+    sourceParts.lightness,
+    sourceParts.chroma,
+    sourceParts.scaledHue,
+    outputParts.lightness,
+    outputParts.chroma,
+    outputParts.scaledHue,
+    config
+  );
   return {
     x: pxX,
     y: pxY,

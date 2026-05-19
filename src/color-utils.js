@@ -1,7 +1,6 @@
 import {
   MAX_PALETTE_SIZE,
   NEUTRAL_CHROMA_EPSILON,
-  OKLAB_CHROMA_REF,
   OKLAB_SCALE,
   TAU
 } from "./constants.js";
@@ -174,6 +173,15 @@ export function fitLabToSrgb(lab) {
   }
 
 export function paletteChroma([_L, a, b]) { return Math.hypot(a, b); }
+export function labDistanceComponents(lab) {
+    const safe = Array.isArray(lab) ? lab : [0, 0, 0];
+    const lightness = Number(safe[0]) || 0;
+    const a = Number(safe[1]) || 0;
+    const b = Number(safe[2]) || 0;
+    const chroma = Math.hypot(a, b);
+    const scaledHue = chroma > 0 ? [a / chroma, b / chroma] : [0, 0];
+    return {lightness, chroma, scaledHue};
+  }
 export function paletteHue([_L, a, b]) {
     const h = Math.atan2(b, a);
     return h < 0 ? h + TAU : h;
@@ -231,10 +239,14 @@ export function makePaletteRecord({
     role = "display"
   }) {
     const safeLab = [...lab];
+    const {lightness, chroma, scaledHue} = labDistanceComponents(safeLab);
     return {
       id: source === "manual" && swatchId ? `manual:${swatchId}` : `${source}:${familyId ?? sourceIndex ?? "x"}:${variant}:${variantIndex}`,
       lab: safeLab,
       hex: labToHex(safeLab),
+      lightness,
+      chroma,
+      scaledHue,
       source,
       familyId,
       familyIndex,
@@ -332,20 +344,6 @@ export function familyDistance(aFamily, bFamily) {
       }
     }
     return best;
-  }
-
-export function nearestFamilyMatch(candidateFamily, selectedFamilies) {
-    if (!selectedFamilies.length) return {distance: Infinity, index: -1};
-    let nearest = Infinity;
-    let nearestIndex = -1;
-    for (let i = 0; i < selectedFamilies.length; i++) {
-      const distance = familyDistance(candidateFamily, selectedFamilies[i]);
-      if (distance < nearest) {
-        nearest = distance;
-        nearestIndex = i;
-      }
-    }
-    return {distance: nearest, index: nearestIndex};
   }
 
 export function smoothstep(edge0, edge1, value) {

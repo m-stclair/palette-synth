@@ -9,6 +9,7 @@ import {
   sampleImageDiagnostics,
   topPaletteMatches
 } from "../src/diagnostics/metrics.js";
+import { labDistanceComponents } from "../src/color-utils.js";
 
 const baseConfig = {
   lumaWeight: 1,
@@ -51,6 +52,20 @@ function assertApproximatelyEqual(actual, expected, epsilon = 1e-6) {
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} should be within ${epsilon} of ${expected}`);
 }
 
+function distanceBreakdownForLabs(sourceLab, targetLab, config) {
+  const source = labDistanceComponents(sourceLab);
+  const target = labDistanceComponents(targetLab);
+  return cpuDistanceBreakdown(
+    source.lightness,
+    source.chroma,
+    source.scaledHue,
+    target.lightness,
+    target.chroma,
+    target.scaledHue,
+    config
+  );
+}
+
 test("topPaletteMatches sorts by weighted distance and carries display metadata", () => {
   const records = [record([50, 0, 0], 0), record([10, 0, 0], 1), record([20, 0, 0], 2)];
   const matches = topPaletteMatches([18, 0, 0], records.map(entry), {config: baseConfig, records, limit: 2});
@@ -89,8 +104,8 @@ test("near-neutral source colors do not invent hue pressure", () => {
   const blue = record([95, 0, 3], 1);
   const config = {...baseConfig, lumaWeight: 0, chromaWeight: 0, hueWeight: 1};
 
-  const redParts = cpuDistanceBreakdown(source, red.lab, config);
-  const blueParts = cpuDistanceBreakdown(source, blue.lab, config);
+  const redParts = distanceBreakdownForLabs(source, red.lab, config);
+  const blueParts = distanceBreakdownForLabs(source, blue.lab, config);
   assert.equal(redParts.hue, 0);
   assert.equal(blueParts.hue, 0);
   assert.equal(redParts.hueSuppressed, true);
@@ -103,9 +118,16 @@ test("near-neutral source colors do not invent hue pressure", () => {
 test("non-neutral colors still carry hue pressure", () => {
   const source = [50, 3, 0];
   const candidate = [50, 0, 3];
-  const parts = cpuDistanceBreakdown(source, candidate, {...baseConfig, lumaWeight: 0, chromaWeight: 0, hueWeight: 1});
+  const parts = distanceBreakdownForLabs(source, candidate, {...baseConfig, lumaWeight: 0, chromaWeight: 0, hueWeight: 1});
   assert.ok(parts.hue > 0);
   assert.equal(parts.hueSuppressed, false);
+});
+
+test("neutral colors suppress hue without inspecting unsafe hue vectors", () => {
+  const parts = cpuDistanceBreakdown(50, 0, null, 50, 3, [1, 0], {...baseConfig, lumaWeight: 0, chromaWeight: 0, hueWeight: 1});
+
+  assert.equal(parts.hue, 0);
+  assert.equal(parts.hueSuppressed, true);
 });
 
 test("max-distance gate leaves far pixels unassigned", () => {

@@ -13,11 +13,11 @@ import {
 } from "../constants.js";
 import {
   clamp,
+  familyDistance,
   familyFootprint,
   hueInfoForSeedLab,
   labDistance,
   labToHex,
-  nearestFamilyMatch,
   nearestHueAnchorMatch,
   seededRandom
 } from "../color-utils.js";
@@ -136,15 +136,33 @@ function selectionTraceBadge(parts, spacing) {
   return badges.slice(0, 5);
 }
 
+function updateNearestFamilyMatches(entries, selectedFamily, selectedFamilyIndex, nearestFamilyByIndex) {
+  for (const entry of entries) {
+    const distance = familyDistance(entry.family, selectedFamily);
+    const nearest = nearestFamilyByIndex[entry.index];
+    if (distance < nearest.distance) {
+      nearest.distance = distance;
+      nearest.index = selectedFamilyIndex;
+    }
+  }
+}
+
 export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 14, seed = 1, options = {}) {
   const center = meanLab(candidates);
-  const baseScored = candidates.map((lab, index) => {
-    const score = baseScoreBreakdown(lab, center, weights);
-    return {lab, index, baseScore: score.total, baseParts: score};
-  });
-  const rng = seededRandom(seed);
   const footprintDeltaL = Number.isFinite(Number(options.deltaL)) ? Number(options.deltaL) : 10;
   const footprintChromaExp = Number.isFinite(Number(options.chromaExp)) ? Number(options.chromaExp) : 1.0;
+  const baseScored = candidates.map((lab, index) => {
+    const score = baseScoreBreakdown(lab, center, weights);
+    return {
+      lab,
+      index,
+      baseScore: score.total,
+      baseParts: score,
+      family: familyFootprint(lab, footprintDeltaL, footprintChromaExp),
+      hueCandidate: hueInfoForSeedLab(lab)
+    };
+  });
+  const rng = seededRandom(seed);
   const hueSpreadBonus = clamp(Number(options.hueSpread ?? DEFAULT_HUE_SPREAD_BONUS) || 0, 0, 0.5);
   const trace = Array.isArray(options.trace) ? options.trace : null;
   const initialSelected = Array.isArray(options.initialSelected)
@@ -153,6 +171,10 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   const selected = [...initialSelected];
   const selectedFamilies = selected.map(lab => familyFootprint(lab, footprintDeltaL, footprintChromaExp));
   const selectedHueAnchors = selected.map(hueInfoForSeedLab);
+  const nearestFamilyByIndex = candidates.map(() => ({distance: Infinity, index: -1}));
+  selectedFamilies.forEach((family, index) => {
+    updateNearestFamilyMatches(baseScored, family, index, nearestFamilyByIndex);
+  });
   const used = new Set();
   const bandCounts = [0, 0, 0];
   selected.forEach(([L]) => { bandCounts[tonalBandIndex(L)] += 1; });
@@ -193,13 +215,10 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     const selectedFamilyHexes = selectedFamilies.map(family => family.map(labToHex));
     const bandCountsBefore = [...bandCounts];
     const remainingWithFamilies = remaining.map(entry => {
-      const family = familyFootprint(entry.lab, footprintDeltaL, footprintChromaExp);
-      const nearest = nearestFamilyMatch(family, selectedFamilies);
-      const hueCandidate = hueInfoForSeedLab(entry.lab);
-      const hueNearest = nearestHueAnchorMatch(hueCandidate, selectedHueAnchors);
+      const nearest = nearestFamilyByIndex[entry.index];
+      const hueNearest = nearestHueAnchorMatch(entry.hueCandidate, selectedHueAnchors);
       return {
         ...entry,
-        family,
         nearestFamilyDistance: nearest.distance,
         nearestFamilyIndex: nearest.index,
         hueNovelty: hueNearest.raw,
@@ -344,10 +363,20 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     }
 
     selected.push(picked.lab);
-    selectedFamilies.push(picked.family ?? familyFootprint(picked.lab, footprintDeltaL, footprintChromaExp));
+    const pickedFamilyIndex = selectedFamilies.length;
+    const pickedFamily = picked.family ?? familyFootprint(picked.lab, footprintDeltaL, footprintChromaExp);
+    selectedFamilies.push(pickedFamily);
     selectedHueAnchors.push(hueInfoForSeedLab(picked.lab));
     used.add(picked.index);
     bandCounts[picked.band] += 1;
+    if (selected.length < N) {
+      updateNearestFamilyMatches(
+        baseScored.filter(entry => !used.has(entry.index)),
+        pickedFamily,
+        pickedFamilyIndex,
+        nearestFamilyByIndex
+      );
+    }
   }
 
   if (selected.length >= N) return selected;

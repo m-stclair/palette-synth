@@ -4,6 +4,7 @@ import {
   clamp01,
   hexToLab,
   labDistance,
+  labDistanceComponents,
   labToHex,
   makePaletteRecord,
   paletteLabs,
@@ -201,13 +202,11 @@ export function createPaletteRuntime({
       paletteBlock[i * 4 + 0] = renderL;
       paletteBlock[i * 4 + 1] = renderA;
       paletteBlock[i * 4 + 2] = renderB;
-      const [L, a, b] = palette[i];
-      const C = Math.hypot(a, b);
-      const h = Math.atan2(b, a);
-      paletteFeatures[i * 4 + 0] = L;
-      paletteFeatures[i * 4 + 1] = C;
-      paletteFeatures[i * 4 + 2] = Math.cos(h);
-      paletteFeatures[i * 4 + 3] = Math.sin(h);
+      const {lightness, chroma, scaledHue} = labDistanceComponents(palette[i]);
+      paletteFeatures[i * 4 + 0] = lightness;
+      paletteFeatures[i * 4 + 1] = chroma;
+      paletteFeatures[i * 4 + 2] = scaledHue[0];
+      paletteFeatures[i * 4 + 3] = scaledHue[1];
     }
     return {paletteBlock, paletteFeatures};
   }
@@ -215,14 +214,22 @@ export function createPaletteRuntime({
   function paletteUniformEntries(records, renderPalette = paletteLabs(records)) {
     const safeRecords = Array.isArray(records) ? records : [];
     const safeRenderPalette = Array.isArray(renderPalette) ? renderPalette : paletteLabs(safeRecords);
-    const natural = safeRecords.slice(0, MAX_PALETTE_SIZE).map((record, index) => ({
-      featureLab: record.lab,
-      renderLab: safeRenderPalette[index] || record.lab,
-      featureHex: labToHex(record.lab),
-      renderHex: labToHex(safeRenderPalette[index] || record.lab),
-      sourceRecord: record,
-      alias: false
-    }));
+    const natural = safeRecords.slice(0, MAX_PALETTE_SIZE).map((record, index) => {
+      const entry = {
+        featureLab: record.lab,
+        renderLab: safeRenderPalette[index] || record.lab,
+        featureHex: labToHex(record.lab),
+        renderHex: labToHex(safeRenderPalette[index] || record.lab),
+        sourceRecord: record,
+        alias: false
+      };
+      if (Number.isFinite(Number(record.lightness)) && Number.isFinite(Number(record.chroma)) && Array.isArray(record.scaledHue)) {
+        entry.featureLightness = record.lightness;
+        entry.featureChroma = record.chroma;
+        entry.featureHue = record.scaledHue;
+      }
+      return entry;
+    });
 
     const entries = [...natural];
     if (config.paletteMode !== "manual" || entries.length >= MAX_PALETTE_SIZE) return entries;
@@ -239,8 +246,12 @@ export function createPaletteRuntime({
         if (!Array.isArray(aliasLab) || aliasLab.length < 3) continue;
         if (labDistance(aliasLab, record.lab) < 0.1) continue;
         if (entries.some(entry => entry.sourceRecord === record && labDistance(entry.featureLab, aliasLab) < 0.1)) continue;
+        const aliasParts = labDistanceComponents(aliasLab);
         entries.push({
           featureLab: [...aliasLab],
+          featureLightness: aliasParts.lightness,
+          featureChroma: aliasParts.chroma,
+          featureHue: aliasParts.scaledHue,
           renderLab,
           sourceRecord: record,
           alias: true
