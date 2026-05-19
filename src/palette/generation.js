@@ -158,7 +158,7 @@ function relationshipOffsetsForCount(relationshipKey, count, seed = 0) {
     const ring = Math.floor(i / baseOffsets.length);
     const side = ring % 2 === 0 ? -1 : 1;
     const step = Math.ceil(ring / 2);
-    const seedNudge = ((seed % 17) - 8) * 0.15;
+    const seedNudge = ((seed % 17) - 8) * 4;
     const clusterOffset = ring === 0 ? 0 : side * step * spread + seedNudge;
     out.push(baseOffsets[groupIndex] + clusterOffset);
   }

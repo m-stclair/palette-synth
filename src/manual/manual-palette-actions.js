@@ -75,7 +75,6 @@ const PRESET_CATEGORY_BY_NAME = {
     agedSilk: "Art + mood",
     alpineClouds: "Art + mood",
     bauhaus: "Art + mood",
-    bruise: "Art + mood",
     cassette: "Art + mood",
     coldSun: "Art + mood",
     coolPortrait: "Art + mood",

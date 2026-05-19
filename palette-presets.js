@@ -535,9 +535,6 @@ window.PALETTE_PRESETS = {
     // Dark wine glass, pink refraction, and creamy highlight.
     roseGlass: ["#0e0818", "#4a1848", "#a03888", "#e880c0", "#ffe8f8"],
 
-    // Purple-black swelling into mauve and dusty red-pink. Small, sore, effective.
-    bruise: ["#0c0814", "#3a1858", "#7a2860", "#c06888"],
-
     // Glazed turquoise, cream, ochre, clay, and red-orange ceramic accents.
     moroccanTile: [
         "#0a1418", "#102830", "#1c4858", "#1d6f8a",

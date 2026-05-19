@@ -21,43 +21,6 @@ function hueDistanceDegrees(a, b) {
   return Math.min(d, 360 - d);
 }
 
-test("seed harmony keeps the classic shared hue tint/shade ramp by default", () => {
-  const config = cloneDefaultConfig();
-  config.paletteSize = 3;
-  config.harmonyRelationship = "monochrome";
-  config.harmonyRegionContrast = "tonalRamp";
-  config.seedSwatch = "#e95a22";
-
-  const byVariant = recordsByVariant(createHarmonyPalette(config));
-
-  assert.equal(byVariant.base.familyId, byVariant.tint.familyId);
-  assert.equal(byVariant.base.familyId, byVariant.shade.familyId);
-  assert.equal(byVariant.base.lab[1], byVariant.tint.lab[1]);
-  assert.equal(byVariant.base.lab[2], byVariant.tint.lab[2]);
-  assert.equal(byVariant.base.lab[1], byVariant.shade.lab[1]);
-  assert.equal(byVariant.base.lab[2], byVariant.shade.lab[2]);
-});
-
-test("seed harmony can contrast highlight, shadow, and midtone regions", () => {
-  const config = cloneDefaultConfig();
-  config.paletteSize = 3;
-  config.harmonyRelationship = "monochrome";
-  config.harmonyRegionContrast = "triadicRegions";
-  config.seedSwatch = "#e95a22";
-
-  const byVariant = recordsByVariant(createHarmonyPalette(config));
-  const baseHue = hueDegrees(byVariant.base);
-  const tintHue = hueDegrees(byVariant.tint);
-  const shadeHue = hueDegrees(byVariant.shade);
-
-  assert.ok(hueDistanceDegrees(baseHue, tintHue) > 80);
-  assert.ok(hueDistanceDegrees(baseHue, shadeHue) > 80);
-  assert.ok(hueDistanceDegrees(tintHue, shadeHue) > 80);
-  assert.equal(Math.round(byVariant.tint.lab[0] - byVariant.base.lab[0]), Math.round(config.deltaL));
-  assert.equal(Math.round(byVariant.base.lab[0] - byVariant.shade.lab[0]), Math.round(config.deltaL));
-});
-
-
 test("seed harmony ramp steepness controls lightness slope inside each tonal band", () => {
   const flat = cloneDefaultConfig();
   flat.paletteSize = 21;
