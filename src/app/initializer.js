@@ -256,6 +256,8 @@ export function createAppInitializer({
       getDisplayViewRect,
       zoomBy,
       resetView,
+      cloneConfigSnapshot,
+      replaceConfigSnapshot,
       markTextureDirty,
       markPaletteDirty,
       undoHistory,

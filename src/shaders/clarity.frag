@@ -62,7 +62,7 @@ float softLightBlend(float base, float fx) {
     return clamp(blended, 0.0, 1.0);
 }
 
-float kernelWeight1D(int offset, int radius) {
+float kernelWeight1D(int offset, int radius, float softness) {
     float x = float(abs(offset));
 
     // Treat radius <= 0 as a delta kernel.
@@ -70,21 +70,35 @@ float kernelWeight1D(int offset, int radius) {
     float rz = 1.0 - step(0.5, r0); // 1 when radius == 0-ish
     float r  = max(r0, 1.0);
 
-    float w = exp(-(x * x) / r);
+    // softness = 1.0 preserves the original shape.
+    // softness < 1.0 = tighter / sharper
+    // softness > 1.0 = wider / softer
+    float s0 = max(softness, 0.0);
+    float sz = 1.0 - step(0.0001, s0); // softness == 0-ish -> delta
+    float s  = max(s0, 0.0001);
+
+    // Original was:
+    //   exp(-(x*x) / r)
+    //
+    // Since r = 2*sigma^2, scaling sigma by softness means
+    // scaling r by softness^2.
+    float rs = r * s * s;
+
+    float w = exp(-(x * x) / rs);
 
     // Hard cap outside [-radius, radius], branchlessly.
     float inside = 1.0 - step(r0 + 0.5, x);
     w *= inside;
 
     // Approximate infinite-Gaussian normalization.
-    // sigma^2 = r / 2
-    // sqrt(2*pi*sigma^2) = sqrt(pi*r)
-    w *= inversesqrt(3.141592653589793 * r);
+    // sigma^2 = rs / 2
+    // sqrt(2*pi*sigma^2) = sqrt(pi*rs)
+    w *= inversesqrt(3.141592653589793 * rs);
 
-    // radius == 0 -> only offset 0 has weight 1.
+    // radius == 0 or softness == 0 -> only offset 0 has weight 1.
     float delta = 1.0 - step(0.5, x);
 
-    return mix(w, delta, rz);
+    return mix(w, delta, max(rz, sz));
 }
 
 
@@ -93,9 +107,9 @@ float blurredSharpLightness(vec2 uv) {
     float accum = 0.0;
     float weightSum = 0.0;
 
-    for (int y = -4; y <= 4; ++y) {
-        for (int x = -4; x <= 4; ++x) {
-            float weight = kernelWeight1D(x, 4) * kernelWeight1D(y, 4);
+    for (int y = -3; y <= 3; ++y) {
+        for (int x = -3; x <= 3; ++x) {
+            float weight = kernelWeight1D(x, 3, 3.0) * kernelWeight1D(y, 3, 3.0);
             vec2 sampleUv = clamp(uv + vec2(float(x), float(y)) * texel, vec2(0.0), vec2(1.0));
             accum += texture(u_sharpPass, sampleUv).r * weight;
             weightSum += weight;

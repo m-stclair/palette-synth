@@ -364,6 +364,8 @@ export function bindAppControls({
   getDisplayViewRect,
   zoomBy,
   resetView,
+  cloneConfigSnapshot,
+  replaceConfigSnapshot,
   markTextureDirty,
   markPaletteDirty,
   undoHistory,
@@ -479,6 +481,8 @@ export function bindAppControls({
     zoomBy,
     resetView,
     resetSettings,
+    cloneConfigSnapshot,
+    replaceConfigSnapshot,
     setDiagnosticOverlay,
     updateDiagnostics,
     setStatus

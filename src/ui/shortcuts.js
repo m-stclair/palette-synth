@@ -1,3 +1,4 @@
+import { cloneDefaultConfig, cloneConfigSnapshot as cloneConfigSnapshotValue } from "../state/config.js";
 import { $ } from "./dom.js";
 
 export const SHORTCUT_BLOCK_SELECTOR = [
@@ -44,6 +45,7 @@ for (const item of TOOLBAR_PANEL_SHORTCUTS) {
 }
 
 const INSPECTOR_TABS = ["pixel", "selection", "diagnostics"];
+const SNAPSHOT_SLOT_KEYS = ["a", "s", "d", "f"];
 
 export const SHORTCUT_DEFINITIONS = [
   {key: "?", label: "Show keyboard shortcuts"},
@@ -55,13 +57,15 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "I", label: "Toggle floating inspector"},
   {key: "Shift+I", label: "Switch inspector tab"},
   {key: "Inspector: ← / → / ↑ / ↓", label: "Move inspected pixel"},
-  {key: "Inspector: S / F / A", label: "Copy source / copy output / add source"},
+  {key: "Inspector: A", label: "Copy source / copy output / add source"},
   {key: "Inspector: Esc", label: "Clear pixel, then close"},
   {key: "0", label: "Reset view"},
   {key: "- / =", label: "Zoom out / in"},
   {key: "[ / ]", label: "Nudge cycle offset"},
   {key: "Shift+[ / Shift+]", label: "Previous / next palette preset"},
   {key: "← / →", label: "Previous / next seed"},
+  {key: "A / S / D / F", label: "Load snapshot slots 1–4"},
+  {key: "Shift+A / S / D / F", label: "Save snapshot slots 1–4"},
   {key: "X", label: "Export palette"},
   {key: "Shift+X", label: "Export full image PNG"},
   {key: "H", label: "Toggle difference heatmap"},
@@ -73,11 +77,94 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "Shift+1…3", label: "Open/focus lower panels"}
 ];
 
+const RANGE_VALUE_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"]);
+const NUMBER_VALUE_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"]);
+const TEXT_VALUE_KEYS = new Set(["Backspace", "Delete", "Enter", "ArrowLeft", "ArrowRight", "Home", "End"]);
+const BUTTON_VALUE_KEYS = new Set(["Enter", " ", "Spacebar"]);
+const RADIO_VALUE_KEYS = new Set([...BUTTON_VALUE_KEYS, "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+const TEXT_INPUT_TYPES = new Set(["", "email", "password", "search", "tel", "text", "url"]);
+const DATE_TIME_INPUT_TYPES = new Set(["date", "datetime-local", "month", "time", "week"]);
+
+function closestTarget(target, selector) {
+  return typeof target?.closest === "function" ? target.closest(selector) : null;
+}
+
+function inputType(input) {
+  return String(input?.type || "text").toLowerCase();
+}
+
+function isPrintableKey(event) {
+  return String(event?.key || "").length === 1;
+}
+
+function isUnshiftedDigitKey(event) {
+  return !event?.shiftKey && /^[0-9]$/.test(String(event?.key || ""));
+}
+
+function isNumberEditKey(event) {
+  const key = String(event?.key || "");
+  return isUnshiftedDigitKey(event) || key === "." || key === "," || key === "-" || key === "+" || key === "e" || key === "E";
+}
+
+function inputCanConsumeShortcutKey(input, event) {
+  const type = inputType(input);
+  const key = String(event?.key || "");
+
+  if (input?.disabled) return false;
+
+  if (type === "range") return RANGE_VALUE_KEYS.has(key);
+  if (type === "number") return !input?.readOnly && (NUMBER_VALUE_KEYS.has(key) || isNumberEditKey(event));
+  if (type === "checkbox") return BUTTON_VALUE_KEYS.has(key);
+  if (type === "radio") return RADIO_VALUE_KEYS.has(key);
+  if (["button", "submit", "reset", "file", "color"].includes(type)) return BUTTON_VALUE_KEYS.has(key);
+
+  if (TEXT_INPUT_TYPES.has(type)) {
+    if (input?.readOnly) return false;
+    return TEXT_VALUE_KEYS.has(key) || isPrintableKey(event);
+  }
+
+  if (DATE_TIME_INPUT_TYPES.has(type)) {
+    if (input?.readOnly) return false;
+    return RANGE_VALUE_KEYS.has(key) || isPrintableKey(event);
+  }
+
+  if (input?.readOnly) return false;
+  return TEXT_VALUE_KEYS.has(key) || isPrintableKey(event);
+}
+
+function selectCanConsumeShortcutKey(select, event) {
+  if (select?.disabled) return false;
+  const key = String(event?.key || "");
+  return RANGE_VALUE_KEYS.has(key) || BUTTON_VALUE_KEYS.has(key) || isPrintableKey(event);
+}
+
+function snapshotSlotIndexForEvent(event) {
+  if (event?.ctrlKey || event?.metaKey || event?.altKey) return -1;
+  const key = String(event?.key || "").toLowerCase();
+  return SNAPSHOT_SLOT_KEYS.indexOf(key);
+}
+
+function snapshotSlotLabel(index) {
+  return SNAPSHOT_SLOT_KEYS[index]?.toUpperCase?.() || String(index + 1);
+}
+
 export function shouldIgnoreShortcut(event) {
   if (event?.defaultPrevented) return true;
   if (event?.ctrlKey || event?.metaKey || event?.altKey) return true;
+
   const target = event?.target;
-  return !!target?.closest?.(SHORTCUT_BLOCK_SELECTOR);
+  if (!target) return false;
+
+  // Modal/editor contexts still own the whole keyboard while they are active.
+  if (closestTarget(target, "dialog[open], textarea, [contenteditable]")) return true;
+
+  const input = closestTarget(target, "input");
+  if (input) return inputCanConsumeShortcutKey(input, event);
+
+  const select = closestTarget(target, "select");
+  if (select) return selectCanConsumeShortcutKey(select, event);
+
+  return false;
 }
 
 function normalizePanelKey(text = "") {
@@ -191,6 +278,12 @@ function annotateToolbarPanelShortcuts(root) {
 
 function clampNumber(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function wrapNumber(value, min, max) {
+  const span = max - min + 1;
+  if (!Number.isFinite(value) || !Number.isFinite(span) || span <= 0) return clampNumber(value, min, max);
+  return ((value - min) % span + span) % span + min;
 }
 
 function elementNumber(el, property, fallback) {
@@ -318,11 +411,22 @@ export function createShortcutDispatcher({
   zoomBy = () => {},
   resetView = () => {},
   resetSettings = () => {},
+  cloneConfigSnapshot = () => cloneConfigSnapshotValue(config),
+  replaceConfigSnapshot = snapshot => {
+    Object.keys(config).forEach(key => delete config[key]);
+    Object.assign(config, cloneConfigSnapshotValue(snapshot));
+  },
+  defaultConfigSnapshot = () => cloneDefaultConfig(),
   setDiagnosticOverlay = () => {},
   updateDiagnostics = () => {},
   setStatus = () => {}
 } = {}) {
   const context = {els, root, config, setOutputText};
+  const snapshotSlots = SNAPSHOT_SLOT_KEYS.map(() => cloneConfigSnapshotValue(defaultConfigSnapshot()));
+
+  function currentConfigSnapshot() {
+    return cloneConfigSnapshotValue(cloneConfigSnapshot());
+  }
 
   function syncDirtyControl(key, value) {
     setControlValue(context, key, value);
@@ -333,7 +437,8 @@ export function createShortcutDispatcher({
     const control = els.seed || $("seed", root);
     const min = elementNumber(control, "min", 1);
     const max = elementNumber(control, "max", 500);
-    const next = clampNumber(Math.round(Number(config.seed) || min) + delta, min, max);
+    const current = clampNumber(Math.round(Number(config.seed) || min), min, max);
+    const next = wrapNumber(current + delta, min, max);
     withHistory("Change seed", () => {
       config.seed = next;
       syncDirtyControl("seed", config.seed);
@@ -352,6 +457,29 @@ export function createShortcutDispatcher({
       queueRender();
       setStatus(`Cycle offset ${config.cycleOffset}.`);
     });
+  }
+
+  function saveSnapshotSlot(index) {
+    const label = snapshotSlotLabel(index);
+    snapshotSlots[index] = currentConfigSnapshot();
+    setStatus(`Saved snapshot ${label}.`);
+  }
+
+  function loadSnapshotSlot(index) {
+    const label = snapshotSlotLabel(index);
+    const snapshot = cloneConfigSnapshotValue(snapshotSlots[index] || defaultConfigSnapshot());
+    withHistory(`Load snapshot ${label}`, () => {
+      replaceConfigSnapshot(snapshot, {cancelPendingHistory: false});
+      setStatus(`Loaded snapshot ${label}.`);
+    });
+  }
+
+  function handleSnapshotShortcut(event) {
+    const index = snapshotSlotIndexForEvent(event);
+    if (index < 0) return false;
+    if (event.shiftKey) saveSnapshotSlot(index);
+    else loadSnapshotSlot(index);
+    return true;
   }
 
   function toggleCompare() {
@@ -466,21 +594,6 @@ export function createShortcutDispatcher({
       addPixelSourceToManualPalette();
       return true;
     }
-    if (lower === "s" && !event.shiftKey) {
-      const hex = state.diagnostics?.pixel?.sourceHex;
-      if (hex) copyPixelHex(hex);
-      else setStatus("Inspect a pixel first.");
-      return true;
-    }
-    if (lower === "f" && !event.shiftKey) {
-      const pixel = state.diagnostics?.pixel;
-      const blendAmount = Number(config.blendAmount);
-      const blendActive = Math.abs((Number.isFinite(blendAmount) ? blendAmount : 1) - 1) > 1e-6;
-      const hex = pixel ? (blendActive ? pixel.finalHex : (pixel.fxHex || pixel.finalHex)) : null;
-      if (hex) copyPixelHex(hex);
-      else setStatus("Inspect a pixel first.");
-      return true;
-    }
     return false;
   }
 
@@ -581,7 +694,11 @@ export function createShortcutDispatcher({
       if (event.shiftKey) return false;
       setPaletteMode("generated", "generated from main image");
       return true;
-    }
+    },
+    "a": handleSnapshotShortcut,
+    "s": handleSnapshotShortcut,
+    "d": handleSnapshotShortcut,
+    "f": handleSnapshotShortcut
   };
 
   function handleInspectorTabKeydown(event) {

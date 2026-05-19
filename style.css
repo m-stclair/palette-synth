@@ -2608,7 +2608,8 @@ input[type="range"] {
 }
 
 .shortcut-help-dialog {
-  max-width: min(540px, calc(100vw - 24px));
+  width: min(820px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--panel);
@@ -2622,7 +2623,7 @@ input[type="range"] {
 .shortcut-help-card {
   display: grid;
   gap: 10px;
-  min-width: min(480px, calc(100vw - 48px));
+  min-width: 0;
   padding: 14px;
 }
 .shortcut-help-header {
@@ -2637,27 +2638,43 @@ input[type="range"] {
 }
 .shortcut-help-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 5px 14px;
+  grid-template-columns: 1fr;
+  gap: 7px 18px;
   margin: 0;
+}
+@media (min-width: 760px) {
+  .shortcut-help-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .shortcut-help-list div {
   display: grid;
-  grid-template-columns: 4.8rem minmax(0, 1fr);
-  gap: 8px;
-  align-items: baseline;
+  grid-template-columns: minmax(7.5rem, 11rem) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
 }
 .shortcut-help-list dt {
   color: var(--accent);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 700;
-  white-space: nowrap;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .shortcut-help-list dd {
+  min-width: 0;
   margin: 0;
   color: var(--soft);
   font-size: 11px;
+  line-height: 1.28;
+}
+@media (max-width: 420px) {
+  .shortcut-help-list div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }
 
 /* Floating pixel inspector. It is deliberately not a tools-pane panel: it lives

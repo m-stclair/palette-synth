@@ -69,6 +69,17 @@ function keyEvent(key, options = {}) {
   };
 }
 
+function controlTarget(kind, overrides = {}) {
+  const control = makeElement(overrides);
+  control.closest = selector => {
+    if (kind === "dialog" && selector.includes("dialog[open]")) return control;
+    if (kind === "contenteditable" && selector.includes("[contenteditable]")) return control;
+    if (selector.includes(kind)) return control;
+    return null;
+  };
+  return control;
+}
+
 test("shortcut dispatcher nudges seed and blocks editing controls", () => {
   const root = makeRoot({
     seed: makeElement({value: "2", min: "1", max: "500"}),
@@ -101,6 +112,38 @@ test("shortcut dispatcher nudges seed and blocks editing controls", () => {
   dispatcher.handleKeydown(blocked);
   assert.equal(blocked.prevented, false);
   assert.equal(config.seed, 3);
+});
+
+
+test("shortcut dispatcher wraps seed arrows at range boundaries", () => {
+  const root = makeRoot({
+    seed: makeElement({value: "500", min: "1", max: "500"}),
+    seedValue: makeElement({textContent: "500"})
+  });
+  const config = {seed: 500};
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    els: {seed: root.elements.seed},
+    withHistory: (_label, mutator) => mutator(),
+    setOutputText: (_key, out, value) => { if (out) out.textContent = String(value); },
+    handleControlDirty: () => {},
+    queueRender: () => {}
+  });
+
+  const right = keyEvent("ArrowRight");
+  dispatcher.handleKeydown(right);
+  assert.equal(right.prevented, true);
+  assert.equal(config.seed, 1);
+  assert.equal(root.elements.seed.value, 1);
+  assert.equal(root.elements.seedValue.textContent, "1");
+
+  const left = keyEvent("ArrowLeft");
+  dispatcher.handleKeydown(left);
+  assert.equal(left.prevented, true);
+  assert.equal(config.seed, 500);
+  assert.equal(root.elements.seed.value, 500);
+  assert.equal(root.elements.seedValue.textContent, "500");
 });
 
 test("shortcut dispatcher keeps bracket keys on cycle offset and arrows on seed", () => {
@@ -180,20 +223,84 @@ test("shortcut dispatcher toggles inspector and gives its keys precedence while 
   assert.equal(inspectorOpen, true);
 
   dispatcher.handleKeydown(keyEvent("ArrowRight", {shiftKey: true}));
-  dispatcher.handleKeydown(keyEvent("s"));
-  dispatcher.handleKeydown(keyEvent("f"));
   dispatcher.handleKeydown(keyEvent("a"));
 
   assert.equal(config.seed, 2);
   assert.deepEqual(calls, [
     ["toggleInspector"],
     ["nudgePixel", 1, 0, 4],
-    ["copy", "#111111"],
-    ["copy", "#222222"],
     ["addSource"]
   ]);
 });
 
+
+
+test("shortcut snapshots save without history and load with history", () => {
+  const root = makeRoot();
+  const calls = [];
+  const statuses = [];
+  const config = {seed: 10, paletteMode: "manual", manualPalette: [{hex: "#111111"}]};
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    cloneConfigSnapshot: () => clone(config),
+    defaultConfigSnapshot: () => ({seed: 1, paletteMode: "generated", manualPalette: [{hex: "#000000"}]}),
+    replaceConfigSnapshot: (snapshot, options) => {
+      calls.push(["replace", clone(snapshot), options]);
+      Object.keys(config).forEach(key => delete config[key]);
+      Object.assign(config, clone(snapshot));
+    },
+    withHistory: (label, mutator) => {
+      calls.push(["history", label]);
+      return mutator();
+    },
+    setStatus: value => statuses.push(value)
+  });
+
+  const save = keyEvent("A", {shiftKey: true, code: "KeyA"});
+  dispatcher.handleKeydown(save);
+  assert.equal(save.prevented, true);
+  assert.deepEqual(calls, []);
+  assert.equal(statuses.at(-1), "Saved snapshot A.");
+
+  config.seed = 42;
+  config.manualPalette[0].hex = "#222222";
+
+  const load = keyEvent("a", {code: "KeyA"});
+  dispatcher.handleKeydown(load);
+  assert.equal(load.prevented, true);
+  assert.deepEqual(config, {seed: 10, paletteMode: "manual", manualPalette: [{hex: "#111111"}]});
+  assert.deepEqual(calls, [
+    ["history", "Load snapshot A"],
+    ["replace", {seed: 10, paletteMode: "manual", manualPalette: [{hex: "#111111"}]}, {cancelPendingHistory: false}]
+  ]);
+  assert.equal(statuses.at(-1), "Loaded snapshot A.");
+});
+
+
+test("empty snapshot slots load the default config", () => {
+  const root = makeRoot();
+  const config = {seed: 42, paletteMode: "manual"};
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    cloneConfigSnapshot: () => clone(config),
+    defaultConfigSnapshot: () => ({seed: 1, paletteMode: "generated"}),
+    replaceConfigSnapshot: snapshot => {
+      Object.keys(config).forEach(key => delete config[key]);
+      Object.assign(config, clone(snapshot));
+    },
+    withHistory: (_label, mutator) => mutator()
+  });
+
+  const loadDefault = keyEvent("d", {code: "KeyD"});
+  dispatcher.handleKeydown(loadDefault);
+
+  assert.equal(loadDefault.prevented, true);
+  assert.deepEqual(config, {seed: 1, paletteMode: "generated"});
+});
 
 test("shortcut dispatcher routes requested app actions", () => {
   const root = makeRoot({
@@ -472,8 +579,35 @@ test("escape blurs focused controls before shortcut blocking", () => {
   assert.equal(blurred, true);
 });
 
-test("shouldIgnoreShortcut blocks modifier chords and editable targets", () => {
+test("shouldIgnoreShortcut blocks modifier chords and protected modal/editor targets", () => {
   assert.equal(shouldIgnoreShortcut(keyEvent("o", {ctrlKey: true})), true);
-  assert.equal(shouldIgnoreShortcut(keyEvent("o", {target: {closest: () => ({})}})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("o", {target: controlTarget("dialog")})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("o", {target: controlTarget("textarea")})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("o", {target: controlTarget("contenteditable")})), true);
   assert.equal(shouldIgnoreShortcut(keyEvent("o")), false);
+});
+
+test("shouldIgnoreShortcut only blocks keys consumed by focused controls", () => {
+  const range = controlTarget("input", {type: "range"});
+  assert.equal(shouldIgnoreShortcut(keyEvent("ArrowRight", {target: range})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("g", {target: range})), false);
+
+  const number = controlTarget("input", {type: "number"});
+  assert.equal(shouldIgnoreShortcut(keyEvent("1", {target: number})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("ArrowUp", {target: number})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("g", {target: number})), false);
+  assert.equal(shouldIgnoreShortcut(keyEvent("ArrowRight", {target: number})), false);
+  assert.equal(shouldIgnoreShortcut(keyEvent("!", {target: number, shiftKey: true, code: "Digit1"})), false);
+
+  const text = controlTarget("input", {type: "text"});
+  assert.equal(shouldIgnoreShortcut(keyEvent("g", {target: text})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("ArrowRight", {target: text})), true);
+
+  const readonlyText = controlTarget("input", {type: "text", readOnly: true});
+  assert.equal(shouldIgnoreShortcut(keyEvent("g", {target: readonlyText})), false);
+
+  const select = controlTarget("select");
+  assert.equal(shouldIgnoreShortcut(keyEvent("g", {target: select})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("ArrowDown", {target: select})), true);
+  assert.equal(shouldIgnoreShortcut(keyEvent("F5", {target: select})), false);
 });
