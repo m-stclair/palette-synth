@@ -68,6 +68,7 @@ export const UI_ELEMENT_IDS = [
   "animLoopInfo",
   "animUseLoopSpan",
   "exportAnimationZipButton",
+  "exportAnimationGifButton",
   "copyPaletteHexStrings",
   "cosineCustomA0",
   "cosineCustomA1",

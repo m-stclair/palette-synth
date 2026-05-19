@@ -4,6 +4,7 @@ import {
   downloadAnimationPngZip,
   sanitizeExportPrefix as sanitizePrefix
 } from "./animation-zip.js";
+import { downloadAnimationGif } from "./animation-gif.js";
 
 function noop() {}
 
@@ -22,6 +23,7 @@ export function createAnimationExportController({
   renderFullImageCanvas,
   setStatus = noop,
   downloadAnimationPngZipFn = downloadAnimationPngZip,
+  downloadAnimationGifFn = downloadAnimationGif,
   now = () => new Date()
 }) {
   function animationLoopSpan(records = state.paletteRecords, step = state.animationExport.step) {
@@ -31,6 +33,7 @@ export function createAnimationExportController({
   function setAnimationExporting(exporting) {
     state.animationExport.exporting = !!exporting;
     if (els.exportAnimationZipButton) els.exportAnimationZipButton.disabled = exporting || !state.imageData;
+    if (els.exportAnimationGifButton) els.exportAnimationGifButton.disabled = exporting || !state.imageData;
     if (els.animUseLoopSpan) els.animUseLoopSpan.disabled = !!exporting;
     [els.animFrameCount, els.animFps, els.animStep, els.animPrefix].forEach(el => {
       if (el) el.disabled = !!exporting;
@@ -86,12 +89,36 @@ export function createAnimationExportController({
     };
   }
 
-  async function exportAnimationPngZip() {
-    if (state.animationExport.exporting) return;
+  function canExportAnimation() {
+    if (state.animationExport.exporting) return false;
     if (!state.imageData || !state.sourceCanvas.width || !state.sourceCanvas.height) {
       setStatus("Open an image first, then export animation frames.");
-      return;
+      return false;
     }
+    return true;
+  }
+
+  function animationManifest(plan, kind = "palette-synth-png-sequence") {
+    return {
+      app: "Palette Synth",
+      kind,
+      version: 1,
+      exportedAt: now().toISOString(),
+      width: state.sourceCanvas.width,
+      height: state.sourceCanvas.height,
+      fps: plan.fps,
+      frameCount: plan.frameCount,
+      stepPerFrame: plan.step,
+      cyclePeriod: plan.period,
+      loopSpan: plan.loopSpan,
+      startOffset: plan.startOffset,
+      cycleMode: manualCycleModeEnabled() ? "manual" : Number(config.CYCLE_MODE),
+      files: plan.frames.map(frame => ({index: frame.index, cycleOffset: frame.cycleOffset, filename: frame.filename}))
+    };
+  }
+
+  async function runAnimationExport({kind, manifestKind, download, successMessage}) {
+    if (!canExportAnimation()) return;
 
     ensurePalette();
     const records = state.paletteRecords.length ? state.paletteRecords : getPaletteRecords();
@@ -102,30 +129,13 @@ export function createAnimationExportController({
     if (els.error) els.error.hidden = true;
 
     try {
-      const manifest = {
-        app: "Palette Synth",
-        kind: "palette-synth-png-sequence",
-        version: 1,
-        exportedAt: now().toISOString(),
-        width: state.sourceCanvas.width,
-        height: state.sourceCanvas.height,
-        fps: plan.fps,
-        frameCount: plan.frameCount,
-        stepPerFrame: plan.step,
-        cyclePeriod: plan.period,
-        loopSpan: plan.loopSpan,
-        startOffset: plan.startOffset,
-        cycleMode: manualCycleModeEnabled() ? "manual" : Number(config.CYCLE_MODE),
-        files: plan.frames.map(frame => ({index: frame.index, cycleOffset: frame.cycleOffset, filename: frame.filename}))
-      };
-
-      await downloadAnimationPngZipFn({
+      await download({
         plan,
-        manifest,
+        manifest: animationManifest(plan, manifestKind),
         renderFrameCanvas: frame => renderFullImageCanvas({cycleOffset: frame.cycleOffset, records}),
-        onProgress: (frame, total) => setStatus(`Rendering frame ${frame.index + 1}/${total}…`)
+        onProgress: (frame, total) => setStatus(`Rendering ${kind} frame ${frame.index + 1}/${total}…`)
       });
-      setStatus(`Exported ${plan.frameCount} PNG frame${plan.frameCount === 1 ? "" : "s"} as ${plan.prefix}.zip.`);
+      setStatus(successMessage(plan));
     } catch (err) {
       if (els.error) {
         els.error.textContent = `Animation export failed: ${err.message}`;
@@ -138,6 +148,24 @@ export function createAnimationExportController({
     }
   }
 
+  async function exportAnimationPngZip() {
+    await runAnimationExport({
+      kind: "PNG",
+      manifestKind: "palette-synth-png-sequence",
+      download: downloadAnimationPngZipFn,
+      successMessage: plan => `Exported ${plan.frameCount} PNG frame${plan.frameCount === 1 ? "" : "s"} as ${plan.prefix}.zip.`
+    });
+  }
+
+  async function exportAnimationGif() {
+    await runAnimationExport({
+      kind: "GIF",
+      manifestKind: "palette-synth-animated-gif",
+      download: downloadAnimationGifFn,
+      successMessage: plan => `Exported ${plan.frameCount} GIF frame${plan.frameCount === 1 ? "" : "s"} as ${plan.prefix}.gif.`
+    });
+  }
+
   return {
     animationLoopSpan,
     setAnimationExporting,
@@ -146,6 +174,7 @@ export function createAnimationExportController({
     currentAnimationExportSettings,
     buildAnimationFramePlan,
     exportAnimationPngZip,
+    exportAnimationGif,
     sanitizeExportPrefix: sanitizePrefix
   };
 }

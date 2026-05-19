@@ -40,6 +40,7 @@ function makeController(overrides = {}) {
     renderFullImageCanvas: overrides.renderFullImageCanvas || (() => ({tag: "canvas"})),
     setStatus: overrides.setStatus || (() => {}),
     downloadAnimationPngZipFn: overrides.downloadAnimationPngZipFn,
+    downloadAnimationGifFn: overrides.downloadAnimationGifFn,
     now: overrides.now || (() => new Date("2026-05-16T12:00:00.000Z"))
   });
 }
@@ -57,6 +58,7 @@ test("animation export controller syncs controls, clamps settings, and reports l
     animPrefix: makeElement(),
     animLoopInfo: makeElement(),
     exportAnimationZipButton: makeElement(),
+    exportAnimationGifButton: makeElement(),
     animUseLoopSpan: makeElement()
   };
 
@@ -74,6 +76,7 @@ test("animation export controller syncs controls, clamps settings, and reports l
   assert.equal(els.animPrefix.value, "bad---prefix");
   assert.equal(els.animLoopInfo.textContent, "3 frames · middle · 1/6");
   assert.equal(els.exportAnimationZipButton.disabled, false);
+  assert.equal(els.exportAnimationGifButton.disabled, false);
 });
 
 test("animation export controller uses current loop span on request", () => {
@@ -126,6 +129,7 @@ test("animation export controller exports png zip plans and manifest", async () 
   const els = {
     error: makeElement(),
     exportAnimationZipButton: makeElement(),
+    exportAnimationGifButton: makeElement(),
     animUseLoopSpan: makeElement(),
     animFrameCount: makeElement(),
     animFps: makeElement(),
@@ -160,12 +164,64 @@ test("animation export controller exports png zip plans and manifest", async () 
   assert.equal(calls[1][2].width, 8);
   assert.equal(calls[1][2].height, 4);
   assert.equal(calls[1][2].cycleMode, 3);
-  assert.deepEqual(calls[2], ["status", "Rendering frame 1/2…"]);
+  assert.deepEqual(calls[2], ["status", "Rendering PNG frame 1/2…"]);
   assert.deepEqual(calls[3], ["render", {cycleOffset: 1, records: state.paletteRecords}]);
   assert.deepEqual(calls.at(-1), ["status", "Exported 2 PNG frames as demo.zip."]);
   assert.equal(state.animationExport.exporting, false);
   assert.equal(els.error.hidden, true);
   assert.equal(els.exportAnimationZipButton.disabled, false);
+  assert.equal(els.exportAnimationGifButton.disabled, false);
+});
+
+test("animation export controller exports gif plans through the same path", async () => {
+  const state = makeState([{}, {}, {}, {}]);
+  state.animationExport.frameCount = 2;
+  state.animationExport.fps = 10;
+  state.animationExport.step = 1;
+  state.animationExport.prefix = "demo-gif";
+  const els = {
+    error: makeElement(),
+    exportAnimationZipButton: makeElement(),
+    exportAnimationGifButton: makeElement(),
+    animUseLoopSpan: makeElement(),
+    animFrameCount: makeElement(),
+    animFps: makeElement(),
+    animStep: makeElement(),
+    animPrefix: makeElement()
+  };
+  const calls = [];
+  const controller = makeController({
+    state,
+    els,
+    renderFullImageCanvas: options => {
+      calls.push(["render", options]);
+      return {tag: "canvas", options};
+    },
+    setStatus: text => calls.push(["status", text]),
+    downloadAnimationGifFn: async payload => {
+      calls.push(["gif", payload.plan, payload.manifest]);
+      payload.onProgress(payload.plan.frames[1], payload.plan.frames.length);
+      payload.renderFrameCanvas(payload.plan.frames[1]);
+    }
+  });
+
+  await controller.exportAnimationGif();
+
+  assert.equal(calls[0][0], "gif");
+  assert.equal(calls[0][1].prefix, "demo-gif");
+  assert.equal(calls[0][1].fps, 10);
+  assert.deepEqual(calls[0][1].frames.map(frame => frame.filename), [
+    "demo-gif_0001.png",
+    "demo-gif_0002.png"
+  ]);
+  assert.equal(calls[0][2].kind, "palette-synth-animated-gif");
+  assert.equal(calls[0][2].frameCount, 2);
+  assert.deepEqual(calls[1], ["status", "Rendering GIF frame 2/2…"]);
+  assert.deepEqual(calls[2], ["render", {cycleOffset: 2, records: state.paletteRecords}]);
+  assert.deepEqual(calls.at(-1), ["status", "Exported 2 GIF frames as demo-gif.gif."]);
+  assert.equal(state.animationExport.exporting, false);
+  assert.equal(els.exportAnimationZipButton.disabled, false);
+  assert.equal(els.exportAnimationGifButton.disabled, false);
 });
 
 test("animation export controller reports export failures", async () => {

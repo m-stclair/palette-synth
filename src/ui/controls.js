@@ -490,7 +490,8 @@ export function bindAnimationExportControls({
   syncAnimationExportUi,
   sanitizeExportPrefix,
   useAnimationLoopSpan,
-  exportAnimationPngZip
+  exportAnimationPngZip,
+  exportAnimationGif
 }) {
   if (!els.animFrameCount) return;
   syncAnimationExportUi(state.paletteRecords);
@@ -512,6 +513,7 @@ export function bindAnimationExportControls({
   });
   els.animUseLoopSpan?.addEventListener("click", useAnimationLoopSpan);
   els.exportAnimationZipButton?.addEventListener("click", exportAnimationPngZip);
+  els.exportAnimationGifButton?.addEventListener("click", exportAnimationGif);
 }
 
 export function bindRecipeControls({

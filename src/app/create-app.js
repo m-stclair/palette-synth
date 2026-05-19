@@ -696,6 +696,10 @@ export function createPaletteSynthApp({
     return animationExportController.exportAnimationPngZip();
   }
 
+  function exportAnimationGif() {
+    return animationExportController.exportAnimationGif();
+  }
+
   const manualPaletteActions = createManualPaletteActions({
     els,
     state,
@@ -805,6 +809,7 @@ export function createPaletteSynthApp({
     sanitizeExportPrefix,
     useAnimationLoopSpan,
     exportAnimationPngZip,
+    exportAnimationGif,
     updateReferenceImageStatus,
     updatePaletteRegionUi,
     bindCycleMaskControls,

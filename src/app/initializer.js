@@ -44,6 +44,7 @@ export function createAppInitializer({
   sanitizeExportPrefix,
   useAnimationLoopSpan,
   exportAnimationPngZip,
+  exportAnimationGif,
   updateReferenceImageStatus,
   updatePaletteRegionUi,
   bindCycleMaskControls,
@@ -156,7 +157,8 @@ export function createAppInitializer({
       syncAnimationExportUi,
       sanitizeExportPrefix,
       useAnimationLoopSpan,
-      exportAnimationPngZip
+      exportAnimationPngZip,
+      exportAnimationGif
     });
 
     updateConditionalPanels();
