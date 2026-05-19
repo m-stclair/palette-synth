@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hexToLab } from "../src/color-utils.js";
+import { hexToLab, labDistanceComponents } from "../src/color-utils.js";
 import { createPaletteRuntime, manualPresetIdFromName, manualPresetName } from "../src/palette/runtime.js";
 
 function makeRuntime(overrides = {}) {
@@ -132,10 +132,19 @@ test("palette adjustments change manual effective labs while preserving source l
   });
 
   const [record] = runtime.getPaletteRecords();
+  const adjustedParts = labDistanceComponents(record.lab);
 
   assertLabClose(record.sourceLab, sourceLab);
   assertLabClose(record.lab, [50, 0, 25], 1e-5);
+  assert.equal(record.lightness, adjustedParts.lightness);
+  assert.equal(record.chroma, adjustedParts.chroma);
+  assert.deepEqual(record.scaledHue, adjustedParts.scaledHue);
   assertLabClose(record.unadjustedLab, sourceLab);
+
+  const [entry] = runtime.paletteUniformEntries([record]);
+  assert.equal(entry.featureLightness, adjustedParts.lightness);
+  assert.equal(entry.featureChroma, adjustedParts.chroma);
+  assert.deepEqual(entry.featureHue, adjustedParts.scaledHue);
 });
 
 test("alias all source colors adds source matches without changing adjusted render labs", () => {

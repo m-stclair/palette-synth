@@ -80,6 +80,58 @@ test("pixel inspector uses manual palette numbering for manual swatches", () => 
   assert.doesNotMatch(els.diagnosticsPixel.innerHTML, />#1 swatch 1/);
 });
 
+test("diagnostics usage sorts by contribution while keeping manual swatch labels", () => {
+  const els = {
+    diagnosticsSummary: element(),
+    diagnosticsUsage: element(),
+    diagnosticsUsageHeading: element(),
+    diagnosticsOverlayControls: element(),
+    diagnosticsOverlayStatus: element(),
+    diagnosticsOverlayOff: element(),
+    diagnosticsOverlayDifference: element()
+  };
+  const records = [
+    {lab: [30, 0, 0], hex: "#333333", displayIndex: 0, source: "manual", sourceIndex: 2},
+    {lab: [10, 0, 0], hex: "#111111", displayIndex: 1, source: "manual", sourceIndex: 0},
+    {lab: [20, 0, 0], hex: "#222222", displayIndex: 2, source: "manual", sourceIndex: 1}
+  ];
+  const stats = {
+    records,
+    entries: [],
+    sample: {
+      usage: [
+        {index: 0, percent: 0.7, territoryPercent: 0.7, aliasPercent: 0, load: "high", hex: "#333333"},
+        {index: 1, percent: 0.2, territoryPercent: 0.2, aliasPercent: 0, load: "balanced", hex: "#111111"},
+        {index: 2, percent: 0.1, territoryPercent: 0.1, aliasPercent: 0, load: "balanced", hex: "#222222"}
+      ],
+      sampleCount: 10,
+      meanDistance: 0,
+      meanLuma: 0,
+      meanChroma: 0,
+      meanHue: 0,
+      p95Distance: 0,
+      coverageEntropy: 1,
+      ambiguousPercent: 0
+    }
+  };
+  const state = {imageData: {width: 1, height: 1}, diagnostics: {overlay: {mode: "swatch", swatchIndex: 1}}};
+  const panel = createDiagnosticsPanel({
+    els,
+    getConfig: () => ({paletteMode: "manual", assignMode: "blend", outputMode: "quantized"}),
+    getState: () => state
+  });
+
+  panel.renderDiagnosticsPanel(stats);
+
+  const html = els.diagnosticsUsage.innerHTML;
+  const first = html.indexOf("manual swatch 3");
+  const second = html.indexOf("manual swatch 1");
+  const third = html.indexOf("manual swatch 2");
+  assert.ok(first >= 0 && second > first && third > second);
+  assert.match(els.diagnosticsOverlayStatus.textContent, /manual swatch 1/);
+  assert.match(html, /data-diagnostic-swatch-index="1"/);
+});
+
 test("diagnostics panel renders summary, usage, xray, selection fallback, and pixel inspector", () => {
   const els = {
     diagnosticsSummary: element(),

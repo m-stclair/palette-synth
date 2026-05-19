@@ -129,6 +129,35 @@ function pixelInspectorSwatchTitle(match, config = {}) {
   return `${manual ? "manual " : ""}swatch ${number}`;
 }
 
+function usageRecord(item, records = []) {
+  if (item?.record) return item.record;
+  const index = Number.isInteger(item?.index) ? item.index : -1;
+  return index >= 0 ? records[index] || null : null;
+}
+
+function usageSwatchNumber(item, config = {}, records = []) {
+  const record = usageRecord(item, records);
+  if (config?.paletteMode === "manual" && record?.source === "manual" && Number.isInteger(record.sourceIndex)) {
+    return record.sourceIndex + 1;
+  }
+  if (Number.isInteger(record?.displayIndex)) return record.displayIndex + 1;
+  return (Number.isInteger(item?.index) ? item.index : 0) + 1;
+}
+
+function usageOrderValue(item, config = {}, records = []) {
+  const record = usageRecord(item, records);
+  if (config?.paletteMode === "manual" && record?.source === "manual" && Number.isInteger(record.sourceIndex)) {
+    return record.sourceIndex;
+  }
+  if (Number.isInteger(record?.displayIndex)) return record.displayIndex;
+  return Number.isInteger(item?.index) ? item.index : 0;
+}
+
+function usageSwatchTitle(item, config = {}, records = []) {
+  const manual = config?.paletteMode === "manual" && usageRecord(item, records)?.source === "manual";
+  return `${manual ? "manual " : ""}swatch ${usageSwatchNumber(item, config, records)}`;
+}
+
 function scorePartRow(label, contribution, detail = "") {
   const cls = contribution < 0 ? " is-negative" : (contribution > 0 ? " is-positive" : "");
   return `<div class="selection-score-row${cls}"><span>${label}</span><b>${formatSignedScore(contribution)}</b><small>${detail}</small></div>`;
@@ -208,6 +237,7 @@ export function createDiagnosticsPanel({
     bindDiagnosticsOverlayEvents();
     if (!els.diagnosticsOverlayControls) return;
     const overlay = diagnosticsOverlayState();
+    const records = Array.isArray(stats?.records) ? stats.records : [];
     const hasImageAndPalette = !!getState().imageData && !!stats?.records?.length;
     const swatchText = getConfig().assignMode === "blend" ? "Swatch heatmap" : "Swatch mask";
 
@@ -227,7 +257,8 @@ export function createDiagnosticsPanel({
       } else if (overlay.mode === "difference") {
         els.diagnosticsOverlayStatus.textContent = "";
       } else if (overlay.mode === "swatch" && overlay.swatchIndex !== null) {
-        els.diagnosticsOverlayStatus.textContent = `${swatchText}: #${overlay.swatchIndex + 1}.`;
+        const item = {index: overlay.swatchIndex, record: records[overlay.swatchIndex] || null};
+        els.diagnosticsOverlayStatus.textContent = `${swatchText}: ${usageSwatchTitle(item, getConfig(), records)}.`;
       } else {
         els.diagnosticsOverlayStatus.textContent = "";
       }
@@ -249,24 +280,26 @@ export function createDiagnosticsPanel({
     // and dither modes where it is meaningfully different.
     const showTerritoryColumn = config.assignMode !== "nearest";
     const overlay = diagnosticsOverlayState();
+    const records = Array.isArray(stats?.records) ? stats.records : [];
     const rows = usage
       .slice()
-      .sort((a, b) => b.percent - a.percent || b.territoryPercent - a.territoryPercent || a.index - b.index)
+      .sort((a, b) => b.percent - a.percent || b.territoryPercent - a.territoryPercent || usageOrderValue(a, config, records) - usageOrderValue(b, config, records) || a.index - b.index)
       .map(item => {
         const pct = clamp(item.percent * 100, 0, 100);
+        const swatchTitle = usageSwatchTitle(item, config, records);
         const territoryNote = showTerritoryColumn
           ? `<small title="Nearest-only territory: ${formatUsagePercent(item.territoryPercent)}">${formatUsagePercent(item.territoryPercent)}</small>`
           : "";
         const aliasNote = item.aliasPercent > 0
           ? ` · alias ${formatUsagePercent(item.aliasPercent)}`
           : "";
-        const titleParts = [`swatch ${item.index + 1}`, `contribution ${formatUsagePercent(item.percent)}`];
+        const titleParts = [swatchTitle, `contribution ${formatUsagePercent(item.percent)}`];
         if (showTerritoryColumn) titleParts.push(`nearest ${formatUsagePercent(item.territoryPercent)}`);
         if (item.aliasPercent > 0) titleParts.push(`alias ${formatUsagePercent(item.aliasPercent)}`);
         if (item.load !== "balanced") titleParts.push(item.load);
         const overlayActive = overlay.mode === "swatch" && overlay.swatchIndex === item.index;
         return `<div class="diagnostic-usage-row is-${item.load}${overlayActive ? " is-overlay-target" : ""}" title="${titleParts.join(" · ")}${aliasNote}">
-          <button type="button" class="diagnostic-usage-swatch-button" data-diagnostic-swatch-index="${item.index}" aria-pressed="${overlayActive}" title="Show ${config.assignMode === "blend" ? "blend contribution heatmap" : "assignment mask"} for swatch ${item.index + 1}">
+          <button type="button" class="diagnostic-usage-swatch-button" data-diagnostic-swatch-index="${item.index}" aria-pressed="${overlayActive}" title="Show ${config.assignMode === "blend" ? "blend contribution heatmap" : "assignment mask"} for ${swatchTitle}">
             <i class="diagnostic-usage-swatch" style="background:${item.hex}"></i>
           </button>
           <span class="diagnostic-usage-track"><span class="diagnostic-usage-fill" style="--usage-pct:${pct}%"></span></span>

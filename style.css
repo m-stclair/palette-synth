@@ -1923,7 +1923,8 @@ canvas {
 /* Principled load flags: underused = < 10% of the 1/N baseline,
    overused = > 3x the 1/N baseline. Visual treatment is intentionally
    restrained so this stays a glance-level cue, not an alarm. */
-.diagnostic-usage-row.is-underused {
+.diagnostic-usage-row.is-underused b,
+.diagnostic-usage-row.is-underused small {
   opacity: .55;
 }
 .diagnostic-usage-row.is-overused .diagnostic-usage-fill {

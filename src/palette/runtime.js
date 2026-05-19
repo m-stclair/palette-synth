@@ -183,11 +183,15 @@ export function createPaletteRuntime({
     if (!paletteAdjustmentsActive()) return records;
     return records.map(record => {
       const lab = adjustPaletteLab(record.lab);
+      const {lightness, chroma, scaledHue} = labDistanceComponents(lab);
       return {
         ...record,
         lab,
         hex: labToHex(lab),
-        adjustedLab: lab,
+        lightness,
+        chroma,
+        scaledHue,
+        adjustedLab: [...lab],
         unadjustedLab: Array.isArray(record.lab) ? [...record.lab] : null
       };
     });
