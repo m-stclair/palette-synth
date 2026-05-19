@@ -85,6 +85,7 @@ const PRESET_CATEGORY_BY_NAME = {
     geocitiesNight: "Art + mood",
     hauntedMonitor: "Art + mood",
     jungleDawn: "Art + mood",
+    lakeNight: "Art + mood",
     liminalWater: "Art + mood",
     lospec: "Art + mood",
     mint: "Art + mood",

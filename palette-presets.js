@@ -575,6 +575,14 @@ window.PALETTE_PRESETS = {
     zuhanden: [
         "#020501", "#341101", "#444c3f", "#8f423a",
         "#8b604d", "#8b8d7f", "#d2a85c", "#ecbba6"
+    ],
+    // the other side of Lake Merritt, by the Cathedral of
+    // Christ the Light
+    lakeNight: [
+        "#000000", "#030714", "#1d1148", "#332627",
+        "#475062", "#8a520e", "#6963a3", "#cd462d",
+        "#877778", "#fa2f32", "#ebad71", "#c3bfff",
+        "#ffa88b", "#e6d4d5", "#fff135", "#ffffff"
     ]
 
 };
