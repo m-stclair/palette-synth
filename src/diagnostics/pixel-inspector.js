@@ -1,38 +1,15 @@
 import {
   byteRgbToHex,
   clamp,
-  clamp01,
-  hexToByteRgb,
   labDistanceComponents,
-  labToHex,
   linear2SRGB,
   rgb8ToLab,
   sRGB2Linear
 } from "../color-utils.js";
 import { cpuDistanceBreakdown, DIAGNOSTIC } from "./metrics.js";
+import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabForLab, outputLabToHex } from "./output-color.js";
 
-export function applyOutputModeCpu(sourceLab, paletteLab, config = {}) {
-  if (config.outputMode === "preserveLuma") return [sourceLab[0], paletteLab[1], paletteLab[2]];
-  if (config.outputMode === "preserveChroma") {
-    const sourceC = Math.hypot(sourceLab[1], sourceLab[2]);
-    const paletteC = Math.hypot(paletteLab[1], paletteLab[2]);
-    const hue = paletteC > 1e-6 ? [paletteLab[1] / paletteC, paletteLab[2] / paletteC] : (sourceC > 1e-6 ? [sourceLab[1] / sourceC, sourceLab[2] / sourceC] : [1, 0]);
-    return [paletteLab[0], hue[0] * sourceC, hue[1] * sourceC];
-  }
-  if (config.outputMode === "hueWash") {
-    const sourceC = Math.hypot(sourceLab[1], sourceLab[2]);
-    const paletteC = Math.hypot(paletteLab[1], paletteLab[2]);
-    const hue = paletteC > 1e-6 ? [paletteLab[1] / paletteC, paletteLab[2] / paletteC] : (sourceC > 1e-6 ? [sourceLab[1] / sourceC, sourceLab[2] / sourceC] : [1, 0]);
-    return [sourceLab[0], hue[0] * sourceC, hue[1] * sourceC];
-  }
-  if (config.outputMode === "shadowHighlight") {
-    const lo = Math.min(Number(config.shadowCutoff) || 0, Number(config.highlightCutoff) || 0);
-    const hi = Math.max(Number(config.shadowCutoff) || 0, Number(config.highlightCutoff) || 0);
-    return (sourceLab[0] <= lo || sourceLab[0] >= hi) ? paletteLab : sourceLab;
-  }
-  return paletteLab;
-}
-
+export { applyOutputModeCpu, blendHexes };
 
 export function labDeltaParts(aLab, bLab) {
   const aC = Math.hypot(aLab?.[1] || 0, aLab?.[2] || 0);
@@ -45,17 +22,6 @@ export function labDeltaParts(aLab, bLab) {
     chroma: Math.abs(aC - bC),
     hue: Math.abs(0.5 * (aC + bC) * (1 - theta))
   };
-}
-
-export function blendHexes(sourceHex, fxHex, amount = 1) {
-  const src = hexToByteRgb(sourceHex);
-  const fx = hexToByteRgb(fxHex);
-  const t = clamp01(Number(amount));
-  return byteRgbToHex(
-    src[0] + (fx[0] - src[0]) * t,
-    src[1] + (fx[1] - src[1]) * t,
-    src[2] + (fx[2] - src[2]) * t
-  );
 }
 
 export function snapPixelBlockPoint(x, y, width, height, pixelBlockSize = 1) {
@@ -230,10 +196,9 @@ export function analyzePixelAtImagePoint({
   }
   if (totalWeight <= 0) mappedLab = [...sourceLab];
   const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
-  const fxHex = labToHex(outputLab);
-  const finalHex = blendHexes(sourceHex, fxHex, config.blendAmount);
-  const finalRgb = hexToByteRgb(finalHex);
-  const finalLab = rgb8ToLab(finalRgb[0], finalRgb[1], finalRgb[2]);
+  const fxHex = outputLabToHex(outputLab);
+  const finalHex = finalOutputHexForLab([r, g, b], outputLab, config.blendAmount);
+  const finalLab = finalOutputLabForLab([r, g, b], outputLab, config.blendAmount);
   const sourceParts = labDistanceComponents(sourceLab);
   const finalParts = labDistanceComponents(finalLab);
   const outputParts = labDistanceComponents(outputLab);

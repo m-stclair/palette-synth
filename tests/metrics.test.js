@@ -5,6 +5,8 @@ import {
   cpuDistanceBreakdown,
   computeDiagnostics,
   computePaletteCollisions,
+  computeSourceHistogramDiagnostics,
+  createDiagnosticMetrics,
   diagnosticsSignature,
   sampleImageDiagnostics,
   topPaletteMatches
@@ -158,7 +160,141 @@ test("sampleImageDiagnostics measures usage and normalizes contribution entropy"
   assertApproximatelyEqual(sample.usage.reduce((sum, item) => sum + item.percent, 0), 1);
   assert.ok(sample.coverageEntropy > 0);
   assert.ok(sample.worst?.sourceHex);
+  assert.equal(sample.histogram, undefined);
 });
+
+test("source histogram diagnostics sample only the histogram view payload", () => {
+  const records = [record([50, 0, 0], 0)];
+  const imageData = {
+    width: 4,
+    height: 1,
+    data: new Uint8ClampedArray([
+      0, 0, 0, 255,
+      0, 0, 0, 255,
+      255, 255, 255, 255,
+      255, 255, 255, 255
+    ])
+  };
+
+  const stats = computeSourceHistogramDiagnostics({imageData, records, config: baseConfig, signature: "hist", now: () => 99});
+
+  assert.equal(stats.signature, "hist");
+  assert.equal(stats.generatedAt, 99);
+  assert.equal(stats.histogram.kind, "sourceLumaDetail");
+  assert.equal(stats.histogram.channel, "luma");
+  assert.equal(stats.histogram.bins.length, 80);
+  assert.equal(stats.histogram.segments.neutral.length, 80);
+  assert.equal(stats.histogram.total, 4);
+  assert.equal(stats.histogram.bins.reduce((sum, count) => sum + count, 0), 4);
+  assert.ok(Number.isFinite(stats.histogram.stats.median));
+  assert.equal(stats.histogram.widestGap, undefined);
+});
+
+test("source chroma histogram uses chroma bins with tonal stacks", () => {
+  const records = [record([50, 0, 0], 0)];
+  const imageData = {
+    width: 3,
+    height: 1,
+    data: new Uint8ClampedArray([
+      255, 0, 0, 255,
+      128, 128, 128, 255,
+      0, 0, 255, 255
+    ])
+  };
+
+  const stats = computeSourceHistogramDiagnostics({imageData, records, channel: "chroma", signature: "hist-c", now: () => 100});
+
+  assert.equal(stats.signature, "hist-c");
+  assert.equal(stats.histogram.kind, "sourceChromaDetail");
+  assert.equal(stats.histogram.channel, "chroma");
+  assert.equal(stats.histogram.segments.shadow.length, 80);
+  assert.ok(stats.histogram.domain.max >= 16);
+  assert.ok(Number.isFinite(stats.histogram.stats.mean));
+});
+
+
+test("source hue histogram omits near-neutral pixels and bins chromatic hue", () => {
+  const records = [record([50, 0, 0], 0)];
+  const imageData = {
+    width: 4,
+    height: 1,
+    data: new Uint8ClampedArray([
+      255, 0, 0, 255,
+      128, 128, 128, 255,
+      0, 255, 0, 255,
+      0, 0, 255, 255
+    ])
+  };
+
+  const stats = computeSourceHistogramDiagnostics({imageData, records, channel: "hue", signature: "hist-h", now: () => 101});
+
+  assert.equal(stats.signature, "hist-h");
+  assert.equal(stats.histogram.kind, "sourceHueDetail");
+  assert.equal(stats.histogram.channel, "hue");
+  assert.equal(stats.histogram.axisLabel, "H°");
+  assert.equal(stats.histogram.bins.length, 72);
+  assert.equal(stats.histogram.total, 3);
+  assert.equal(stats.histogram.omittedLowChromaCount, 1);
+  assert.equal(stats.histogram.lowChromaThreshold, 2);
+  assert.equal(stats.histogram.segments.midtone.length, 72);
+  assert.ok(Number.isFinite(stats.histogram.stats.mean));
+});
+
+
+test("output histogram diagnostics estimate output from source samples without GPU readback", () => {
+  const records = [record([50, 0, 0], 0)];
+  const imageData = {width: 1, height: 1, data: new Uint8ClampedArray([128, 128, 128, 255])};
+  let readbacks = 0;
+  const metrics = createDiagnosticMetrics({
+    getConfig: () => baseConfig,
+    getImageData: () => imageData,
+    getOutputImageData: () => {
+      readbacks += 1;
+      return imageData;
+    },
+    getRecords: () => records,
+    getEntries: inputRecords => inputRecords.map(entry)
+  });
+
+  const source = metrics.computeSourceHistogramDiagnostics(records, "luma");
+  const output = metrics.computeOutputHistogramDiagnostics(records, "luma");
+  const chroma = metrics.computeOutputHistogramDiagnostics(records, "chroma");
+  const hue = metrics.computeOutputHistogramDiagnostics(records, "hue");
+
+  assert.equal(readbacks, 0);
+  assert.equal(source.histogram.kind, "sourceLumaDetail");
+  assert.equal(output.histogram.kind, "outputLumaDetail");
+  assert.equal(chroma.histogram.kind, "outputChromaDetail");
+  assert.equal(hue.histogram.kind, "outputHueDetail");
+  assert.ok(output.histogram.stats.mean < source.histogram.stats.mean);
+});
+
+
+test("paired chroma histograms share a single comparison axis", () => {
+  const records = [record([50, 0, 0], 0)];
+  const imageData = {
+    width: 2,
+    height: 1,
+    data: new Uint8ClampedArray([
+      255, 0, 0, 255,
+      0, 0, 255, 255
+    ])
+  };
+  const metrics = createDiagnosticMetrics({
+    getConfig: () => baseConfig,
+    getImageData: () => imageData,
+    getRecords: () => records,
+    getEntries: inputRecords => inputRecords.map(entry)
+  });
+
+  const source = metrics.computeSourceHistogramDiagnostics(records, "chroma");
+  const output = metrics.computeOutputHistogramDiagnostics(records, "chroma");
+
+  assert.equal(source.histogram.domain.max, output.histogram.domain.max);
+  assert.ok(source.histogram.stats.max > output.histogram.stats.max);
+  assert.ok(source.histogram.domain.max >= source.histogram.stats.max);
+});
+
 
 test("computePaletteCollisions anchors threshold to config and reports close pairs", () => {
   const records = [record([0, 0, 0], 0), record([1, 0, 0], 1), record([30, 0, 0], 2)];

@@ -138,6 +138,8 @@ test("diagnostics panel renders summary, usage, xray, selection fallback, and pi
     diagnosticsSummary: element(),
     diagnosticsUsage: element(),
     diagnosticsUsageHeading: element(),
+    diagnosticsHistogramHeading: element(),
+    diagnosticsHistogram: element(),
     diagnosticsXray: element(),
     diagnosticsSelection: element(),
     diagnosticsPixel: element()
@@ -200,6 +202,7 @@ test("diagnostics panel renders summary, usage, xray, selection fallback, and pi
   assert.equal(els.diagnosticsUsageHeading.textContent, "Blend contribution");
   assert.match(els.diagnosticsSummary.innerHTML, /samples/);
   assert.match(els.diagnosticsUsage.innerHTML, /diagnostic-usage-row/);
+  assert.equal(els.diagnosticsHistogram.innerHTML, "");
   assert.deepEqual(els.diagnosticsUsage.toggles, [["has-territory", true]]);
   assert.match(els.diagnosticsXray.innerHTML, /<svg/);
   assert.match(els.diagnosticsXray.innerHTML, /#111111 · LCH /);
@@ -210,6 +213,86 @@ test("diagnostics panel renders summary, usage, xray, selection fallback, and pi
   assert.doesNotMatch(els.diagnosticsPixel.innerHTML, /ΔL —/);
   assert.match(els.diagnosticsPixel.innerHTML, /ΔH ~/);
 });
+
+test("histogram inspector tab renders paired source and output charts from its active tab state", () => {
+  const els = {
+    diagnosticsTabs: element(),
+    diagnosticsContributionPanel: element(),
+    diagnosticsHistogramPanel: element(),
+    diagnosticsHistogramHeading: element(),
+    diagnosticsHistogram: element(),
+    diagnosticsSelection: element(),
+    diagnosticsPixel: element()
+  };
+  const records = [
+    {lab: [20, 0, 0], hex: "#111111", displayIndex: 0},
+    {lab: [80, 20, 0], hex: "#eeeeee", displayIndex: 1}
+  ];
+  const state = {
+    imageData: {width: 1, height: 1},
+    diagnostics: {
+      histogramTab: "luma",
+      stats: {records},
+      histogramStats: {
+        "source-luma": {
+          records,
+          histogram: {
+            kind: "sourceLumaDetail",
+            scope: "source",
+            channel: "luma",
+            label: "source luma",
+            axisLabel: "L",
+            bins: [0, 2, 6, 4, 0, 1],
+            segments: {neutral: [0, 1, 3, 2, 0, 1], muted: [0, 1, 2, 1, 0, 0], vivid: [0, 0, 1, 1, 0, 0]},
+            segmentNames: ["neutral", "muted", "vivid"],
+            max: 6,
+            total: 13,
+            step: 4,
+            domain: {min: 0, max: 100},
+            stats: {p10: 18, median: 45, p90: 72, mean: 47, mode: 42, max: 90, saturatedPercent: 0.15}
+          }
+        },
+        "output-luma": {
+          records,
+          histogram: {
+            kind: "outputLumaDetail",
+            scope: "output",
+            channel: "luma",
+            label: "output luma",
+            axisLabel: "L",
+            bins: [1, 4, 5, 3, 0, 0],
+            segments: {neutral: [1, 2, 2, 1, 0, 0], muted: [0, 1, 2, 1, 0, 0], vivid: [0, 1, 1, 1, 0, 0]},
+            segmentNames: ["neutral", "muted", "vivid"],
+            max: 5,
+            total: 13,
+            step: 4,
+            domain: {min: 0, max: 100},
+            stats: {p10: 20, median: 48, p90: 74, mean: 49, mode: 45, max: 91, saturatedPercent: 0.18}
+          }
+        }
+      }
+    },
+    paletteSelectionTrace: null
+  };
+  const panel = createDiagnosticsPanel({
+    els,
+    getConfig: () => ({assignMode: "nearest"}),
+    getState: () => state
+  });
+
+  panel.renderHistogramPanel(state.diagnostics.histogramStats);
+
+  assert.match(els.diagnosticsTabs.innerHTML, /data-histogram-tab="luma"[^>]*aria-selected="true"/);
+  assert.equal(els.diagnosticsHistogramHeading.textContent, "Luma histograms");
+  assert.match(els.diagnosticsHistogram.innerHTML, /Source/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /Output/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-bar/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-marker/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-mode/);
+  assert.doesNotMatch(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-gap/);
+  assert.doesNotMatch(els.diagnosticsHistogram.innerHTML, /gap L/);
+});
+
 
 test("X-Ray renders four distinct modes and switches between them on click", () => {
   const xray = element();

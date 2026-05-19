@@ -90,6 +90,11 @@ export function createRuntimeState({document: doc = globalThis.document, maxImag
     diagnostics: {
       signature: "",
       stats: null,
+      histogramSignature: "",
+      histogramSignatures: {},
+      histogramStats: {},
+      panelTab: "contribution",
+      histogramTab: "luma",
       pixel: null,
       overlay: {
         mode: "none",

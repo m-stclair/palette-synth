@@ -5,8 +5,10 @@ import {
   clamp01,
   labDistanceComponents,
   labToHex,
+  paletteHue,
   rgb8ToLab
 } from "../color-utils.js";
+import { applyOutputModeCpu, finalOutputLabForLab } from "./output-color.js";
 
 // All tunable diagnostic thresholds live here so the sampler, renderers, and
 // pixel inspector agree on what counts as underused, overused, ambiguous,
@@ -17,6 +19,11 @@ export const DIAGNOSTIC = {
   targetSamples: 5200,
   // Top-k matches retained per pixel; bounded by blendK for blend mode.
   matchLimit: 5,
+  // Source/output distribution views: deliberately computed only when the
+  // top-level Histogram inspector tab is selected. Contribution diagnostics
+  // stay focused on
+  // palette assignment instead of also paying a histogram tax.
+  histogramBins: 80,
   // Underused: contribution below this fraction of the uniform baseline 1/N.
   // Scales with palette size so a 50-swatch palette is judged proportionally.
   underusedBaselineFraction: 0.10,
@@ -302,7 +309,6 @@ export function sampleImageDiagnostics(imageData, entries, records, config = {})
   const p95Distance = distances.length
     ? distances[Math.min(distances.length - 1, Math.floor(distances.length * 0.95))]
     : 0;
-
   // Uniform baseline: a perfectly even palette contributes 1/N per swatch.
   // Under- and over-used flags are anchored to fractions of that baseline
   // so they stay meaningful regardless of palette size.
@@ -365,6 +371,302 @@ export function sampleImageDiagnostics(imageData, entries, records, config = {})
   };
 }
 
+
+function sortedQuantile(sortedValues, q) {
+  if (!sortedValues.length) return 0;
+  const index = clamp(Math.round((sortedValues.length - 1) * q), 0, sortedValues.length - 1);
+  return sortedValues[index];
+}
+
+function resolvedHistogramChannel(channel) {
+  if (channel === "chroma" || channel === "hue") return channel;
+  return "luma";
+}
+
+function channelDisplayName(channel) {
+  if (channel === "chroma") return "chroma";
+  if (channel === "hue") return "hue";
+  return "luma";
+}
+
+function histogramKind(scope, channel) {
+  const scopePrefix = scope === "output" ? "output" : "source";
+  const channelName = channel === "chroma" ? "Chroma" : (channel === "hue" ? "Hue" : "Luma");
+  return `${scopePrefix}${channelName}Detail`;
+}
+
+function suggestedHistogramDomainMax(values = [], channel = "luma") {
+  const resolvedChannel = resolvedHistogramChannel(channel);
+  if (resolvedChannel === "hue") return 360;
+  if (resolvedChannel !== "chroma") return 100;
+  const safeValues = Array.isArray(values)
+    ? values.map(value => Math.max(0, Number(value) || 0)).sort((a, b) => a - b)
+    : [];
+  const p90Value = sortedQuantile(safeValues, 0.90);
+  const p99Value = sortedQuantile(safeValues, 0.99);
+  return Math.max(16, Math.ceil(Math.max(p90Value * 1.35, p99Value, 16) / 4) * 4);
+}
+
+function histogramSampleFromLab(lab) {
+  const parts = labDistanceComponents(lab);
+  const lightness = clamp(parts.lightness, 0, 100);
+  const chroma = Math.max(0, parts.chroma || 0);
+  const hue = chroma < NEUTRAL_CHROMA_EPSILON ? null : paletteHue(lab) * 180 / Math.PI;
+  return {lightness, chroma, hue, lab};
+}
+
+function collectSourceHistogramSamples(imageData) {
+  if (!imageData?.data || !imageData.width || !imageData.height) return null;
+  const step = Math.max(1, Math.ceil(Math.sqrt((imageData.width * imageData.height) / DIAGNOSTIC.targetSamples)));
+  const startX = Math.floor(step / 2);
+  const startY = Math.floor(step / 2);
+  const samples = [];
+
+  for (let y = startY; y < imageData.height; y += step) {
+    for (let x = startX; x < imageData.width; x += step) {
+      const px = (y * imageData.width + x) * 4;
+      if (imageData.data[px + 3] <= 4) continue;
+      const sourceRgb = [imageData.data[px], imageData.data[px + 1], imageData.data[px + 2]];
+      const lab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
+      samples.push({...histogramSampleFromLab(lab), x, y, sourceRgb});
+    }
+  }
+
+  return {samples, step};
+}
+
+function mappedPaletteLabForSample(sourceLab, sourceRgb, entries, records, config = {}) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  if (!safeEntries.length) return sourceLab;
+  const matchLimit = config.assignMode === "blend"
+    ? Math.min(Math.max(Math.round(Number(config.blendK) || 1), 1), DIAGNOSTIC.matchLimit)
+    : 2;
+  const matches = topPaletteMatches(sourceLab, safeEntries, {config, records, limit: matchLimit});
+  const weights = assignmentWeights(matches, sourceLab, config);
+  let mappedLab = [0, 0, 0];
+  let totalWeight = 0;
+  for (let i = 0; i < matches.length; i++) {
+    const weight = weights[i];
+    if (!(weight > 0)) continue;
+    totalWeight += weight;
+    mappedLab[0] += matches[i].renderLab[0] * weight;
+    mappedLab[1] += matches[i].renderLab[1] * weight;
+    mappedLab[2] += matches[i].renderLab[2] * weight;
+  }
+  if (totalWeight <= 0) return sourceLab;
+  return mappedLab;
+}
+
+function outputHistogramSampleForSourceSample(sample, entries, records, config = {}) {
+  const sourceLab = Array.isArray(sample?.lab) ? sample.lab : [sample.lightness || 0, 0, 0];
+  const sourceRgb = Array.isArray(sample?.sourceRgb) ? sample.sourceRgb : [0, 0, 0];
+  const mappedLab = mappedPaletteLabForSample(sourceLab, sourceRgb, entries, records, config);
+  const fxLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+  const finalLab = finalOutputLabForLab(sourceRgb, fxLab, config.blendAmount);
+  return {...histogramSampleFromLab(finalLab), x: sample.x, y: sample.y, sourceRgb};
+}
+
+export function computeHistogramFromSamples({samples = [], records = [], channel = "luma", scope = "source", step = 1, signature = "", now = () => Date.now(), domainMaxOverride = undefined} = {}) {
+  const safeRecords = Array.isArray(records) ? records : [];
+  const safeSamples = Array.isArray(samples) ? samples : [];
+  const resolvedChannel = resolvedHistogramChannel(channel);
+  const resolvedScope = scope === "output" ? "output" : "source";
+  const binCount = resolvedChannel === "hue"
+    ? 72
+    : Math.max(12, Math.round(Number(DIAGNOSTIC.histogramBins) || 80));
+
+  let sumL = 0;
+  let sumC = 0;
+  let sumHueX = 0;
+  let sumHueY = 0;
+  let maxC = 0;
+  let neutralHueCount = 0;
+
+  for (const sample of safeSamples) {
+    const lightness = clamp(Number(sample?.lightness) || 0, 0, 100);
+    const chroma = Math.max(0, Number(sample?.chroma) || 0);
+    sumL += lightness;
+    sumC += chroma;
+    if (chroma > maxC) maxC = chroma;
+    if (resolvedChannel === "hue" && sample?.hue === null) neutralHueCount += 1;
+  }
+
+  const channelSamples = resolvedChannel === "hue"
+    ? safeSamples.filter(sample => sample?.hue !== null)
+    : safeSamples;
+  const values = channelSamples.map(sample => {
+    if (resolvedChannel === "chroma") return Math.max(0, Number(sample?.chroma) || 0);
+    if (resolvedChannel === "hue") return Number(sample?.hue) || 0;
+    return clamp(Number(sample?.lightness) || 0, 0, 100);
+  }).sort((a, b) => a - b);
+  const sampleCount = values.length;
+  const p10Value = sortedQuantile(values, 0.10);
+  const medianValue = sortedQuantile(values, 0.50);
+  const p90Value = sortedQuantile(values, 0.90);
+  const p99Value = sortedQuantile(values, 0.99);
+  const meanValue = sampleCount ? values.reduce((sum, value) => sum + value, 0) / sampleCount : 0;
+  const domainMax = Number.isFinite(Number(domainMaxOverride)) && Number(domainMaxOverride) > 0
+    ? Number(domainMaxOverride)
+    : suggestedHistogramDomainMax(values, resolvedChannel);
+  const bins = new Uint32Array(binCount);
+  const segmentA = new Uint32Array(binCount);
+  const segmentB = new Uint32Array(binCount);
+  const segmentC = new Uint32Array(binCount);
+  let max = 0;
+  let overflowCount = 0;
+
+  for (const sample of channelSamples) {
+    const lightness = clamp(Number(sample?.lightness) || 0, 0, 100);
+    const chroma = Math.max(0, Number(sample?.chroma) || 0);
+    const value = resolvedChannel === "chroma" ? chroma : (resolvedChannel === "hue" ? Number(sample?.hue) || 0 : lightness);
+    if (resolvedChannel === "chroma" && value > domainMax) overflowCount += 1;
+    if (resolvedChannel === "hue") {
+      const radians = (value / 360) * Math.PI * 2;
+      sumHueX += Math.cos(radians);
+      sumHueY += Math.sin(radians);
+    }
+    const normalized = domainMax > 0 ? clamp(value / domainMax, 0, 1) : 0;
+    const bin = clamp(Math.floor(normalized * binCount), 0, binCount - 1);
+    bins[bin] += 1;
+    if (resolvedChannel === "chroma" || resolvedChannel === "hue") {
+      if (lightness < 35) segmentA[bin] += 1;
+      else if (lightness < 70) segmentB[bin] += 1;
+      else segmentC[bin] += 1;
+    } else {
+      if (chroma < 4) segmentA[bin] += 1;
+      else if (chroma < 14) segmentB[bin] += 1;
+      else segmentC[bin] += 1;
+    }
+    if (bins[bin] > max) max = bins[bin];
+  }
+
+  let modeBin = 0;
+  for (let i = 1; i < bins.length; i++) {
+    if (bins[i] > bins[modeBin]) modeBin = i;
+  }
+  const modeValue = ((modeBin + 0.5) / binCount) * domainMax;
+  const saturatedCount = safeSamples.reduce((sum, sample) => sum + ((Number(sample?.chroma) || 0) >= 14 ? 1 : 0), 0);
+  const shadowCount = safeSamples.reduce((sum, sample) => sum + ((Number(sample?.lightness) || 0) < 35 ? 1 : 0), 0);
+  const highlightCount = safeSamples.reduce((sum, sample) => sum + ((Number(sample?.lightness) || 0) >= 70 ? 1 : 0), 0);
+  const segmentNames = resolvedChannel === "chroma" || resolvedChannel === "hue"
+    ? ["shadow", "midtone", "highlight"]
+    : ["neutral", "muted", "vivid"];
+  const circularMean = sampleCount
+    ? ((Math.atan2(sumHueY, sumHueX) * 180 / Math.PI) + 360) % 360
+    : 0;
+
+  return {
+    signature,
+    generatedAt: now(),
+    records: safeRecords,
+    histogram: {
+      kind: histogramKind(resolvedScope, resolvedChannel),
+      scope: resolvedScope,
+      channel: resolvedChannel,
+      label: `${resolvedScope} ${channelDisplayName(resolvedChannel)}`,
+      axisLabel: resolvedChannel === "chroma" ? "C" : (resolvedChannel === "hue" ? "H°" : "L"),
+      bins: Array.from(bins),
+      segments: {
+        [segmentNames[0]]: Array.from(segmentA),
+        [segmentNames[1]]: Array.from(segmentB),
+        [segmentNames[2]]: Array.from(segmentC)
+      },
+      segmentNames,
+      binCount,
+      max,
+      total: sampleCount,
+      step,
+      domain: {min: 0, max: domainMax},
+      overflowCount,
+      omittedLowChromaCount: resolvedChannel === "hue" ? neutralHueCount : 0,
+      lowChromaThreshold: resolvedChannel === "hue" ? NEUTRAL_CHROMA_EPSILON : undefined,
+      stats: {
+        p10: p10Value,
+        median: medianValue,
+        p90: p90Value,
+        p99: p99Value,
+        mean: resolvedChannel === "hue" ? circularMean : meanValue,
+        linearMean: meanValue,
+        mode: modeValue,
+        max: resolvedChannel === "chroma" ? maxC : (values[values.length - 1] || 0),
+        meanLightness: safeSamples.length ? sumL / safeSamples.length : 0,
+        meanChroma: safeSamples.length ? sumC / safeSamples.length : 0,
+        saturatedPercent: safeSamples.length ? saturatedCount / safeSamples.length : 0,
+        shadowPercent: safeSamples.length ? shadowCount / safeSamples.length : 0,
+        highlightPercent: safeSamples.length ? highlightCount / safeSamples.length : 0
+      }
+    }
+  };
+}
+
+export function computeImageHistogramDiagnostics({imageData, samples = null, records = [], channel = "luma", scope = "source", step = undefined, signature = "", now = () => Date.now()} = {}) {
+  const collected = Array.isArray(samples) ? {samples, step: Math.max(1, Math.round(Number(step) || 1))} : collectSourceHistogramSamples(imageData);
+  if (!collected) return null;
+  return computeHistogramFromSamples({
+    samples: collected.samples,
+    records,
+    channel,
+    scope,
+    step: collected.step,
+    signature,
+    now
+  });
+}
+
+export function computeSourceHistogramDiagnostics(options = {}) {
+  return computeImageHistogramDiagnostics({...options, scope: "source"});
+}
+
+export function computeOutputHistogramDiagnostics({imageData, records = [], entries = [], config = {}, channel = "luma", signature = "", now = () => Date.now()} = {}) {
+  const collected = collectSourceHistogramSamples(imageData);
+  if (!collected) return null;
+  const outputSamples = collected.samples.map(sample => outputHistogramSampleForSourceSample(sample, entries, records, config));
+  return computeHistogramFromSamples({
+    samples: outputSamples,
+    records,
+    channel,
+    scope: "output",
+    step: collected.step,
+    signature,
+    now
+  });
+}
+
+export function computePairedHistogramDiagnostics({imageData, records = [], entries = [], config = {}, channel = "luma", sourceSignature = "", outputSignature = "", now = () => Date.now()} = {}) {
+  const collected = collectSourceHistogramSamples(imageData);
+  if (!collected) return {source: null, output: null};
+  const resolvedChannel = resolvedHistogramChannel(channel);
+  const outputSamples = collected.samples.map(sample => outputHistogramSampleForSourceSample(sample, entries, records, config));
+  const domainMaxOverride = resolvedChannel === "chroma"
+    ? Math.max(
+      suggestedHistogramDomainMax(collected.samples.map(sample => sample?.chroma), resolvedChannel),
+      suggestedHistogramDomainMax(outputSamples.map(sample => sample?.chroma), resolvedChannel)
+    )
+    : undefined;
+  return {
+    source: computeHistogramFromSamples({
+      samples: collected.samples,
+      records,
+      channel: resolvedChannel,
+      scope: "source",
+      step: collected.step,
+      signature: sourceSignature,
+      now,
+      domainMaxOverride
+    }),
+    output: computeHistogramFromSamples({
+      samples: outputSamples,
+      records,
+      channel: resolvedChannel,
+      scope: "output",
+      step: collected.step,
+      signature: outputSignature,
+      now,
+      domainMaxOverride
+    })
+  };
+}
+
 export function computePaletteCollisions(records, config = {}) {
   // Threshold is anchored to the user's minDistance preference but bounded
   // by absolute OKLab-scaled units so the "too close" judgement stays
@@ -407,11 +709,59 @@ export function computeDiagnostics({imageData, records = [], entries = [], confi
   return {signature, records, entries, sample, collisions, generatedAt: now()};
 }
 
+function histogramConfigSignature(config = {}) {
+  return Object.keys(config || {})
+    .sort()
+    .map(key => {
+      const value = config[key];
+      if (value === null || value === undefined) return `${key}:`;
+      if (["string", "number", "boolean"].includes(typeof value)) return `${key}:${value}`;
+      if (Array.isArray(value)) return `${key}:${value.join(",")}`;
+      return "";
+    })
+    .filter(Boolean)
+    .join("|");
+}
+
 export function createDiagnosticMetrics({getConfig, getImageData, getRecords, getEntries, includeCycleOffset = () => false, now = () => Date.now()} = {}) {
   const config = () => getConfig?.() || {};
   const imageData = () => getImageData?.() || null;
   const records = fallback => fallback === undefined ? (getRecords?.() ?? []) : fallback;
   const entriesFor = inputRecords => getEntries?.(inputRecords) ?? [];
+  const histogramPairCache = new Map();
+
+  function histogramBaseSignature({inputRecords, entries, scope, safeConfig}) {
+    return `${diagnosticsSignature({
+      imageData: imageData(),
+      records: inputRecords,
+      entries,
+      config: safeConfig,
+      includeCycleOffset: includeCycleOffset()
+    })}~${scope}-histogram-v4-cpu~${histogramConfigSignature(safeConfig)}`;
+  }
+
+  function pairedHistogramFor({inputRecords, entries, channel, safeConfig}) {
+    const resolvedChannel = resolvedHistogramChannel(channel);
+    const sourceBaseSignature = histogramBaseSignature({inputRecords, entries, scope: "source", safeConfig});
+    const outputBaseSignature = histogramBaseSignature({inputRecords, entries, scope: "output", safeConfig});
+    const sourceSignature = `${sourceBaseSignature}~${resolvedChannel}`;
+    const outputSignature = `${outputBaseSignature}~${resolvedChannel}`;
+    const cacheKey = `${sourceSignature}::${outputSignature}`;
+    if (!histogramPairCache.has(cacheKey)) {
+      histogramPairCache.clear();
+      histogramPairCache.set(cacheKey, computePairedHistogramDiagnostics({
+        imageData: imageData(),
+        records: inputRecords,
+        entries,
+        config: safeConfig,
+        channel: resolvedChannel,
+        sourceSignature,
+        outputSignature,
+        now
+      }));
+    }
+    return histogramPairCache.get(cacheKey) || {source: null, output: null};
+  }
 
   return {
     topPaletteMatches: (lab, entries, limit = DIAGNOSTIC.matchLimit) => topPaletteMatches(lab, entries, {config: config(), records: records(), limit}),
@@ -434,6 +784,26 @@ export function createDiagnosticMetrics({getConfig, getImageData, getRecords, ge
         includeCycleOffset: includeCycleOffset(),
         now
       });
+    },
+    sourceHistogramSignature: (inputRecords = records(), entries = entriesFor(inputRecords), channel = "luma") => {
+      const safeConfig = config();
+      return `${histogramBaseSignature({inputRecords, entries, scope: "source", safeConfig})}~${resolvedHistogramChannel(channel)}`;
+    },
+    outputHistogramSignature: (inputRecords = records(), entries = entriesFor(inputRecords), channel = "luma") => {
+      const safeConfig = config();
+      return `${histogramBaseSignature({inputRecords, entries, scope: "output", safeConfig})}~${resolvedHistogramChannel(channel)}`;
+    },
+    computeSourceHistogramDiagnostics: (inputRecords = records(), channel = "luma") => {
+      const safeRecords = Array.isArray(inputRecords) ? inputRecords : [];
+      const entries = entriesFor(safeRecords);
+      const safeConfig = config();
+      return pairedHistogramFor({inputRecords: safeRecords, entries, channel, safeConfig}).source;
+    },
+    computeOutputHistogramDiagnostics: (inputRecords = records(), channel = "luma") => {
+      const safeRecords = Array.isArray(inputRecords) ? inputRecords : [];
+      const entries = entriesFor(safeRecords);
+      const safeConfig = config();
+      return pairedHistogramFor({inputRecords: safeRecords, entries, channel, safeConfig}).output;
     }
   };
 }

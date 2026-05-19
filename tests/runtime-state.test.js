@@ -31,7 +31,17 @@ test("runtime state creates isolated canvas-backed defaults", () => {
   assert.equal(state.textureDirty, true);
   assert.equal(state.paletteDirty, true);
   assert.equal(state.swatchesDirty, true);
-  assert.deepEqual(state.diagnostics, {signature: "", stats: null, pixel: null, overlay: {mode: "none", swatchIndex: null}});
+  assert.deepEqual(state.diagnostics, {
+    signature: "",
+    stats: null,
+    histogramSignature: "",
+    histogramSignatures: {},
+    histogramStats: {},
+    panelTab: "contribution",
+    histogramTab: "luma",
+    pixel: null,
+    overlay: {mode: "none", swatchIndex: null}
+  });
 });
 
 test("runtime state instances do not share mutable collections", () => {

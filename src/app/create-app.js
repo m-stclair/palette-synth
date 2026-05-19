@@ -287,7 +287,11 @@ export function createPaletteSynthApp({
     diagnosticsSignature,
     topPaletteMatches,
     assignmentWeights,
-    computeDiagnostics
+    computeDiagnostics,
+    sourceHistogramSignature,
+    outputHistogramSignature,
+    computeSourceHistogramDiagnostics,
+    computeOutputHistogramDiagnostics
   } = diagnosticMetrics;
 
   function setDiagnosticOverlay(next = {}) {
@@ -306,6 +310,7 @@ export function createPaletteSynthApp({
     queueRender();
   }
 
+  let diagnosticsController;
   const diagnosticsPanel = createDiagnosticsPanel({
     els,
     getConfig: () => config,
@@ -314,9 +319,10 @@ export function createPaletteSynthApp({
     isGeneratedPaletteMode,
     activePaletteImageData,
     syncGeneratedLocks,
-    setDiagnosticOverlay
+    setDiagnosticOverlay,
+    onDiagnosticsTabChange: () => diagnosticsController?.updateDiagnostics({immediate: true})
   });
-  const {renderDiagnosticsPanel, renderDiagnosticsSelection, updateDiagnosticsPixel} = diagnosticsPanel;
+  const {renderDiagnosticsPanel, renderDiagnosticsSelection, renderHistogramPanel, updateDiagnosticsPixel, activeHistogramTab} = diagnosticsPanel;
 
   let configController;
   let renderedCanvasController;
@@ -381,7 +387,7 @@ export function createPaletteSynthApp({
     clientPointToImagePixel
   } = viewportController;
 
-  const diagnosticsController = createDiagnosticsController({
+  diagnosticsController = createDiagnosticsController({
     els,
     state,
     config,
@@ -390,7 +396,13 @@ export function createPaletteSynthApp({
     paletteUniformEntries,
     diagnosticsSignature,
     computeDiagnostics,
+    sourceHistogramSignature,
+    outputHistogramSignature,
+    computeSourceHistogramDiagnostics,
+    computeOutputHistogramDiagnostics,
+    diagnosticsActiveTab: activeHistogramTab,
     renderDiagnosticsPanel,
+    renderHistogramPanel,
     renderDiagnosticsSelection,
     updateDiagnosticsPixel,
     clientPointToImagePixel,
@@ -672,6 +684,7 @@ export function createPaletteSynthApp({
   function renderFullImageCanvas(options) {
     return renderedCanvasController.renderFullImageCanvas(options);
   }
+
 
   const exportActions = createExportActions({
     els,

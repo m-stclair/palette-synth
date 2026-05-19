@@ -99,7 +99,8 @@ export function createRenderedCanvasController({
     compareSplit = -1,
     viewCenter = [0.5, 0.5],
     viewSpan = [1, 1],
-    viewportOrigin = [0, 0]
+    viewportOrigin = [0, 0],
+    readPixels = false
   } = {}) {
     if (!state.imageData || !state.sourceCanvas.width || !state.sourceCanvas.height) return null;
     const safeRecords = Array.isArray(records) && records.length ? records : getPaletteRecords();
@@ -137,6 +138,7 @@ export function createRenderedCanvasController({
     let offscreenCache = null;
     let postProcessCache = null;
     let viewCompositeCache = null;
+    let renderedImageData = null;
 
     try {
       if (exportComposite) {
@@ -242,6 +244,18 @@ export function createRenderedCanvasController({
       }
 
       gl.finish();
+      if (readPixels) {
+        const raw = new Uint8Array(safeWidth * safeHeight * 4);
+        gl.readPixels(0, 0, safeWidth, safeHeight, gl.RGBA, gl.UNSIGNED_BYTE, raw);
+        const flipped = new Uint8ClampedArray(raw.length);
+        const rowStride = safeWidth * 4;
+        for (let y = 0; y < safeHeight; y++) {
+          const sourceOffset = (safeHeight - 1 - y) * rowStride;
+          const targetOffset = y * rowStride;
+          flipped.set(raw.subarray(sourceOffset, sourceOffset + rowStride), targetOffset);
+        }
+        renderedImageData = {width: safeWidth, height: safeHeight, data: flipped};
+      }
     } finally {
       gl.deleteTexture(texture);
       if (maskTexture) gl.deleteTexture(maskTexture);
@@ -251,7 +265,7 @@ export function createRenderedCanvasController({
       if (postProcessCache) disposePostProcessCacheFn(gl, postProcessCache);
       if (viewCompositeCache) disposeViewCompositeCacheFn(gl, viewCompositeCache);
     }
-    return exportCanvas;
+    return readPixels ? renderedImageData : exportCanvas;
   }
 
   function renderFullImageCanvas({cycleOffset = config.cycleOffset, records = state.paletteRecords} = {}) {
@@ -269,9 +283,26 @@ export function createRenderedCanvasController({
     });
   }
 
+  function renderFullImageData({cycleOffset = config.cycleOffset, records = state.paletteRecords} = {}) {
+    ensurePalette();
+    return renderProcessedCanvas({
+      width: state.sourceCanvas.width,
+      height: state.sourceCanvas.height,
+      records,
+      cycleOffset,
+      showPalette: "none",
+      compareSplit: -1,
+      viewCenter: [0.5, 0.5],
+      viewSpan: [1, 1],
+      viewportOrigin: [0, 0],
+      readPixels: true
+    });
+  }
+
   return {
     paletteUniformDataForOffset: paletteUniformData,
     renderProcessedCanvas,
-    renderFullImageCanvas
+    renderFullImageCanvas,
+    renderFullImageData
   };
 }

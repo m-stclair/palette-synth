@@ -1826,6 +1826,144 @@ canvas {
   letter-spacing: .12em;
   text-transform: uppercase;
 }
+/* Nested histogram tabs live under their own inspector tab so contribution
+   diagnostics do not pay the distribution-sampling tax. */
+.diagnostics-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel2);
+}
+.diagnostics-tabs .mini-control.is-active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(143,180,223,.14);
+}
+.diagnostics-tab-panel {
+  display: grid;
+  gap: 8px;
+}
+.diagnostics-tab-panel[hidden] {
+  display: none;
+}
+/* Histogram tab: sampled source/output OKLab luma, chroma, and hue pairs.
+   Luma stacks neutral/muted/vivid pixels; chroma and hue stack shadows/mids/highlights. */
+.diagnostics-histogram {
+  min-height: 168px;
+  padding: 0;
+}
+.diagnostics-histogram-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+.diagnostics-histogram-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel2);
+  overflow: hidden;
+}
+.diagnostics-histogram-card .diagnostics-subhead {
+  margin: 0;
+  padding: 7px 8px 0;
+}
+.diagnostics-histogram-card.is-empty {
+  min-height: 188px;
+}
+.diagnostics-histogram-empty {
+  height: 154px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.diagnostics-histogram svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.diagnostics-histogram-bg {
+  fill: rgba(255,255,255,.012);
+  stroke: transparent;
+}
+.diagnostics-histogram-grid {
+  stroke: rgba(184,196,214,.10);
+  stroke-width: .6;
+}
+.diagnostics-histogram-quantile {
+  fill: rgba(143,180,223,.08);
+}
+.diagnostics-histogram-bar {
+  opacity: .72;
+}
+.diagnostics-histogram-bar.is-neutral {
+  fill: var(--muted);
+  opacity: .44;
+}
+.diagnostics-histogram-bar.is-muted {
+  fill: var(--soft);
+  opacity: .58;
+}
+.diagnostics-histogram-bar.is-vivid {
+  fill: var(--accent);
+  opacity: .52;
+}
+.diagnostics-histogram-bar.is-shadow {
+  fill: var(--muted);
+  opacity: .42;
+}
+.diagnostics-histogram-bar.is-midtone {
+  fill: var(--soft);
+  opacity: .62;
+}
+.diagnostics-histogram-bar.is-highlight {
+  fill: var(--accent);
+  opacity: .48;
+}
+.diagnostics-histogram-marker {
+  stroke: var(--marker-color, var(--accent));
+  stroke-width: 1.25;
+  opacity: .78;
+}
+.diagnostics-histogram-mean {
+  stroke: var(--accent);
+  stroke-width: .85;
+  opacity: .76;
+}
+.diagnostics-histogram-median {
+  stroke: var(--text);
+  stroke-width: .85;
+  stroke-dasharray: 2 2;
+  opacity: .7;
+}
+.diagnostics-histogram-mode {
+  stroke: var(--soft);
+  stroke-width: .65;
+  stroke-dasharray: 1 2;
+  opacity: .72;
+}
+.diagnostics-histogram-label,
+.diagnostics-histogram-axis,
+.diagnostics-histogram-readout {
+  fill: var(--muted);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.diagnostics-histogram-readout {
+  font-size: 7.5px;
+  letter-spacing: .04em;
+  text-transform: none;
+}
+.diagnostics-histogram-label {
+  opacity: .9;
+}
+
 .diagnostics-overlay-controls {
   display: flex;
   flex-wrap: wrap;

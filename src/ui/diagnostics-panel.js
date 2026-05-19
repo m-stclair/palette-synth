@@ -190,9 +190,72 @@ export function createDiagnosticsPanel({
   isGeneratedPaletteMode = () => false,
   activePaletteImageData = () => null,
   syncGeneratedLocks = () => [],
-  setDiagnosticOverlay = () => {}
+  setDiagnosticOverlay = () => {},
+  onDiagnosticsTabChange = () => {}
 } = {}) {
   const overlayBoundElements = new WeakSet();
+  const HISTOGRAM_TABS = [
+    {id: "luma", label: "Luma", title: "Compare source and output luma distributions"},
+    {id: "chroma", label: "Chroma", title: "Compare source and output chroma distributions"},
+    {id: "hue", label: "Hue", title: "Compare source and output hue distributions, excluding near-neutral pixels"}
+  ];
+
+  function histogramChannelLabel(channel = activeHistogramTab()) {
+    if (channel === "chroma") return "Chroma";
+    if (channel === "hue") return "Hue";
+    return "Luma";
+  }
+
+  function histogramSpec(scope, channel = activeHistogramTab()) {
+    const resolvedChannel = ["luma", "chroma", "hue"].includes(channel) ? channel : "luma";
+    const resolvedScope = scope === "output" ? "output" : "source";
+    const label = resolvedScope === "output" ? "Output" : "Source";
+    return {
+      key: `${resolvedScope}-${resolvedChannel}`,
+      scope: resolvedScope,
+      channel: resolvedChannel,
+      heading: `${label} ${histogramChannelLabel(resolvedChannel).toLowerCase()} histogram`
+    };
+  }
+
+  function activeHistogramTab() {
+    const diagnostic = getState().diagnostics || {};
+    const tab = diagnostic.histogramTab || diagnostic.panelTab;
+    if (HISTOGRAM_TABS.some(item => item.id === tab)) return tab;
+    if (tab === "source-chroma" || tab === "output-chroma") return "chroma";
+    if (tab === "source-luma" || tab === "output-luma") return "luma";
+    return "luma";
+  }
+
+  function setHistogramTab(next) {
+    if (!HISTOGRAM_TABS.some(item => item.id === next) || next === activeHistogramTab()) return;
+    const state = getState();
+    if (!state.diagnostics) state.diagnostics = {};
+    state.diagnostics.histogramTab = next;
+    renderHistogramPanel(state.diagnostics.histogramStats || null);
+    onDiagnosticsTabChange(next);
+  }
+
+  function bindHistogramTabEvents() {
+    const tabs = els.diagnosticsTabs;
+    if (!tabs?.addEventListener || overlayBoundElements.has(tabs)) return;
+    overlayBoundElements.add(tabs);
+    tabs.addEventListener("click", event => {
+      const button = event.target?.closest?.("[data-histogram-tab]");
+      if (!button) return;
+      setHistogramTab(button.dataset.histogramTab);
+    });
+  }
+
+  function renderHistogramTabs() {
+    if (!els.diagnosticsTabs) return;
+    bindHistogramTabEvents();
+    const active = activeHistogramTab();
+    els.diagnosticsTabs.innerHTML = HISTOGRAM_TABS.map(tab => {
+      const selected = tab.id === active;
+      return `<button type="button" class="ghost mini-control${selected ? " is-active" : ""}" data-histogram-tab="${tab.id}" role="tab" aria-selected="${selected}" title="${tab.title}">${tab.label}</button>`;
+    }).join("");
+  }
 
   function diagnosticsOverlayState() {
     const overlay = getState().diagnostics?.overlay || {};
@@ -267,6 +330,158 @@ export function createDiagnosticsPanel({
         els.diagnosticsOverlayStatus.textContent = "";
       }
     }
+  }
+
+  function histogramPercent(value) {
+    const pct = Math.max(0, Number(value) || 0) * 100;
+    if (pct < 0.5 && pct > 0) return "<0.5%";
+    return `${pct.toFixed(0)}%`;
+  }
+
+  function histogramValueForLab(lab, channel) {
+    if (!Array.isArray(lab)) return null;
+    const parts = labDistanceComponents(lab);
+    if (channel === "chroma") return parts.chroma;
+    if (channel === "hue") {
+      const [, chroma, hue] = labToOklch(lab);
+      if (chroma < NEUTRAL_CHROMA_EPSILON) return null;
+      return hue * 180 / Math.PI;
+    }
+    return parts.lightness;
+  }
+
+  function histogramAxisValues(histogram, domainMax) {
+    if (histogram.channel === "hue") return [0, 60, 120, 180, 240, 300, 360];
+    if (histogram.channel === "chroma") return [0, domainMax * 0.25, domainMax * 0.5, domainMax * 0.75, domainMax];
+    return [0, 25, 50, 75, 100];
+  }
+
+  function renderHistogramChart(histogramStats = null, {scope = "source", channel = "luma"} = {}) {
+    const state = getState();
+    const histogram = histogramStats?.histogram || histogramStats?.sample?.histogram;
+    const bins = Array.isArray(histogram?.bins) ? histogram.bins : [];
+    const scopeLabel = scope === "output" ? "Output" : "Source";
+    const channelLabel = histogramChannelLabel(channel).toLowerCase();
+    if (!histogram || !bins.length || !(Number(histogram.total) > 0)) {
+      const omitted = Number(histogram?.omittedLowChromaCount) || 0;
+      const message = histogram?.channel === "hue" && omitted > 0
+        ? `All ${omitted.toLocaleString()} sampled ${scopeLabel.toLowerCase()} pixels were below chroma ${formatDistance(histogram.lowChromaThreshold)}; hue is undefined there.`
+        : state.imageData
+        ? `Open this tab to sample ${scopeLabel.toLowerCase()} ${channelLabel}.${channel === "hue" ? " Near-neutral pixels are skipped." : ""}`
+        : `Open an image to see sampled ${channelLabel}.`;
+      return `<div class="diagnostics-histogram-card is-empty"><div class="diagnostics-subhead">${scopeLabel}</div><div class="diagnostics-histogram-empty">${message}</div></div>`;
+    }
+
+    const width = 320;
+    const height = 154;
+    const padX = 14;
+    const padTop = 16;
+    const plotH = 82;
+    const axisY = padTop + plotH + 14;
+    const readoutY = height - 24;
+    const plotW = width - padX * 2;
+    const max = Math.max(1, Number(histogram.max) || Math.max(...bins, 1));
+    const fallbackMax = histogram.channel === "hue" ? 360 : (histogram.channel === "chroma" ? 32 : 100);
+    const domainMax = Math.max(1, Number(histogram.domain?.max) || fallbackMax);
+    const axisLabel = histogram.axisLabel || (histogram.channel === "chroma" ? "C" : (histogram.channel === "hue" ? "H°" : "L"));
+    const xForValue = value => padX + (clamp(Number(value) || 0, 0, domainMax) / domainMax) * plotW;
+    const segmentNames = Array.isArray(histogram.segmentNames) && histogram.segmentNames.length
+      ? histogram.segmentNames
+      : (histogram.channel === "luma" ? ["neutral", "muted", "vivid"] : ["shadow", "midtone", "highlight"]);
+    const segments = histogram.segments || histogram.bands || {};
+    const barGap = bins.length <= 56 ? 0.7 : 0.35;
+    const barW = Math.max(0.75, plotW / bins.length - barGap);
+    const bars = bins.map((count, index) => {
+      const total = Math.max(0, Number(count) || 0);
+      if (!total) return "";
+      const x = padX + (index / bins.length) * plotW;
+      let cursor = padTop + plotH;
+      const rendered = segmentNames.map(name => {
+        const values = Array.isArray(segments[name]) ? segments[name] : [];
+        const value = Math.max(0, Number(values[index]) || 0);
+        if (!value) return "";
+        const h = Math.max(0.8, (value / max) * plotH);
+        cursor -= h;
+        return `<rect class="diagnostics-histogram-bar is-${name}" x="${x.toFixed(2)}" y="${cursor.toFixed(2)}" width="${barW.toFixed(2)}" height="${h.toFixed(2)}"></rect>`;
+      }).join("");
+      const v0 = (index / bins.length) * domainMax;
+      const v1 = ((index + 1) / bins.length) * domainMax;
+      return `<g><title>${axisLabel} ${formatDistance(v0)}–${formatDistance(v1)}: ${total} samples</title>${rendered}</g>`;
+    }).join("");
+
+    const stats = histogram.stats || histogram.sourceLightness || {};
+    const p10 = xForValue(stats.p10);
+    const p90 = xForValue(stats.p90);
+    const median = xForValue(stats.median);
+    const mean = xForValue(stats.mean);
+    const mode = xForValue(stats.mode);
+    const quantileBand = histogram.channel === "hue"
+      ? ""
+      : `<rect class="diagnostics-histogram-quantile" x="${Math.min(p10, p90).toFixed(2)}" y="${(padTop - 4).toFixed(2)}" width="${Math.max(0, Math.abs(p90 - p10)).toFixed(2)}" height="${(plotH + 8).toFixed(2)}"><title>middle 80% ${histogram.label || "samples"}</title></rect>`;
+    const medianMarker = histogram.channel === "hue"
+      ? ""
+      : `<line class="diagnostics-histogram-median" x1="${median.toFixed(2)}" y1="${(padTop - 7).toFixed(2)}" x2="${median.toFixed(2)}" y2="${(padTop + plotH + 5).toFixed(2)}"><title>median ${axisLabel} ${formatDistance(stats.median)}</title></line>`;
+    const statMarkers = `<line class="diagnostics-histogram-mean" x1="${mean.toFixed(2)}" y1="${(padTop - 7).toFixed(2)}" x2="${mean.toFixed(2)}" y2="${(padTop + plotH + 5).toFixed(2)}"><title>${histogram.channel === "hue" ? "circular " : ""}mean ${axisLabel} ${formatDistance(stats.mean)}</title></line>
+      ${medianMarker}
+      <line class="diagnostics-histogram-mode" x1="${mode.toFixed(2)}" y1="${(padTop - 4).toFixed(2)}" x2="${mode.toFixed(2)}" y2="${(padTop + plotH + 3).toFixed(2)}"><title>mode bin ${axisLabel} ${formatDistance(stats.mode)}</title></line>`;
+
+    const records = Array.isArray(histogramStats?.records)
+      ? histogramStats.records
+      : (Array.isArray(state.diagnostics?.stats?.records) ? state.diagnostics.stats.records : []);
+    const paletteMarkers = records.map((record, index) => {
+      const value = histogramValueForLab(record?.lab, histogram.channel);
+      if (!Number.isFinite(Number(value))) return "";
+      const x = xForValue(value);
+      const hex = record.hex || labToHex(record.lab);
+      const displayIndex = (record.displayIndex ?? index) + 1;
+      return `<line class="diagnostics-histogram-marker" style="--marker-color:${hex}" x1="${x.toFixed(2)}" y1="${(padTop + plotH + 3).toFixed(2)}" x2="${x.toFixed(2)}" y2="${(axisY - 2).toFixed(2)}"><title>swatch ${displayIndex} · ${axisLabel} ${formatDistance(value)} · ${colorInfoLabel(hex, record.lab)}</title></line>`;
+    }).join("");
+
+    const axis = histogramAxisValues(histogram, domainMax).map(value => {
+      const x = xForValue(value);
+      return `<line class="diagnostics-histogram-grid" x1="${x.toFixed(1)}" y1="${padTop}" x2="${x.toFixed(1)}" y2="${padTop + plotH}"></line>
+        <text class="diagnostics-histogram-axis" x="${x.toFixed(1)}" y="${axisY.toFixed(1)}" text-anchor="middle">${histogram.channel === "hue" ? `${Math.round(value)}°` : formatDistance(value)}</text>`;
+    }).join("");
+
+    const total = Number(histogram.total ?? 0) || 0;
+    const step = Number(histogram.step) || 1;
+    const range = histogram.channel === "hue"
+      ? `mode ${formatDistance(stats.mode)}°`
+      : (Number.isFinite(Number(stats.p10)) && Number.isFinite(Number(stats.p90)) ? `${formatDistance(stats.p10)}–${formatDistance(stats.p90)}` : "—");
+    const sourceLabel = histogram.scope === "output" ? "output image" : "source image";
+    const detailText = histogram.channel === "chroma"
+      ? `mean C ${formatDistance(stats.mean)} · median ${formatDistance(stats.median)} · max ${formatDistance(stats.max)} · shadows ${histogramPercent(stats.shadowPercent)} / highlights ${histogramPercent(stats.highlightPercent)}`
+      : histogram.channel === "hue"
+        ? `circular mean ${formatDistance(stats.mean)}° · mode ${formatDistance(stats.mode)}° · low-C skipped ${(Number(histogram.omittedLowChromaCount) || 0).toLocaleString()} < ${formatDistance(histogram.lowChromaThreshold)}`
+        : `mean L ${formatDistance(stats.mean)} · median ${formatDistance(stats.median)} · mode ${formatDistance(stats.mode)} · vivid ${histogramPercent(stats.saturatedPercent)}`;
+    const overflow = histogram.overflowCount ? ` · ${histogram.overflowCount.toLocaleString()} above axis` : "";
+    const segmentLabel = histogram.channel === "luma" ? "neutral / muted / vivid stacks" : "shadow / mid / highlight stacks";
+    return `<div class="diagnostics-histogram-card"><div class="diagnostics-subhead">${scopeLabel}</div><svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+      <rect class="diagnostics-histogram-bg" x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="5"/>
+      ${quantileBand}
+      ${axis}
+      ${bars}
+      ${statMarkers}
+      ${paletteMarkers}
+      <text class="diagnostics-histogram-label" x="${padX}" y="11">${sourceLabel} ${channelLabel}</text>
+      <text class="diagnostics-histogram-label" x="${width - padX}" y="11" text-anchor="end">${segmentLabel}</text>
+      <text class="diagnostics-histogram-readout" x="${padX}" y="${readoutY}">${total.toLocaleString()} samples · step ${step}px · ${histogram.channel === "hue" ? "hue " : "p10–p90 "}${range}${overflow}</text>
+      <text class="diagnostics-histogram-readout" x="${padX}" y="${readoutY + 12}">${detailText}</text>
+    </svg></div>`;
+  }
+
+  function renderHistogramPanel(histogramStats = getState().diagnostics?.histogramStats) {
+    renderHistogramTabs();
+    if (!els.diagnosticsHistogram) return;
+    const channel = activeHistogramTab();
+    const sourceSpec = histogramSpec("source", channel);
+    const outputSpec = histogramSpec("output", channel);
+    if (els.diagnosticsHistogramHeading) els.diagnosticsHistogramHeading.textContent = `${histogramChannelLabel(channel)} histograms`;
+    const stats = histogramStats && typeof histogramStats === "object" ? histogramStats : {};
+    els.diagnosticsHistogram.innerHTML = `<div class="diagnostics-histogram-pair">
+      ${renderHistogramChart(stats[sourceSpec.key] || null, sourceSpec)}
+      ${renderHistogramChart(stats[outputSpec.key] || null, outputSpec)}
+    </div>`;
   }
 
   function renderDiagnosticsUsage(stats) {
@@ -1052,9 +1267,10 @@ export function createDiagnosticsPanel({
   }
 
   function renderDiagnosticsPanel(stats = getState().diagnostics?.stats) {
+    renderDiagnosticsSelection();
+    if (els.diagnosticsContributionPanel) els.diagnosticsContributionPanel.hidden = false;
     renderDiagnosticsSummary(stats);
     renderDiagnosticsOverlayControls(stats);
-    renderDiagnosticsSelection();
     renderDiagnosticsUsage(stats);
     renderDiagnosticsXray(stats);
     updateDiagnosticsPixel();
@@ -1064,9 +1280,11 @@ export function createDiagnosticsPanel({
     renderDiagnosticsSummary,
     renderDiagnosticsSelection,
     renderDiagnosticsUsage,
+    renderHistogramPanel,
     renderDiagnosticsOverlayControls,
     renderDiagnosticsXray,
     renderDiagnosticsPanel,
+    activeHistogramTab,
     updateDiagnosticsPixel
   };
 }

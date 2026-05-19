@@ -44,7 +44,7 @@ for (const item of TOOLBAR_PANEL_SHORTCUTS) {
   for (const panelKey of keys) if (!TOOLBAR_PANEL_SHORTCUT_BY_PANEL.has(panelKey)) TOOLBAR_PANEL_SHORTCUT_BY_PANEL.set(panelKey, item.key);
 }
 
-const INSPECTOR_TABS = ["pixel", "selection", "diagnostics"];
+const INSPECTOR_TABS = ["pixel", "selection", "diagnostics", "histogram"];
 const SNAPSHOT_SLOT_KEYS = ["a", "s", "d", "f"];
 
 export const SHORTCUT_DEFINITIONS = [
@@ -523,6 +523,7 @@ export function createShortcutDispatcher({
     if (tab === "pixel") return els.inspectorTabPixel || $("inspectorTabPixel", root);
     if (tab === "selection") return els.inspectorTabSelection || $("inspectorTabSelection", root);
     if (tab === "diagnostics") return els.inspectorTabDiagnostics || $("inspectorTabDiagnostics", root);
+    if (tab === "histogram") return els.inspectorTabHistogram || $("inspectorTabHistogram", root);
     return null;
   }
 

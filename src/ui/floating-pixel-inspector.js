@@ -7,7 +7,8 @@ const FOCUS_TOOLBAR_PANEL_EVENT = "palette-synth:focus-panel";
 const INSPECTOR_TAB_BY_PANEL_KEY = {
   "pixel-inspector": "pixel",
   "selection-diagnostics": "selection",
-  diagnostics: "diagnostics"
+  diagnostics: "diagnostics",
+  histogram: "histogram"
 };
 
 export function bindFloatingPixelInspector({
@@ -31,7 +32,7 @@ export function bindFloatingPixelInspector({
   const clear = els.clearPixelInspector;
   const copySource = els.copyPixelSource;
   const copyFinal = els.copyPixelFinal;
-  const tabButtons = [els.inspectorTabPixel, els.inspectorTabSelection, els.inspectorTabDiagnostics].filter(Boolean);
+  const tabButtons = [els.inspectorTabPixel, els.inspectorTabSelection, els.inspectorTabDiagnostics, els.inspectorTabHistogram].filter(Boolean);
   if (!pane) return {destroy() {}};
 
   const listeners = [];

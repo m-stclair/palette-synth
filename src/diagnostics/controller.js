@@ -5,7 +5,25 @@ export function panelIsOpen(panel) {
   return !!panel && !panel.hidden && !panel.classList.contains("is-collapsed");
 }
 
-const INSPECTOR_TABS = ["pixel", "selection", "diagnostics"];
+const INSPECTOR_TABS = ["pixel", "selection", "diagnostics", "histogram"];
+
+function histogramChannel(tab) {
+  return ["luma", "chroma", "hue"].includes(tab) ? tab : "luma";
+}
+
+function histogramSpecs(channel) {
+  const safeChannel = histogramChannel(channel);
+  return [
+    {key: `source-${safeChannel}`, scope: "source", channel: safeChannel},
+    {key: `output-${safeChannel}`, scope: "output", channel: safeChannel}
+  ];
+}
+
+function resetHistogramDiagnostics(diagnostics) {
+  diagnostics.histogramStats = {};
+  diagnostics.histogramSignatures = {};
+  diagnostics.histogramSignature = "";
+}
 
 export function createDiagnosticsController({
   els,
@@ -16,7 +34,13 @@ export function createDiagnosticsController({
   paletteUniformEntries,
   diagnosticsSignature,
   computeDiagnostics,
+  sourceHistogramSignature = null,
+  outputHistogramSignature = null,
+  computeSourceHistogramDiagnostics = null,
+  computeOutputHistogramDiagnostics = null,
+  diagnosticsActiveTab = () => "contribution",
   renderDiagnosticsPanel,
+  renderHistogramPanel = () => {},
   renderDiagnosticsSelection = () => {},
   updateDiagnosticsPixel = () => {},
   clientPointToImagePixel,
@@ -46,6 +70,7 @@ export function createDiagnosticsController({
     if (tab === "pixel") return els.inspectorTabPixel;
     if (tab === "selection") return els.inspectorTabSelection;
     if (tab === "diagnostics") return els.inspectorTabDiagnostics;
+    if (tab === "histogram") return els.inspectorTabHistogram;
     return null;
   }
 
@@ -53,6 +78,7 @@ export function createDiagnosticsController({
     if (tab === "pixel") return els.inspectorPanelPixel || els.diagnosticsPixel?.closest?.("[data-inspector-tab-panel='pixel']");
     if (tab === "selection") return els.inspectorPanelSelection || els.diagnosticsSelection?.closest?.(".selection-diagnostics-panel");
     if (tab === "diagnostics") return els.inspectorPanelDiagnostics || els.diagnosticsSummary?.closest?.(".diagnostics-panel");
+    if (tab === "histogram") return els.inspectorPanelHistogram || els.diagnosticsHistogram?.closest?.("[data-inspector-tab-panel='histogram']");
     return null;
   }
 
@@ -83,6 +109,12 @@ export function createDiagnosticsController({
   function diagnosticsPanelIsOpen() {
     const panel = tabPanel("diagnostics");
     if (inspectorTabsEnabled()) return inspectorPaneIsOpen() && activeInspectorTab() === "diagnostics" && panelIsOpen(panel);
+    return panelIsOpen(panel);
+  }
+
+  function histogramPanelIsOpen() {
+    const panel = tabPanel("histogram");
+    if (inspectorTabsEnabled()) return inspectorPaneIsOpen() && activeInspectorTab() === "histogram" && panelIsOpen(panel);
     return panelIsOpen(panel);
   }
 
@@ -277,7 +309,7 @@ export function createDiagnosticsController({
     syncPixelInspectorUi();
     if (focus) tabButton(tab)?.focus?.({preventScroll: true});
     if (inspectorPaneIsOpen() && update) updateDiagnostics();
-    if (announce) setStatus(tab === "pixel" ? "Pixel inspector selected." : tab === "selection" ? "Family selection selected." : "Palette diagnostics selected.");
+    if (announce) setStatus(tab === "pixel" ? "Pixel inspector selected." : tab === "selection" ? "Family selection selected." : tab === "histogram" ? "Histograms selected." : "Palette diagnostics selected.");
     return tab;
   }
 
@@ -286,7 +318,7 @@ export function createDiagnosticsController({
   }
 
   function diagnosticsUiIsOpen() {
-    return inspectorTabsEnabled() ? inspectorPaneIsOpen() : (diagnosticsPanelIsOpen() || selectionDiagnosticsPanelIsOpen() || pixelInspectorPanelIsOpen());
+    return inspectorTabsEnabled() ? inspectorPaneIsOpen() : (diagnosticsPanelIsOpen() || histogramPanelIsOpen() || selectionDiagnosticsPanelIsOpen() || pixelInspectorPanelIsOpen());
   }
 
   const scheduleFrame = typeof requestFrame === "function" ? requestFrame : null;
@@ -313,6 +345,7 @@ export function createDiagnosticsController({
     }
 
     const fullDiagnosticsOpen = diagnosticsPanelIsOpen();
+    const histogramOpen = histogramPanelIsOpen();
     const selectionDiagnosticsOpen = selectionDiagnosticsPanelIsOpen();
     if (selectionDiagnosticsOpen) renderDiagnosticsSelection();
 
@@ -320,23 +353,51 @@ export function createDiagnosticsController({
     // tied to the palette diagnostics panel only; the pixel inspector has
     // its own single-pixel path above. Cheap selection diagnostics are
     // rendered above from the palette trace and do not need image sampling.
-    if (!fullDiagnosticsOpen) return;
+    if (!fullDiagnosticsOpen && !histogramOpen) return;
     if (!state.imageData) {
       state.diagnostics.stats = null;
       state.diagnostics.signature = "";
-      renderDiagnosticsPanel(null);
+      resetHistogramDiagnostics(state.diagnostics);
+      if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
+      if (histogramOpen) renderHistogramPanel(null);
       return;
     }
     if (state.paletteDirty || !state.paletteRecords.length) ensurePalette();
     if (!state.paletteRecords.length) {
       state.diagnostics.stats = null;
       state.diagnostics.signature = "";
-      renderDiagnosticsPanel(null);
+      resetHistogramDiagnostics(state.diagnostics);
+      if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
+      if (histogramOpen) renderHistogramPanel(null);
       return;
     }
     const records = state.paletteRecords;
     const renderLabs = renderPaletteLabs(records);
     const entries = paletteUniformEntries(records, renderLabs);
+    if (histogramOpen) {
+      const channel = histogramChannel(diagnosticsActiveTab?.());
+      const histogramSignatures = state.diagnostics.histogramSignatures && typeof state.diagnostics.histogramSignatures === "object"
+        ? state.diagnostics.histogramSignatures
+        : (state.diagnostics.histogramSignatures = {});
+      const histogramStats = state.diagnostics.histogramStats && typeof state.diagnostics.histogramStats === "object"
+        ? state.diagnostics.histogramStats
+        : (state.diagnostics.histogramStats = {});
+      for (const spec of histogramSpecs(channel)) {
+        const signatureFn = spec.scope === "output" ? outputHistogramSignature : sourceHistogramSignature;
+        const computeFn = spec.scope === "output" ? computeOutputHistogramDiagnostics : computeSourceHistogramDiagnostics;
+        const histogramSignature = signatureFn
+          ? signatureFn(records, entries, spec.channel)
+          : `${diagnosticsSignature(records, entries)}~${spec.key}-histogram-v4`;
+        if (histogramSignatures[spec.key] !== histogramSignature) {
+          const stats = computeFn?.(records, spec.channel) || null;
+          histogramStats[spec.key] = stats;
+          histogramSignatures[spec.key] = stats?.signature || histogramSignature;
+        }
+      }
+      renderHistogramPanel(histogramStats);
+      if (!fullDiagnosticsOpen) return;
+    }
+
     const signature = diagnosticsSignature(records, entries);
     if (state.diagnostics.signature !== signature) {
       const stats = computeDiagnostics(records);
