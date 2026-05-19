@@ -32,6 +32,58 @@ export function createManualPaletteEditor({
     }
     return currentState.manualEditor;
   };
+  let dismissHandlersBound = false;
+
+  function eventPathIncludes(event, node) {
+    if (!node) return false;
+    const path = typeof event?.composedPath === "function" ? event.composedPath() : null;
+    return Array.isArray(path) && path.includes(node);
+  }
+
+  function nodeContains(root, target) {
+    if (!root || !target) return false;
+    if (root === target) return true;
+    if (typeof root.contains === "function") return root.contains(target);
+    let node = target;
+    while (node) {
+      if (node === root) return true;
+      node = node.parentNode || null;
+    }
+    return false;
+  }
+
+  function targetWithinColorPickerPopover(event) {
+    const target = event?.target;
+    if (target?.closest?.(".app-color-picker-popover")) return true;
+    const path = typeof event?.composedPath === "function" ? event.composedPath() : [];
+    return Array.isArray(path) && path.some(node => node?.classList?.contains?.("app-color-picker-popover"));
+  }
+
+  function manualPaletteEditorOpen() {
+    return !!els.paletteEditor && !els.paletteEditor.hidden;
+  }
+
+  function handleEditorDismissKeydown(event) {
+    if (!manualPaletteEditorOpen() || event?.defaultPrevented) return;
+    if (event?.key !== "Escape") return;
+    closeManualPaletteEditor();
+    event.preventDefault?.();
+  }
+
+  function handleEditorOutsidePointer(event) {
+    if (!manualPaletteEditorOpen()) return;
+    if (eventPathIncludes(event, els.paletteEditor) || nodeContains(els.paletteEditor, event?.target)) return;
+    if (targetWithinColorPickerPopover(event)) return;
+    closeManualPaletteEditor();
+  }
+
+  function bindEditorDismissHandlers() {
+    if (dismissHandlersBound) return;
+    const doc = els.paletteEditor?.ownerDocument || els.palettePreview?.ownerDocument || globalThis.document;
+    doc?.addEventListener?.("keydown", handleEditorDismissKeydown);
+    doc?.addEventListener?.("pointerdown", handleEditorOutsidePointer, true);
+    dismissHandlersBound = true;
+  }
 
   function ensureManualPaletteEditor() {
     if (els.paletteEditor) return els.paletteEditor;
@@ -288,6 +340,7 @@ export function createManualPaletteEditor({
 
   function openManualPaletteEditor(record) {
     if (!manualSwatchEditable(record)) return;
+    bindEditorDismissHandlers();
     const manualEditor = editorState();
     manualEditor.colorInputActive = false;
     manualEditor.swatchId = record.swatchId;
