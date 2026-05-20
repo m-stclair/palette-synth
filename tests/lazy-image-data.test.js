@@ -99,3 +99,20 @@ test("lazy canvas image data can clear cached samples without clearing materiali
   lazy.getCachedSample("sample:a", () => ++computes);
   assert.equal(computes, 2);
 });
+
+test("lazy canvas image data caps cached sample computations", () => {
+  const lazy = createLazyCanvasImageData({
+    getImageData() {
+      throw new Error("should not materialize");
+    }
+  }, 1, 1);
+
+  for (let i = 0; i < 40; i++) {
+    lazy.getCachedSample(`sample:${i}`, () => i);
+  }
+
+  assert.equal(lazy.sampleCacheSize, 32);
+  assert.equal(lazy.materialized, false);
+  assert.equal(lazy.getCachedSample("sample:0", () => "recomputed"), "recomputed");
+  assert.equal(lazy.sampleCacheSize, 32);
+});
