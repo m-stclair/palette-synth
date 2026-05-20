@@ -543,7 +543,7 @@ export function computeHistogramFromSamples({samples = [], records = [], channel
       else segmentC[bin] += 1;
     } else {
       if (chroma < 4) segmentA[bin] += 1;
-      else if (chroma < 14) segmentB[bin] += 1;
+      else if (chroma < 10) segmentB[bin] += 1;
       else segmentC[bin] += 1;
     }
     if (bins[bin] > max) max = bins[bin];
@@ -554,7 +554,7 @@ export function computeHistogramFromSamples({samples = [], records = [], channel
     if (bins[i] > bins[modeBin]) modeBin = i;
   }
   const modeValue = ((modeBin + 0.5) / binCount) * domainMax;
-  const saturatedCount = safeSamples.reduce((sum, sample) => sum + ((Number(sample?.chroma) || 0) >= 14 ? 1 : 0), 0);
+  const saturatedCount = safeSamples.reduce((sum, sample) => sum + ((Number(sample?.chroma) || 0) >= 10 ? 1 : 0), 0);
   const shadowCount = safeSamples.reduce((sum, sample) => sum + ((Number(sample?.lightness) || 0) < 35 ? 1 : 0), 0);
   const highlightCount = safeSamples.reduce((sum, sample) => sum + ((Number(sample?.lightness) || 0) >= 70 ? 1 : 0), 0);
   const segmentNames = resolvedChannel === "chroma" || resolvedChannel === "hue"
