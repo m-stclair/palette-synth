@@ -175,6 +175,53 @@ test("manual swatch list renders edits, locks, and removal through callbacks", (
   }
 });
 
+test("manual swatch list reuses row elements across renders and replacement", () => {
+  const restore = installFakeDocument();
+  try {
+    const els = {manualSwatches: makeElement("div")};
+    const config = {
+      manualPalette: [
+        {id: "swatch-a", hex: "#111111", locked: false}
+      ]
+    };
+    const state = {manualEditor: {swatchId: "swatch-a", sourceIndex: 0}};
+    const list = createManualSwatchesList({
+      els,
+      config,
+      state,
+      syncManualSwatches: () => config.manualPalette,
+      manualSwatchIndexForId: id => config.manualPalette.findIndex(swatch => swatch.id === id),
+      removeManualSwatchAt: index => {
+        config.manualPalette.splice(index, 1);
+        return config.manualPalette[index] ?? config.manualPalette[index - 1] ?? null;
+      },
+      beginHistory() {},
+      commitHistory() {},
+      withHistory: (label, fn) => fn(),
+      markPaletteDirty() {},
+      queueRender() {}
+    });
+
+    list.renderManualSwatches();
+    const firstRow = els.manualSwatches.children[0];
+    const firstColorInput = firstRow.children[0];
+
+    config.manualPalette[0].hex = "#222222";
+    list.renderManualSwatches();
+    assert.equal(els.manualSwatches.children[0], firstRow);
+    assert.equal(firstColorInput.value, "#222222");
+
+    config.manualPalette = [{id: "swatch-b", hex: "#333333", locked: true}];
+    list.renderManualSwatches();
+    assert.equal(els.manualSwatches.children[0], firstRow);
+    assert.equal(firstRow.dataset.swatchId, "swatch-b");
+    assert.equal(firstColorInput.value, "#333333");
+  } finally {
+    restore();
+  }
+});
+
+
 test("palette preview renders generated locks, manual aliases, and click actions", async () => {
   const restore = installFakeDocument();
   try {

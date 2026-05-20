@@ -545,7 +545,7 @@ export function attachColorPicker(input, options = {}) {
   if (!input || input[PICKER_KEY]) return input?.[PICKER_KEY] || null;
 
   const doc = input.ownerDocument || globalThis.document;
-  const label = options.label || labelTextFor(input);
+  let label = options.label || labelTextFor(input);
   let oklch = oklchFromHex(input.value || options.value || FALLBACK_HEX);
   let popover = null;
   let plane = null;
@@ -564,6 +564,7 @@ export function attachColorPicker(input, options = {}) {
   let open = false;
   let triangleWeights = triangleWeightsForOklch(oklch);
   let presentedHex = null;
+  let popoverTitle = null;
 
   input.type = "text";
   input.readOnly = true;
@@ -786,6 +787,7 @@ export function attachColorPicker(input, options = {}) {
     swatch.setAttribute("aria-hidden", "true");
     const title = doc.createElement("strong");
     title.textContent = label;
+    popoverTitle = title;
     head.append(swatch, title);
 
     const planeWrap = doc.createElement("div");
@@ -1013,31 +1015,56 @@ export function attachColorPicker(input, options = {}) {
     closePicker({commit: true});
   }
 
-  input.addEventListener("pointerdown", event => {
+  function handleInputPointerDown(event) {
     if (input.disabled) return;
     event.preventDefault();
     open ? closePicker({commit: true}) : openPicker({focus: true});
-  });
-  input.addEventListener("keydown", event => {
+  }
+
+  function handleInputKeydown(event) {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       openPicker({focus: true});
     } else if (event.key === "Escape") {
       closePicker({commit: true});
     }
-  });
+  }
+
+  function handleWindowResize() {
+    if (open) positionPopover(input, popover);
+  }
+
+  function handleWindowScroll() {
+    if (open) positionPopover(input, popover);
+  }
+
+  input.addEventListener("pointerdown", handleInputPointerDown);
+  input.addEventListener("keydown", handleInputKeydown);
   input.addEventListener("input", syncFromInputState);
   doc?.addEventListener?.("pointerdown", handleOutsidePointer, true);
-  globalThis.window?.addEventListener?.("resize", () => open && positionPopover(input, popover));
-  globalThis.window?.addEventListener?.("scroll", () => open && positionPopover(input, popover), true);
+  globalThis.window?.addEventListener?.("resize", handleWindowResize);
+  globalThis.window?.addEventListener?.("scroll", handleWindowScroll, true);
 
   const api = {
     open: openPicker,
     close: closePicker,
     syncFromInput: syncFromInputState,
+    setLabel(nextLabel) {
+      label = nextLabel || labelTextFor(input);
+      input.setAttribute("aria-label", label);
+      popover?.setAttribute?.("aria-label", label);
+      if (popoverTitle) popoverTitle.textContent = label;
+      setInputPresentation(input, input.value || FALLBACK_HEX);
+    },
     destroy() {
       closePicker({commit: false});
       popover?.remove?.();
+      input.removeEventListener?.("pointerdown", handleInputPointerDown);
+      input.removeEventListener?.("keydown", handleInputKeydown);
+      input.removeEventListener?.("input", syncFromInputState);
+      doc?.removeEventListener?.("pointerdown", handleOutsidePointer, true);
+      globalThis.window?.removeEventListener?.("resize", handleWindowResize);
+      globalThis.window?.removeEventListener?.("scroll", handleWindowScroll, true);
       delete input[PICKER_KEY];
     }
   };
