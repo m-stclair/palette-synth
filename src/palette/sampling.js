@@ -41,6 +41,25 @@ export function buildPatchOrigins(sampleCount, width, height, seed, samplingMode
   return origins;
 }
 
+function sampleRegionKey(region) {
+  return region
+    ? `${region.x},${region.y},${region.width},${region.height}`
+    : "all";
+}
+
+export function paletteSampleCacheKey({sampleCount, width, height, seed, samplingMode = "random", region = null, blockSize = 1} = {}) {
+  return [
+    "palette-samples-v1",
+    Math.max(0, Math.round(Number(width) || 0)),
+    Math.max(0, Math.round(Number(height) || 0)),
+    Math.max(0, Math.round(Number(sampleCount) || 0)),
+    Number(seed) || 0,
+    samplingMode || "random",
+    sampleRegionKey(region),
+    Math.max(1, Math.round(Number(blockSize) || 1))
+  ].join(":");
+}
+
 export function blockSampleLab(imageData, width, height, origins, blockSize) {
   const data = imageData.data;
   const out = [];
@@ -64,4 +83,12 @@ export function blockSampleLab(imageData, width, height, origins, blockSize) {
     out.push([L / n, a / n, b / n]);
   }
   return out;
+}
+
+export function samplePaletteLabs(imageData, width, height, origins, blockSize, cacheKey = "") {
+  const producer = () => blockSampleLab(imageData, width, height, origins, blockSize);
+  if (cacheKey && typeof imageData?.getCachedSample === "function") {
+    return imageData.getCachedSample(cacheKey, producer);
+  }
+  return producer();
 }

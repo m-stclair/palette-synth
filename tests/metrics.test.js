@@ -5,6 +5,7 @@ import {
   cpuDistanceBreakdown,
   computeDiagnostics,
   computePaletteCollisions,
+  computeOutputHistogramDiagnostics,
   computeSourceHistogramDiagnostics,
   createDiagnosticMetrics,
   diagnosticsSignature,
@@ -329,4 +330,50 @@ test("computeDiagnostics returns a stable signature and includes cycle offset on
   assert.equal(stats.generatedAt, 123);
   assert.equal(stats.records, records);
   assert.equal(stats.entries, entries);
+});
+
+test("histogram diagnostics cache source and output samples on capable image sources", () => {
+  const records = [record([50, 0, 0], 0)];
+  const entries = records.map(entry);
+  const data = new Uint8ClampedArray([
+    0, 0, 0, 255,
+    255, 255, 255, 255
+  ]);
+  const cache = new Map();
+  const cacheMisses = [];
+  let dataReads = 0;
+  const imageData = {
+    width: 2,
+    height: 1,
+    version: 11,
+    get data() {
+      dataReads += 1;
+      return data;
+    },
+    getCachedSample(key, producer) {
+      if (!cache.has(key)) {
+        cacheMisses.push(key);
+        cache.set(key, producer());
+      }
+      return cache.get(key);
+    }
+  };
+
+  const sourceLuma = computeSourceHistogramDiagnostics({imageData, records, entries, config: baseConfig, channel: "luma"});
+  const sourceChroma = computeSourceHistogramDiagnostics({imageData, records, entries, config: baseConfig, channel: "chroma"});
+  const outputLuma = createDiagnosticMetrics({
+    getConfig: () => baseConfig,
+    getImageData: () => imageData,
+    getRecords: () => records,
+    getEntries: () => entries
+  }).computeOutputHistogramDiagnostics(records, "luma");
+  const outputHue = computeOutputHistogramDiagnostics({imageData, records, entries, config: baseConfig, channel: "hue"});
+
+  assert.equal(sourceLuma.histogram.total, 2);
+  assert.equal(sourceChroma.histogram.total, 2);
+  assert.equal(outputLuma.histogram.total, 2);
+  assert.equal(outputHue.histogram.total, 0);
+  assert.equal(dataReads, 1);
+  assert.equal(cacheMisses.filter(key => key.startsWith("source-histogram-samples-v1")).length, 1);
+  assert.equal(cacheMisses.filter(key => key.includes("output-histogram-samples-v1")).length, 1);
 });

@@ -76,16 +76,49 @@ function makeHarness() {
     }
   };
   const targetCanvas = {width: 0, height: 0};
+  let readbackCount = 0;
   const targetCtx = {
     clearRect: () => {},
     drawImage: () => {},
-    getImageData: () => ({ok: true})
+    getImageData: () => {
+      readbackCount += 1;
+      return {ok: true, data: new Uint8ClampedArray([1, 2, 3, 255])};
+    }
   };
   const shaders = {vertexSource: "vertex", fragmentSource: "fragment"};
   const settings = {levelsExposure: 0.25, levelsGamma: 1, levelsCurveAmount: 0};
   const defaults = {levelsShoulder: 6, levelsCenter: -1};
-  return {gl, levelsState, targetCanvas, targetCtx, shaders, settings, defaults};
+  return {gl, levelsState, targetCanvas, targetCtx, shaders, settings, defaults, readbackCount: () => readbackCount};
 }
+
+
+test("levels renderer defers target canvas readback until pixel data is requested", () => {
+  const {levelsState, targetCanvas, targetCtx, shaders, settings, defaults, readbackCount} = makeHarness();
+  const originalCanvas = {width: 4, height: 2, name: "source"};
+
+  const imageData = applyLevelsToCanvas(levelsState, {
+    shaders,
+    originalCanvas,
+    targetCanvas,
+    targetCtx,
+    sourceVersion: 5,
+    settings,
+    defaults,
+    uploadCanvasTextureFn: () => {}
+  });
+
+  assert.equal(imageData.width, 4);
+  assert.equal(imageData.height, 2);
+  assert.equal(imageData.version, 5);
+  assert.equal(imageData.materialized, false);
+  assert.equal(readbackCount(), 0);
+
+  assert.equal(imageData.data[0], 1);
+  assert.equal(imageData.materialized, true);
+  assert.equal(readbackCount(), 1);
+  assert.equal(imageData.data[1], 2);
+  assert.equal(readbackCount(), 1);
+});
 
 test("levels renderer reuses an uploaded source texture while the source version is unchanged", () => {
   const {levelsState, targetCanvas, targetCtx, shaders, settings, defaults} = makeHarness();

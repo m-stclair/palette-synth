@@ -160,6 +160,7 @@ export function diagnosticsSignature({imageData, records = [], entries = [], con
   return [
     imageData?.width || 0,
     imageData?.height || 0,
+    imageData?.version ?? "",
     Number(config.lumaWeight).toFixed(3),
     Number(config.chromaWeight).toFixed(3),
     Number(config.hueWeight).toFixed(3),
@@ -424,24 +425,49 @@ function histogramSampleFromLab(lab) {
   return {lightness, chroma, hue, lab};
 }
 
-function collectSourceHistogramSamples(imageData) {
-  if (!imageData?.data || !imageData.width || !imageData.height) return null;
-  const step = Math.max(1, Math.ceil(Math.sqrt((imageData.width * imageData.height) / DIAGNOSTIC.targetSamples)));
-  const startX = Math.floor(step / 2);
-  const startY = Math.floor(step / 2);
-  const samples = [];
-
-  for (let y = startY; y < imageData.height; y += step) {
-    for (let x = startX; x < imageData.width; x += step) {
-      const px = (y * imageData.width + x) * 4;
-      if (imageData.data[px + 3] <= 4) continue;
-      const sourceRgb = [imageData.data[px], imageData.data[px + 1], imageData.data[px + 2]];
-      const lab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
-      samples.push({...histogramSampleFromLab(lab), x, y, sourceRgb});
-    }
+function withCachedImageSample(imageData, cacheKey, producer) {
+  if (typeof imageData?.getCachedSample === "function") {
+    return imageData.getCachedSample(cacheKey, producer);
   }
+  return producer();
+}
 
-  return {samples, step};
+function sourceHistogramSampleCacheKey(imageData) {
+  return [
+    "source-histogram-samples-v1",
+    imageData?.width || 0,
+    imageData?.height || 0,
+    imageData?.version ?? "",
+    DIAGNOSTIC.targetSamples
+  ].join(":");
+}
+
+function outputHistogramSampleCacheKey({imageData, records, entries, config}) {
+  return `${diagnosticsSignature({imageData, records, entries, config, includeCycleOffset: false})}~output-histogram-samples-v1~${histogramConfigSignature(config)}`;
+}
+
+function collectSourceHistogramSamples(imageData) {
+  if (!imageData?.width || !imageData.height) return null;
+  return withCachedImageSample(imageData, sourceHistogramSampleCacheKey(imageData), () => {
+    const data = imageData.data;
+    if (!data) return null;
+    const step = Math.max(1, Math.ceil(Math.sqrt((imageData.width * imageData.height) / DIAGNOSTIC.targetSamples)));
+    const startX = Math.floor(step / 2);
+    const startY = Math.floor(step / 2);
+    const samples = [];
+
+    for (let y = startY; y < imageData.height; y += step) {
+      for (let x = startX; x < imageData.width; x += step) {
+        const px = (y * imageData.width + x) * 4;
+        if (data[px + 3] <= 4) continue;
+        const sourceRgb = [data[px], data[px + 1], data[px + 2]];
+        const lab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
+        samples.push({...histogramSampleFromLab(lab), x, y, sourceRgb});
+      }
+    }
+
+    return {samples, step};
+  });
 }
 
 function mappedPaletteLabForSample(sourceLab, sourceRgb, entries, records, config = {}) {
@@ -626,12 +652,20 @@ export function computeSourceHistogramDiagnostics(options = {}) {
   return computeImageHistogramDiagnostics({...options, scope: "source"});
 }
 
-export function computeOutputHistogramDiagnostics({imageData, records = [], entries = [], config = {}, channel = "luma", signature = "", now = () => Date.now()} = {}) {
+function collectOutputHistogramSamples({imageData, records = [], entries = [], config = {}} = {}) {
   const collected = collectSourceHistogramSamples(imageData);
   if (!collected) return null;
-  const outputSamples = collected.samples.map(sample => outputHistogramSampleForSourceSample(sample, entries, records, config));
+  return withCachedImageSample(imageData, outputHistogramSampleCacheKey({imageData, records, entries, config}), () => ({
+    samples: collected.samples.map(sample => outputHistogramSampleForSourceSample(sample, entries, records, config)),
+    step: collected.step
+  }));
+}
+
+export function computeOutputHistogramDiagnostics({imageData, records = [], entries = [], config = {}, channel = "luma", signature = "", now = () => Date.now()} = {}) {
+  const collected = collectOutputHistogramSamples({imageData, records, entries, config});
+  if (!collected) return null;
   return computeHistogramFromSamples({
-    samples: outputSamples,
+    samples: collected.samples,
     records,
     channel,
     scope: "output",
@@ -645,7 +679,8 @@ export function computePairedHistogramDiagnostics({imageData, records = [], entr
   const collected = collectSourceHistogramSamples(imageData);
   if (!collected) return {source: null, output: null};
   const resolvedChannel = resolvedHistogramChannel(channel);
-  const outputSamples = collected.samples.map(sample => outputHistogramSampleForSourceSample(sample, entries, records, config));
+  const outputCollected = collectOutputHistogramSamples({imageData, records, entries, config});
+  const outputSamples = outputCollected?.samples || [];
   const domainMaxOverride = resolvedChannel === "chroma"
     ? Math.max(
       suggestedHistogramDomainMax(collected.samples.map(sample => sample?.chroma), resolvedChannel),

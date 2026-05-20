@@ -720,11 +720,8 @@ select:focus, textarea:focus, input:focus, button:focus-visible, .file-button:fo
 .app-color-picker-plane-cursor,
 .app-color-picker-hue-cursor {
   position: absolute;
-  left: 0;
-  top: 0;
   pointer-events: none;
-  transform: translate3d(0, 0, 0) translate(-50%, -50%);
-  will-change: transform;
+  transform: translate(-50%, -50%);
 }
 .app-color-picker-plane-cursor {
   width: 12px;

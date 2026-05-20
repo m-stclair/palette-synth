@@ -1,5 +1,6 @@
 import { createWebgl2Context, resizeDrawingBuffer } from "./context.js";
 import { buildStaticProgram } from "./programs.js";
+import { createLazyCanvasImageData } from "../runtime/lazy-image-data.js";
 import { configureTexture, createTexture, uploadCanvasTexture } from "./textures.js";
 
 function clamp01(value) {
@@ -206,7 +207,7 @@ export function applyLevelsToCanvas(levelsState, {
   if (levelsAreIdentity(settings)) {
     targetCtx.clearRect(0, 0, width, height);
     targetCtx.drawImage(originalCanvas, 0, 0);
-    return targetCtx.getImageData(0, 0, width, height);
+    return createLazyCanvasImageData(targetCtx, width, height, {canvas: targetCanvas, version: sourceVersion});
   }
 
   const gl = ensureLevelsContext(levelsState);
@@ -229,7 +230,7 @@ export function applyLevelsToCanvas(levelsState, {
 
     targetCtx.clearRect(0, 0, width, height);
     targetCtx.drawImage(canvas, 0, 0, width, height);
-    return targetCtx.getImageData(0, 0, width, height);
+    return createLazyCanvasImageData(targetCtx, width, height, {canvas: targetCanvas, version: sourceVersion});
   }
 
   if (!shaders.clarityLightnessBlurFragmentSource
@@ -349,5 +350,5 @@ export function applyLevelsToCanvas(levelsState, {
 
   targetCtx.clearRect(0, 0, width, height);
   targetCtx.drawImage(canvas, 0, 0, width, height);
-  return targetCtx.getImageData(0, 0, width, height);
+  return createLazyCanvasImageData(targetCtx, width, height, {canvas: targetCanvas, version: sourceVersion});
 }

@@ -22,7 +22,7 @@ import {
   sortPaletteRecords
 } from "../color-utils.js";
 import { DEFAULT_COSINE_CUSTOM_VECTORS, normalizeCosineCustomVectors } from "../state/config.js";
-import { blockSampleLab, buildPatchOrigins } from "./sampling.js";
+import { buildPatchOrigins, paletteSampleCacheKey, samplePaletteLabs } from "./sampling.js";
 import { selectTopNScoredSwatches } from "./selection.js";
 
 const DEFAULT_HARMONY_RELATIONSHIP = "monochrome";
@@ -278,7 +278,15 @@ export function createGeneratedPalette({
   const baseCount = Math.max(1, Math.round(requestedSize / 3));
   const lockedEntries = activeGeneratedLocks(config, baseCount);
   const origins = buildPatchOrigins(CANDIDATE_SAMPLE_COUNT, imageData.width, imageData.height, config.seed, config.samplingMode, sampleRegion);
-  const candidates = blockSampleLab(imageData, imageData.width, imageData.height, origins, config.blockSize);
+  const candidates = samplePaletteLabs(imageData, imageData.width, imageData.height, origins, config.blockSize, paletteSampleCacheKey({
+    sampleCount: CANDIDATE_SAMPLE_COUNT,
+    width: imageData.width,
+    height: imageData.height,
+    seed: config.seed,
+    samplingMode: config.samplingMode,
+    region: sampleRegion,
+    blockSize: config.blockSize
+  }));
   const weights = {
     midtone: config.selectWeights[0],
     outlier: config.selectWeights[1],

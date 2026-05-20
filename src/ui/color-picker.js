@@ -541,16 +541,11 @@ export function syncColorPickerInput(input) {
   if (picker) picker.syncFromInput();
 }
 
-function movePickerCursor(cursor, x, y) {
-  if (!cursor?.style) return;
-  cursor.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
-}
-
 export function attachColorPicker(input, options = {}) {
   if (!input || input[PICKER_KEY]) return input?.[PICKER_KEY] || null;
 
   const doc = input.ownerDocument || globalThis.document;
-  let label = options.label || labelTextFor(input);
+  const label = options.label || labelTextFor(input);
   let oklch = oklchFromHex(input.value || options.value || FALLBACK_HEX);
   let popover = null;
   let plane = null;
@@ -567,10 +562,8 @@ export function attachColorPicker(input, options = {}) {
   let dragMode = null;
   let dirty = false;
   let open = false;
-  let activePlaneRect = null;
   let triangleWeights = triangleWeightsForOklch(oklch);
   let presentedHex = null;
-  let popoverTitle = null;
 
   input.type = "text";
   input.readOnly = true;
@@ -603,12 +596,14 @@ export function attachColorPicker(input, options = {}) {
     if (hueNumberInput) hueNumberInput.value = String(Math.round(hueDegrees));
     if (planeCursor) {
       const point = trianglePointForWeights(triangleWeights);
-      movePickerCursor(planeCursor, point.x, point.y);
+      planeCursor.style.left = `${point.x / WHEEL_SIZE * 100}%`;
+      planeCursor.style.top = `${point.y / WHEEL_SIZE * 100}%`;
     }
     if (hueCursor) {
       const x = WHEEL_CENTER + Math.cos(fitted.h) * WHEEL_MID_RADIUS;
       const y = WHEEL_CENTER + Math.sin(fitted.h) * WHEEL_MID_RADIUS;
-      movePickerCursor(hueCursor, x, y);
+      hueCursor.style.left = `${x / WHEEL_SIZE * 100}%`;
+      hueCursor.style.top = `${y / WHEEL_SIZE * 100}%`;
     }
     drawOklchWheel(plane, fitted.h);
   }
@@ -770,7 +765,6 @@ export function attachColorPicker(input, options = {}) {
     if (!open) return;
     open = false;
     dragMode = null;
-    activePlaneRect = null;
     input.setAttribute("aria-expanded", "false");
     if (popover) popover.hidden = true;
     if (commit) commitIfDirty();
@@ -792,7 +786,6 @@ export function attachColorPicker(input, options = {}) {
     swatch.setAttribute("aria-hidden", "true");
     const title = doc.createElement("strong");
     title.textContent = label;
-    popoverTitle = title;
     head.append(swatch, title);
 
     const planeWrap = doc.createElement("div");
@@ -889,29 +882,25 @@ export function attachColorPicker(input, options = {}) {
       if (hexInput) hexInput.title = colorInfo;
     };
 
-    const canvasPointForEvent = (event, rect = activePlaneRect) => {
-      const box = rect || plane.getBoundingClientRect();
-      const x = clamp((event.clientX - box.left) / Math.max(1, box.width)) * WHEEL_SIZE;
-      const y = clamp((event.clientY - box.top) / Math.max(1, box.height)) * WHEEL_SIZE;
+    const canvasPointForEvent = event => {
+      const rect = plane.getBoundingClientRect();
+      const x = clamp((event.clientX - rect.left) / Math.max(1, rect.width)) * WHEEL_SIZE;
+      const y = clamp((event.clientY - rect.top) / Math.max(1, rect.height)) * WHEEL_SIZE;
       return {x, y};
     };
 
-    const applyPointToWheel = point => {
+    const applyPointerToWheel = event => {
+      const point = canvasPointForEvent(event);
       const dx = point.x - WHEEL_CENTER;
       const dy = point.y - WHEEL_CENTER;
       setHueFromWheel(normalizeHueRadians(Math.atan2(dy, dx)));
       swatchSync();
     };
 
-    const applyPointToTriangle = point => {
-      const clampedPoint = closestPointOnTriangle(point);
-      setTriangleWeights(barycentricForPoint(clampedPoint));
+    const applyPointerToTriangle = event => {
+      const point = closestPointOnTriangle(canvasPointForEvent(event));
+      setTriangleWeights(barycentricForPoint(point));
       swatchSync();
-    };
-
-    const applyDragPoint = point => {
-      if (dragMode === "hue") applyPointToWheel(point);
-      else applyPointToTriangle(point);
     };
 
     const modeForPoint = point => {
@@ -924,24 +913,17 @@ export function attachColorPicker(input, options = {}) {
     plane.addEventListener("pointerdown", event => {
       event.preventDefault();
       plane.setPointerCapture?.(event.pointerId);
-      activePlaneRect = plane.getBoundingClientRect();
-      const point = canvasPointForEvent(event, activePlaneRect);
-      dragMode = modeForPoint(point);
-      applyDragPoint(point);
+      dragMode = modeForPoint(canvasPointForEvent(event));
+      if (dragMode === "hue") applyPointerToWheel(event);
+      else applyPointerToTriangle(event);
     });
     plane.addEventListener("pointermove", event => {
       if (event.buttons !== 1 || !dragMode) return;
-      applyDragPoint(canvasPointForEvent(event, activePlaneRect));
+      if (dragMode === "hue") applyPointerToWheel(event);
+      else applyPointerToTriangle(event);
     });
     plane.addEventListener("pointerup", event => {
       plane.releasePointerCapture?.(event.pointerId);
-      activePlaneRect = null;
-      dragMode = null;
-      commitIfDirty();
-    });
-    plane.addEventListener("pointercancel", event => {
-      plane.releasePointerCapture?.(event.pointerId);
-      activePlaneRect = null;
       dragMode = null;
       commitIfDirty();
     });
@@ -1031,56 +1013,31 @@ export function attachColorPicker(input, options = {}) {
     closePicker({commit: true});
   }
 
-  function handleInputPointerDown(event) {
+  input.addEventListener("pointerdown", event => {
     if (input.disabled) return;
     event.preventDefault();
     open ? closePicker({commit: true}) : openPicker({focus: true});
-  }
-
-  function handleInputKeydown(event) {
+  });
+  input.addEventListener("keydown", event => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       openPicker({focus: true});
     } else if (event.key === "Escape") {
       closePicker({commit: true});
     }
-  }
-
-  function handleWindowResize() {
-    if (open) positionPopover(input, popover);
-  }
-
-  function handleWindowScroll() {
-    if (open) positionPopover(input, popover);
-  }
-
-  input.addEventListener("pointerdown", handleInputPointerDown);
-  input.addEventListener("keydown", handleInputKeydown);
+  });
   input.addEventListener("input", syncFromInputState);
   doc?.addEventListener?.("pointerdown", handleOutsidePointer, true);
-  globalThis.window?.addEventListener?.("resize", handleWindowResize);
-  globalThis.window?.addEventListener?.("scroll", handleWindowScroll, true);
+  globalThis.window?.addEventListener?.("resize", () => open && positionPopover(input, popover));
+  globalThis.window?.addEventListener?.("scroll", () => open && positionPopover(input, popover), true);
 
   const api = {
     open: openPicker,
     close: closePicker,
     syncFromInput: syncFromInputState,
-    setLabel(nextLabel) {
-      label = nextLabel || labelTextFor(input);
-      input.setAttribute("aria-label", label);
-      popover?.setAttribute?.("aria-label", label);
-      if (popoverTitle) popoverTitle.textContent = label;
-      setInputPresentation(input, input.value || FALLBACK_HEX);
-    },
     destroy() {
       closePicker({commit: false});
       popover?.remove?.();
-      input.removeEventListener?.("pointerdown", handleInputPointerDown);
-      input.removeEventListener?.("keydown", handleInputKeydown);
-      input.removeEventListener?.("input", syncFromInputState);
-      doc?.removeEventListener?.("pointerdown", handleOutsidePointer, true);
-      globalThis.window?.removeEventListener?.("resize", handleWindowResize);
-      globalThis.window?.removeEventListener?.("scroll", handleWindowScroll, true);
       delete input[PICKER_KEY];
     }
   };
