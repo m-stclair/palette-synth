@@ -14,7 +14,9 @@ test("level source controller forwards shader/settings dependencies to the rende
     config,
     vertexSource: "vertex",
     fragmentSource: "levels fragment",
+    clarityLightnessBlurFragmentSource: "lightness blur fragment",
     claritySharpFragmentSource: "sharp fragment",
+    claritySharpBlurFragmentSource: "sharp blur fragment",
     clarityFragmentSource: "clarity fragment",
     defaults: {levelsShoulder: 8},
     applyLevelsToCanvasFn: (...args) => {
@@ -29,7 +31,9 @@ test("level source controller forwards shader/settings dependencies to the rende
     shaders: {
       vertexSource: "vertex",
       fragmentSource: "levels fragment",
+      clarityLightnessBlurFragmentSource: "lightness blur fragment",
       claritySharpFragmentSource: "sharp fragment",
+      claritySharpBlurFragmentSource: "sharp blur fragment",
       clarityFragmentSource: "clarity fragment"
     },
     originalCanvas,

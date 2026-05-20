@@ -3,9 +3,11 @@ precision highp float;
 
 uniform sampler2D u_image;
 uniform sampler2D u_sharpPass;
+uniform sampler2D u_sharpBlur;
 uniform vec2 u_resolution;
 uniform float u_intensity;
 uniform float u_preserveTones;
+uniform float u_kernelWeights[7];
 
 out vec4 outColor;
 
@@ -62,61 +64,16 @@ float softLightBlend(float base, float fx) {
     return clamp(blended, 0.0, 1.0);
 }
 
-float kernelWeight1D(int offset, int radius, float softness) {
-    float x = float(abs(offset));
-
-    // Treat radius <= 0 as a delta kernel.
-    float r0 = max(float(radius), 0.0);
-    float rz = 1.0 - step(0.5, r0); // 1 when radius == 0-ish
-    float r  = max(r0, 1.0);
-
-    // softness = 1.0 preserves the original shape.
-    // softness < 1.0 = tighter / sharper
-    // softness > 1.0 = wider / softer
-    float s0 = max(softness, 0.0);
-    float sz = 1.0 - step(0.0001, s0); // softness == 0-ish -> delta
-    float s  = max(s0, 0.0001);
-
-    // Original was:
-    //   exp(-(x*x) / r)
-    //
-    // Since r = 2*sigma^2, scaling sigma by softness means
-    // scaling r by softness^2.
-    float rs = r * s * s;
-
-    float w = exp(-(x * x) / rs);
-
-    // Hard cap outside [-radius, radius], branchlessly.
-    float inside = 1.0 - step(r0 + 0.5, x);
-    w *= inside;
-
-    // Approximate infinite-Gaussian normalization.
-    // sigma^2 = rs / 2
-    // sqrt(2*pi*sigma^2) = sqrt(pi*rs)
-    w *= inversesqrt(3.141592653589793 * rs);
-
-    // radius == 0 or softness == 0 -> only offset 0 has weight 1.
-    float delta = 1.0 - step(0.5, x);
-
-    return mix(w, delta, max(rz, sz));
-}
-
-
-float blurredSharpLightness(vec2 uv) {
+float verticallyBlurredSharpLightness(vec2 uv) {
     vec2 texel = 1.0 / max(u_resolution, vec2(1.0));
     float accum = 0.0;
-    float weightSum = 0.0;
 
     for (int y = -3; y <= 3; ++y) {
-        for (int x = -3; x <= 3; ++x) {
-            float weight = kernelWeight1D(x, 3, 3.0) * kernelWeight1D(y, 3, 3.0);
-            vec2 sampleUv = clamp(uv + vec2(float(x), float(y)) * texel, vec2(0.0), vec2(1.0));
-            accum += texture(u_sharpPass, sampleUv).r * weight;
-            weightSum += weight;
-        }
+        vec2 sampleUv = clamp(uv + vec2(0.0, float(y)) * texel, vec2(0.0), vec2(1.0));
+        accum += texture(u_sharpBlur, sampleUv).r * u_kernelWeights[y + 3];
     }
 
-    return weightSum > 0.0 ? accum / weightSum : texture(u_sharpPass, uv).r;
+    return accum;
 }
 
 float tonePreserveMask(float luma, float preserve) {
@@ -132,7 +89,7 @@ void main() {
     vec3 lab = linearRgbToOklab(srgb2linear(clamp(base.rgb, 0.0, 1.0)));
     float baseL = clamp(lab.x, 0.0, 1.0);
     float sharpL = texture(u_sharpPass, clamp(uv, vec2(0.0), vec2(1.0))).r;
-    float localSharpL = blurredSharpLightness(uv);
+    float localSharpL = clamp(verticallyBlurredSharpLightness(uv), 0.0, 1.0);
     float clarityL = softLightBlend(sharpL, localSharpL);
 
     lab.x = clamp(clarityL, 0.0, 1.0);

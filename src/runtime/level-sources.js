@@ -6,7 +6,9 @@ export function createLevelSourceController({
   config,
   vertexSource = "",
   fragmentSource = "",
+  clarityLightnessBlurFragmentSource = "",
   claritySharpFragmentSource = "",
+  claritySharpBlurFragmentSource = "",
   clarityFragmentSource = "",
   defaults = DEFAULT_CONFIG,
   applyLevelsToCanvasFn = applyLevelsWithRenderer
@@ -20,7 +22,9 @@ export function createLevelSourceController({
       shaders: {
         vertexSource,
         fragmentSource,
+        clarityLightnessBlurFragmentSource,
         claritySharpFragmentSource,
+        claritySharpBlurFragmentSource,
         clarityFragmentSource
       },
       originalCanvas,

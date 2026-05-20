@@ -26,7 +26,9 @@ export function createRenderDomain({
     config,
     vertexSource: shaders.VERTEX_SHADER,
     fragmentSource: shaders.LEVELS_FRAGMENT_SHADER,
+    clarityLightnessBlurFragmentSource: shaders.CLARITY_LIGHTNESS_BLUR_FRAGMENT_SHADER,
     claritySharpFragmentSource: shaders.CLARITY_SHARP_FRAGMENT_SHADER,
+    claritySharpBlurFragmentSource: shaders.CLARITY_SHARP_BLUR_FRAGMENT_SHADER,
     clarityFragmentSource: shaders.CLARITY_FRAGMENT_SHADER,
     defaults: DEFAULT_CONFIG
   });

@@ -60,20 +60,6 @@ function recordDistanceComponents(record) {
   return labDistanceComponents(record?.lab);
 }
 
-function entryFeatureDistanceComponents(entry) {
-  if (Number.isFinite(Number(entry?.featureLightness)) && Number.isFinite(Number(entry?.featureChroma)) && Array.isArray(entry?.featureHue)) {
-    return {
-      lightness: Number(entry.featureLightness),
-      chroma: Math.max(0, Number(entry.featureChroma) || 0),
-      scaledHue: safeScaledHue(entry.featureHue)
-    };
-  }
-  if (!entry?.alias && entry?.sourceRecord && entry.featureLab === entry.sourceRecord.lab) {
-    return recordDistanceComponents(entry.sourceRecord);
-  }
-  return labDistanceComponents(entry?.featureLab);
-}
-
 export function cpuDistanceBreakdown(labLightness, labChroma, labHue, featureLightness, featureChroma, featureHue, config = {}) {
   const dL = labLightness - featureLightness;
   const dC = labChroma - featureChroma;
@@ -113,14 +99,13 @@ export function topPaletteMatches(lab, entries, {config = {}, records = [], limi
   const labParts = labDistanceComponents(lab);
   for (let i = 0; i < safeEntries.length; i++) {
     const entry = safeEntries[i];
-    const featureParts = entryFeatureDistanceComponents(entry);
     const parts = cpuDistanceBreakdown(
       labParts.lightness,
       labParts.chroma,
       labParts.scaledHue,
-      featureParts.lightness,
-      featureParts.chroma,
-      featureParts.scaledHue,
+      entry.featureLightness,
+      entry.featureChroma,
+      entry.featureHue,
       config
     );
     const record = entry.sourceRecord || safeRecords[i] || null;

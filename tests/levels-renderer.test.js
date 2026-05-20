@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyLevelsToCanvas } from "../src/gl/levels-renderer.js";
+import { applyLevelsToCanvas, createNormalizedClarityKernel } from "../src/gl/levels-renderer.js";
 
 function makeGl() {
   let textureId = 0;
@@ -27,11 +27,14 @@ function makeGl() {
     COMPILE_STATUS: 0x8B81,
     LINK_STATUS: 0x8B82,
     FRAMEBUFFER: 0x8D40,
+    COLOR_ATTACHMENT0: 0x8CE0,
     createTexture() {
       const texture = {id: ++textureId};
       calls.push(["createTexture", texture.id]);
       return texture;
     },
+    createFramebuffer: () => ({id: "framebuffer"}),
+    framebufferTexture2D: (...args) => calls.push(["framebufferTexture2D", ...args]),
     bindTexture: (...args) => calls.push(["bindTexture", ...args]),
     texParameteri: (...args) => calls.push(["texParameteri", ...args]),
     pixelStorei: (...args) => calls.push(["pixelStorei", ...args]),
@@ -56,8 +59,10 @@ function makeGl() {
     uniform1i: (...args) => calls.push(["uniform1i", ...args]),
     uniform2f: (...args) => calls.push(["uniform2f", ...args]),
     uniform1f: (...args) => calls.push(["uniform1f", ...args]),
+    uniform1fv: (...args) => calls.push(["uniform1fv", ...args]),
     drawArrays: (...args) => calls.push(["drawArrays", ...args]),
-    finish: () => calls.push(["finish"])
+    finish: () => calls.push(["finish"]),
+    getExtension: () => null
   };
 }
 
@@ -187,4 +192,50 @@ test("levels renderer keeps separate cached source textures for primary and refe
   assert.equal(uploads[0].canvas, sourceCanvas);
   assert.equal(uploads[1].canvas, referenceCanvas);
   assert.notEqual(uploads[0].texture, uploads[1].texture);
+});
+
+
+test("createNormalizedClarityKernel returns symmetric normalized CPU weights", () => {
+  const weights = createNormalizedClarityKernel(3, 3.0);
+  const sum = Array.from(weights).reduce((total, weight) => total + weight, 0);
+
+  assert.equal(weights.length, 7);
+  assert.ok(Math.abs(sum - 1) < 1e-6);
+  assert.equal(weights[0], weights[6]);
+  assert.equal(weights[1], weights[5]);
+  assert.equal(weights[2], weights[4]);
+  assert.ok(weights[3] > weights[2]);
+});
+
+
+test("clarity path runs split separable blur passes with CPU kernel uniforms", () => {
+  const {gl, levelsState, targetCanvas, targetCtx, defaults} = makeHarness();
+  const originalCanvas = {width: 4, height: 2, name: "source"};
+  const shaders = {
+    vertexSource: "vertex",
+    fragmentSource: "levels fragment",
+    clarityLightnessBlurFragmentSource: "clarity lightness blur fragment",
+    claritySharpFragmentSource: "clarity sharp fragment",
+    claritySharpBlurFragmentSource: "clarity sharp blur fragment",
+    clarityFragmentSource: "clarity fragment"
+  };
+
+  applyLevelsToCanvas(levelsState, {
+    shaders,
+    originalCanvas,
+    targetCanvas,
+    targetCtx,
+    sourceVersion: 1,
+    settings: {levelsExposure: 0, levelsGamma: 1, levelsCurveAmount: 0, clarityAmount: 0.5},
+    defaults,
+    uploadCanvasTextureFn: () => {}
+  });
+
+  assert.equal(gl.calls.filter(call => call[0] === "drawArrays").length, 5);
+  assert.deepEqual(
+    gl.calls
+      .filter(call => call[0] === "uniform1fv")
+      .map(call => call[2].length),
+    [13, 13, 7, 7]
+  );
 });
