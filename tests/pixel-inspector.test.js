@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzePixelAtImagePoint, applyOutputModeCpu, blendHexes, samplePixelBlockColor, snapPixelBlockPoint } from "../src/diagnostics/pixel-inspector.js";
 import { assignmentWeights, topPaletteMatches } from "../src/diagnostics/metrics.js";
+import { labDistanceComponents } from "../src/color-utils.js";
 
 function assertApproximatelyEqual(actual, expected, epsilon = 1e-6) {
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} should be within ${epsilon} of ${expected}`);
@@ -218,14 +219,20 @@ test("analyzePixelAtImagePoint reports fx delta in the same weighted metric as t
     config,
     ensurePalette: () => {},
     renderPaletteLabs: inputRecords => inputRecords.map(record => record.lab),
-    paletteUniformEntries: (inputRecords, labs) => inputRecords.map((record, index) => ({
-      sourceRecord: record,
-      featureLab: record.lab,
-      renderLab: labs[index],
-      featureHex: `feature-${index}`,
-      renderHex: `render-${index}`,
-      alias: false
-    })),
+    paletteUniformEntries: (inputRecords, labs) => inputRecords.map((record, index) => {
+      const featureParts = labDistanceComponents(record.lab);
+      return {
+        sourceRecord: record,
+        featureLab: record.lab,
+        featureLightness: featureParts.lightness,
+        featureChroma: featureParts.chroma,
+        featureHue: featureParts.scaledHue,
+        renderLab: labs[index],
+        featureHex: `feature-${index}`,
+        renderHex: `render-${index}`,
+        alias: false
+      };
+    }),
     topPaletteMatches: (sourceLab, entries, limit) => topPaletteMatches(sourceLab, entries, {config, records, limit}),
     assignmentWeights: matches => assignmentWeights(matches, null, config)
   });

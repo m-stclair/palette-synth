@@ -88,11 +88,31 @@ export function maxDistanceRejectsMatch(match, config = {}) {
   return Number.isFinite(maxDistance) && match.distance > Math.max(0, maxDistance);
 }
 
+function comparePaletteMatchKeys(distance, displayIndex, entryIndex, match) {
+  return distance - match.distance || displayIndex - match.displayIndex || entryIndex - match.entryIndex;
+}
+
+function comparePaletteMatches(a, b) {
+  return comparePaletteMatchKeys(a.distance, a.displayIndex, a.entryIndex, b);
+}
+
+function insertTopPaletteMatch(matches, match, limit) {
+  let insertAt = matches.length;
+  while (insertAt > 0 && comparePaletteMatches(match, matches[insertAt - 1]) < 0) insertAt--;
+  if (insertAt >= limit) return;
+  matches.splice(insertAt, 0, match);
+  if (matches.length > limit) matches.pop();
+}
+
 // Match objects are report rows, not swatches. `featureLab` explains why a
 // pixel matched; `renderLab` explains what color the output estimator/shader will
 // blend; `record.hex`/`record.displayIndex` explain which visible swatch gets
 // credited. Keeping all three is noisy, but collapsing them loses real state.
 export function topPaletteMatches(lab, entries, {config = {}, records = [], limit = DIAGNOSTIC.matchLimit, maxPaletteSize = MAX_PALETTE_SIZE} = {}) {
+  const requestedLimit = Math.max(1, limit);
+  const matchLimit = requestedLimit === Infinity ? Infinity : Math.trunc(requestedLimit);
+  if (!(matchLimit > 0)) return [];
+
   const matches = [];
   const safeEntries = Array.isArray(entries) ? entries : [];
   const safeRecords = Array.isArray(records) ? records : [];
@@ -110,7 +130,8 @@ export function topPaletteMatches(lab, entries, {config = {}, records = [], limi
     );
     const record = entry.sourceRecord || safeRecords[i] || null;
     const displayIndex = Number.isInteger(record?.displayIndex) ? record.displayIndex : Math.min(i, maxPaletteSize - 1);
-    matches.push({
+    if (matches.length >= matchLimit && comparePaletteMatchKeys(parts.total, displayIndex, i, matches[matches.length - 1]) >= 0) continue;
+    insertTopPaletteMatch(matches, {
       entryIndex: i,
       displayIndex,
       record,
@@ -121,10 +142,9 @@ export function topPaletteMatches(lab, entries, {config = {}, records = [], limi
       featureHex: entry.featureHex,
       distance: parts.total,
       parts
-    });
+    }, matchLimit);
   }
-  matches.sort((a, b) => a.distance - b.distance || a.displayIndex - b.displayIndex || a.entryIndex - b.entryIndex);
-  return matches.slice(0, Math.max(1, limit));
+  return matches;
 }
 
 export function diagnosticsSignature({imageData, records = [], entries = [], config = {}, includeCycleOffset = false} = {}) {

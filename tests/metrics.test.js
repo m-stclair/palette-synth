@@ -41,8 +41,13 @@ function record(lab, index, extra = {}) {
 }
 
 function entry(sourceRecord, extra = {}) {
+  const featureLab = extra.featureLab || sourceRecord.lab;
+  const {lightness, chroma, scaledHue} = labDistanceComponents(featureLab);
   return {
-    featureLab: sourceRecord.lab,
+    featureLab,
+    featureLightness: lightness,
+    featureChroma: chroma,
+    featureHue: scaledHue,
     renderLab: sourceRecord.lab,
     sourceRecord,
     alias: false,
