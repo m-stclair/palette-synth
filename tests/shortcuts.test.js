@@ -378,6 +378,122 @@ test("B toggles the mask brush even while brush mode owns other shortcuts", () =
 });
 
 
+test("toolbar panel headings show their number shortcut hints", () => {
+  function makeHeading(text, {directText = text, initialChildren = []} = {}) {
+    const children = [...initialChildren];
+    const heading = makeElement({
+      textContent: text,
+      dataset: {},
+      children,
+      childNodes: [{nodeType: 3, textContent: directText}, ...initialChildren],
+      querySelector(selector) {
+        if (selector === ".panel-hotkey-hint") return children.find(child => child.className === "panel-hotkey-hint") || null;
+        if (selector === ".panel-reset-button") return children.find(child => child.className === "panel-reset-button") || null;
+        return null;
+      },
+      insertBefore(child, before) {
+        const index = before ? children.indexOf(before) : -1;
+        if (index >= 0) children.splice(index, 0, child);
+        else children.push(child);
+      }
+    });
+    return heading;
+  }
+
+  const resetButton = makeElement({className: "panel-reset-button", textContent: "Reset"});
+  const paletteHeading = makeHeading("PaletteReset", {directText: "Palette", initialChildren: [resetButton]});
+  const maskHeading = makeHeading("Mask");
+  const panels = [
+    {dataset: {}, querySelector: selector => selector === "h2" ? paletteHeading : null},
+    {dataset: {}, querySelector: selector => selector === "h2" ? maskHeading : null}
+  ];
+  const toolPane = makeElement({querySelectorAll: selector => selector === ".panel" ? panels : []});
+  const root = makeRoot({toolPane});
+
+  createShortcutDispatcher({root});
+
+  assert.equal(paletteHeading["aria-keyshortcuts"], "1");
+  assert.equal(paletteHeading.dataset.panelShortcut, "1");
+  assert.equal(paletteHeading.querySelector(".panel-hotkey-hint").textContent, "1");
+  assert.equal(maskHeading["aria-keyshortcuts"], "Shift+1");
+  assert.equal(maskHeading.dataset.panelShortcut, "Shift+1");
+  assert.equal(maskHeading.querySelector(".panel-hotkey-hint").textContent, "Shift+1");
+});
+
+test("shift-E rotates assignment mode even from focused controls", () => {
+  const assignMode = makeElement({
+    type: "select",
+    value: "blend",
+    options: [
+      {value: "nearest", textContent: "Nearest"},
+      {value: "blend", textContent: "Blend"},
+      {value: "dither", textContent: "Dither"}
+    ],
+    closest(selector) { return selector.includes("select") ? this : null; }
+  });
+  const root = makeRoot({assignMode});
+  const config = {assignMode: "blend"};
+  const calls = [];
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    els: {assignMode},
+    withHistory: (label, mutator) => { calls.push(["history", label]); mutator(); },
+    handleControlDirty: key => calls.push(["dirty", key]),
+    updateConditionalPanels: () => calls.push(["panels"]),
+    updateDiagnostics: () => calls.push(["diagnostics"]),
+    queueRender: () => calls.push(["render"]),
+    setStatus: value => calls.push(["status", value])
+  });
+
+  const event = keyEvent("E", {shiftKey: true, code: "KeyE", target: assignMode});
+  dispatcher.handleKeydown(event);
+
+  assert.equal(event.prevented, true);
+  assert.equal(config.assignMode, "dither");
+  assert.equal(assignMode.value, "dither");
+  assert.deepEqual(calls, [
+    ["history", "Rotate assignment mode"],
+    ["dirty", "assignMode"],
+    ["panels"],
+    ["diagnostics"],
+    ["render"],
+    ["status", "Assignment: Dither."]
+  ]);
+});
+
+test("Escape closes the inspector when a non-pixel tab is active", () => {
+  let blurred = false;
+  const select = makeElement({
+    type: "select",
+    blur() { blurred = true; },
+    closest(selector) {
+      if (selector === "dialog[open]") return null;
+      return selector.includes("select") ? this : null;
+    }
+  });
+  const root = makeRoot();
+  const state = {diagnostics: {pixelInspectorOpen: true, inspectorTab: "diagnostics", pixel: {x: 1, y: 2}}};
+  const calls = [];
+  const dispatcher = createShortcutDispatcher({
+    root,
+    state,
+    pixelInspectorPanelIsOpen: () => false,
+    setPixelInspectorOpen: (open, options) => {
+      state.diagnostics.pixelInspectorOpen = open;
+      calls.push(["open", open, options?.announce]);
+    }
+  });
+
+  const event = keyEvent("Escape", {target: select});
+  dispatcher.handleKeydown(event);
+
+  assert.equal(event.prevented, true);
+  assert.equal(blurred, false);
+  assert.equal(state.diagnostics.pixelInspectorOpen, false);
+  assert.deepEqual(calls, [["open", false, true]]);
+});
+
 test("shortcut dispatcher opens toolbar panels by number chord", () => {
   const calls = [];
   const toolPane = makeElement({

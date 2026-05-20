@@ -8,6 +8,7 @@ function setCssPx(doc, name, value) {
 
 const FOCUS_TOOLBAR_PANEL_EVENT = "palette-synth:focus-panel";
 const PANEL_SCROLL_CLASS = "tool-pane-panel-scroll";
+const NARROW_LAYOUT_QUERY = "(max-width: 1000px)";
 
 function normalizePanelKey(text = "") {
   return String(text).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -98,6 +99,7 @@ export function initWorkbench({
   const doc = workbench.ownerDocument || rootDocument;
   const win = doc.defaultView || (typeof window !== "undefined" ? window : null);
   const requestFrame = win?.requestAnimationFrame ? callback => win.requestAnimationFrame(callback) : callback => callback();
+  const narrowLayoutQuery = typeof win?.matchMedia === "function" ? win.matchMedia(NARROW_LAYOUT_QUERY) : null;
   const prefs = loadWorkbenchPrefs();
   const panelScroller = ensurePanelScroller(toolPane, doc);
   const dockButtons = Array.from(toolPane.querySelectorAll("[data-dock-target]"));
@@ -105,11 +107,26 @@ export function initWorkbench({
   const panels = Array.from(toolPane.querySelectorAll(".panel"));
   const panelRecords = [];
 
+  function narrowLayoutActive() {
+    return !!narrowLayoutQuery?.matches;
+  }
+
+  function usesHorizontalSplit() {
+    return prefs.dock === "bottom" || narrowLayoutActive();
+  }
+
+  function updateResizeSemantics() {
+    if (!paneResizer) return;
+    const horizontal = usesHorizontalSplit();
+    paneResizer.setAttribute("aria-orientation", horizontal ? "horizontal" : "vertical");
+    paneResizer.setAttribute("aria-valuetext", horizontal ? "Tools pane height" : "Tools pane width");
+  }
+
   function applyDock(dock) {
     const safeDock = ["left", "right", "bottom"].includes(dock) ? dock : "right";
     prefs.dock = safeDock;
     workbench.dataset.dock = safeDock;
-    if (paneResizer) paneResizer.setAttribute("aria-orientation", safeDock === "bottom" ? "horizontal" : "vertical");
+    updateResizeSemantics();
     dockButtons.forEach(button => button.classList.toggle("is-active", button.dataset.dockTarget === safeDock));
     saveWorkbenchPrefs(prefs);
     queueRender();
@@ -135,6 +152,8 @@ export function initWorkbench({
     if (!heading) return;
     const headingText = heading.textContent.trim();
     const key = panelKey(panel, heading, index);
+    if (panel.dataset) panel.dataset.panelKey = key;
+    if (heading.dataset) heading.dataset.panelLabel = headingText;
     const canResetPanel = typeof resetPanelControls === "function" && (
       typeof panelHasResettableControls === "function" ? panelHasResettableControls(panel) : true
     );
@@ -248,16 +267,19 @@ export function initWorkbench({
     event.preventDefault();
     const pointerId = event.pointerId;
     const target = event.currentTarget;
+    const resizeHeight = usesHorizontalSplit();
     target.setPointerCapture?.(pointerId);
-    doc.body.style.setProperty("--resize-cursor", prefs.dock === "bottom" ? "row-resize" : "col-resize");
+    doc.body.style.setProperty("--resize-cursor", resizeHeight ? "row-resize" : "col-resize");
     doc.body.classList.add("is-resizing");
 
     function move(e) {
       const rect = workbench.getBoundingClientRect();
       const maxWidth = Math.max(260, rect.width * 0.58);
-      const maxHeight = Math.max(220, rect.height * 0.62);
-      if (prefs.dock === "bottom") {
-        const height = clamp(rect.bottom - e.clientY, 170, maxHeight);
+      const minStageHeight = Math.min(180, Math.max(96, rect.height * 0.24));
+      const maxHeight = Math.max(120, Math.min(rect.height * 0.72, rect.height - minStageHeight));
+      const minHeight = Math.min(170, maxHeight);
+      if (resizeHeight) {
+        const height = clamp(rect.bottom - e.clientY, minHeight, maxHeight);
         prefs.height = height;
         setCssPx(doc, "--tool-pane-height", height);
       } else if (prefs.dock === "left") {
@@ -287,4 +309,16 @@ export function initWorkbench({
   }
 
   paneResizer?.addEventListener("pointerdown", beginDockResize);
+
+  if (narrowLayoutQuery) {
+    const handleNarrowLayoutChange = () => {
+      updateResizeSemantics();
+      queueRender();
+    };
+    if (typeof narrowLayoutQuery.addEventListener === "function") {
+      narrowLayoutQuery.addEventListener("change", handleNarrowLayoutChange);
+    } else if (typeof narrowLayoutQuery.addListener === "function") {
+      narrowLayoutQuery.addListener(handleNarrowLayoutChange);
+    }
+  }
 }

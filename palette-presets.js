@@ -606,7 +606,7 @@ window.PALETTE_PRESETS = {
     ],
 
     // Plum ink, brown paper, candle cream, and foxglove pink.
-    letterWitch: [
+    paperWitch: [
         "#100812", "#32162d", "#5c3044", "#8b4f54",
         "#c98c86", "#ead8b8", "#fff2d0"
     ],

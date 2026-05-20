@@ -56,6 +56,7 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "P", label: "Toggle pixel-perfect preview"},
   {key: "I", label: "Toggle floating inspector"},
   {key: "Shift+I", label: "Switch inspector tab"},
+  {key: "Shift+E", label: "Rotate assignment mode"},
   {key: "Inspector: ← / → / ↑ / ↓", label: "Move inspected pixel"},
   {key: "Inspector: A", label: "Copy source / copy output / add source"},
   {key: "Inspector: Esc", label: "Clear pixel, then close"},
@@ -172,6 +173,19 @@ function normalizePanelKey(text = "") {
   return String(text).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+function panelHeadingText(heading) {
+  const explicitLabel = heading?.dataset?.panelLabel;
+  if (explicitLabel) return explicitLabel;
+
+  const childNodes = Array.from(heading?.childNodes || []);
+  const directText = childNodes
+    .filter(node => node?.nodeType === 3)
+    .map(node => node.textContent || "")
+    .join(" ")
+    .trim();
+  return directText || heading?.textContent || "";
+}
+
 function toolbarPanelShortcutKey(event) {
   if (event?.ctrlKey || event?.metaKey || event?.altKey) return null;
   const plainDigit = /^[1-9]$/.test(event?.key || "") ? event.key : null;
@@ -244,6 +258,12 @@ function isInspectorTabShortcut(event) {
   return event.code === "KeyI" || key.toLowerCase() === "i" || key === "İ";
 }
 
+function isAssignmentModeShortcut(event) {
+  if (event?.ctrlKey || event?.metaKey || event?.altKey || !event?.shiftKey) return false;
+  const key = String(event?.key || "");
+  return event.code === "KeyE" || key.toLowerCase() === "e";
+}
+
 function inspectorTabShortcutTargetIsEditable(event) {
   const target = event?.target;
   if (!target?.closest) return false;
@@ -272,10 +292,24 @@ function annotateToolbarPanelShortcuts(root) {
   panels.forEach((panel, index) => {
     const heading = panel.querySelector?.("h2");
     if (!heading?.setAttribute) return;
-    const key = panel.dataset?.panelKey || normalizePanelKey(heading.textContent) || `panel-${index}`;
+    const key = panel.dataset?.panelKey || normalizePanelKey(panelHeadingText(heading)) || `panel-${index}`;
     const shortcut = TOOLBAR_PANEL_SHORTCUT_BY_PANEL.get(key);
     if (!shortcut) return;
     heading.setAttribute("aria-keyshortcuts", shortcut);
+    if (heading.dataset) heading.dataset.panelShortcut = shortcut;
+    else heading.setAttribute("data-panel-shortcut", shortcut);
+
+    const label = String(shortcut || "");
+    let hint = heading.querySelector?.(".panel-hotkey-hint");
+    if (!hint && root?.createElement) {
+      hint = root.createElement("span");
+      hint.className = "panel-hotkey-hint";
+      hint.setAttribute("aria-hidden", "true");
+      const resetButton = heading.querySelector?.(".panel-reset-button");
+      heading.insertBefore?.(hint, resetButton || null);
+    }
+    if (hint) hint.textContent = label;
+
     if ("title" in heading) {
       const baseTitle = heading.title || "Collapse / expand";
       if (!baseTitle.includes(shortcut)) heading.title = `${baseTitle} (${shortcut})`;
@@ -361,6 +395,7 @@ function annotateShortcutTargets(root) {
     ["compareToggle", "C"],
     ["pixelPerfectToggle", "P"],
     ["togglePixelInspector", "I Shift+I"],
+    ["assignMode", "Shift+E"],
     ["resetViewButton", "0"],
     ["zoomOutButton", "-"],
     ["zoomInButton", "="],
@@ -415,6 +450,7 @@ export function createShortcutDispatcher({
   clearDiagnosticPixel = () => {},
   nudgeDiagnosticPixel = () => {},
   pixelInspectorPanelIsOpen = () => false,
+  pixelInspectorPaneIsOpen = () => !!state.diagnostics?.pixelInspectorOpen || pixelInspectorPanelIsOpen(),
   getDisplayViewRect = () => ({left: 0, top: 0, width: 0, height: 0}),
   zoomBy = () => {},
   resetView = () => {},
@@ -575,17 +611,45 @@ export function createShortcutDispatcher({
     return clickElement(els.maskPaint || $("maskPaint", root));
   }
 
+  function assignmentModeOptions() {
+    const control = els.assignMode || $("assignMode", root);
+    const values = Array.from(control?.options || []).map(option => option.value).filter(Boolean);
+    return values.length ? values : ["nearest", "blend", "dither"];
+  }
+
+  function assignmentModeLabel(value) {
+    const control = els.assignMode || $("assignMode", root);
+    const option = Array.from(control?.options || []).find(item => item.value === value);
+    return (option?.textContent || value || "assignment").trim();
+  }
+
+  function rotateAssignmentMode() {
+    const modes = assignmentModeOptions();
+    const currentIndex = Math.max(0, modes.indexOf(config.assignMode));
+    const next = modes[(currentIndex + 1) % modes.length];
+    withHistory("Rotate assignment mode", () => {
+      config.assignMode = next;
+      syncDirtyControl("assignMode", next);
+      updateConditionalPanels();
+      updateDiagnostics();
+      queueRender();
+      setStatus(`Assignment: ${assignmentModeLabel(next)}.`);
+    });
+  }
+
   function inspectorNudgeStep(event) {
     return event.shiftKey ? Math.max(1, Math.round(Number(config.pixelBlockSize) || 1)) : 1;
   }
 
   function handleInspectorShortcut(event, key) {
-    if (!pixelInspectorPanelIsOpen()) return false;
     if (key === "Escape") {
-      if (state.diagnostics?.pixel) clearDiagnosticPixel({announce: true});
+      if (!pixelInspectorPaneIsOpen()) return false;
+      const activeTab = state.diagnostics?.inspectorTab || "pixel";
+      if (activeTab === "pixel" && state.diagnostics?.pixel) clearDiagnosticPixel({announce: true});
       else setPixelInspectorOpen(false, {announce: true});
       return true;
     }
+    if (!pixelInspectorPanelIsOpen()) return false;
     if (key === "ArrowLeft") {
       nudgeDiagnosticPixel(-1, 0, {step: inspectorNudgeStep(event)});
       return true;
@@ -712,6 +776,11 @@ export function createShortcutDispatcher({
       setPaletteMode("generated", "generated from main image");
       return true;
     },
+    "e": event => {
+      if (!event.shiftKey) return false;
+      rotateAssignmentMode();
+      return true;
+    },
     "a": handleSnapshotShortcut,
     "s": handleSnapshotShortcut,
     "d": handleSnapshotShortcut,
@@ -727,12 +796,27 @@ export function createShortcutDispatcher({
     return true;
   }
 
+  function handleAssignmentModeKeydown(event) {
+    if (event?.defaultPrevented || !isAssignmentModeShortcut(event) || inspectorTabShortcutTargetIsEditable(event)) return false;
+    rotateAssignmentMode();
+    event.preventDefault?.();
+    event.stopImmediatePropagation?.();
+    event.stopPropagation?.();
+    return true;
+  }
+
   function handleKeydown(event) {
+    const key = event.key === "/" && event.shiftKey ? "?" : event.key;
+    if (key === "Escape" && handleInspectorShortcut(event, key)) {
+      event.preventDefault?.();
+      return;
+    }
     if (blurControlOnEscape(event)) {
       event.preventDefault?.();
       return;
     }
     if (handleInspectorTabKeydown(event)) return;
+    if (handleAssignmentModeKeydown(event)) return;
 
     if (shouldIgnoreShortcut(event)) return;
 
@@ -763,7 +847,6 @@ export function createShortcutDispatcher({
       }
     }
 
-    const key = event.key === "/" && event.shiftKey ? "?" : event.key;
     if (handleInspectorShortcut(event, key)) {
       event.preventDefault?.();
       return;
@@ -775,7 +858,8 @@ export function createShortcutDispatcher({
   }
 
   function handleCaptureKeydown(event) {
-    handleInspectorTabKeydown(event);
+    if (handleInspectorTabKeydown(event)) return;
+    handleAssignmentModeKeydown(event);
   }
 
   annotateShortcutTargets(root);

@@ -116,7 +116,9 @@ const PRESET_CATEGORY_BY_NAME = {
     rainMotel: "Art + mood",
     arcadeCarpet: "Art + mood",
     chapelVelvet: "Art + mood",
-    letterWitch: "Art + mood"
+    paperWitch: "Art + mood",
+    blackIce: "Art + mood",
+    mallFountain: "Art + mood"
 };
 
 function comparePresetLabels(a, b) {
