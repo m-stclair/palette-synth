@@ -67,7 +67,69 @@ Palette Synth takes an input image and renders a recolored version through a con
 - Pixel-perfect preview, zoom, pan, and before/after compare split.
 - Optional pixel-art post-process: despeckle (3×3 mode filter, 1–4 passes). It runs at art-pixel granularity so it respects `pixelBlockSize`. The diagnostic overlay short-circuits the post-process pipeline so swatch/difference views always reflect raw palette output.
 
-## Manual palette workflow
+## Palette generation options
+
+Use **Mode** to choose where the palette comes from.
+
+**Generated from main image** samples the loaded image and builds a palette from its colors. This is the best starting point when you want the output to feel native to the image.
+
+**Generated from reference image** samples a separate image for color, then applies that palette to the main image. Use this when you want one image to borrow the mood of another.
+
+**Seed harmony** builds a palette from a single seed color. Choose a color relationship like complementary, triad, tetrad, analogous, or monochrome, then adjust how shadows, midtones, and highlights shift across the palette.
+
+**Procedural cosine** creates a synthetic palette from smooth mathematical waves. Presets like Sinebow, Aurora, Ember, Candy, and Mineral give different color rhythms. Custom vectors expose the raw formula controls for deeper tweaking.
+
+**Manual / preset** uses hand-picked swatches or built-in presets. Generated palettes can also be captured into the manual palette for further editing.
+
+### Shared generation controls
+
+**Size** sets how many colors the generated palette should contain.
+
+**Seed** changes the random sampling pattern while keeping results repeatable. Same settings, same seed, same palette.
+
+**Palette region** limits sampling to a selected area of the main image. Useful when the full image has junk colors you do not want driving the palette.
+
+**Capture palette** saves the current generated palette into the manual palette. You can replace the manual palette, append to it, fill only unlocked manual slots, or save it as a preset.
+
+**Palette locks** let you keep generated swatches while the rest of the palette changes around them. Click a generated swatch to lock it; use **Clear locks** to release them.
+
+### Image-generated palette controls
+
+**Tint/shade families** expands each selected color into related light, base, and dark variants. Turn it off when you want every palette slot picked directly from the image.
+
+**Tint/shade** controls how far those light and dark variants move from the base color.
+
+**Sample width** controls how large each sampled block is. Low values catch sharp details; higher values smooth noisy images into broader color averages.
+
+**Sample placement** chooses how samples are distributed. **Random** is loose and organic. **Stratified + jittered** spreads samples more evenly across the image or selected region.
+
+**Midtone weight** favors colors that sit away from pure shadow or pure highlight.
+
+**Outlier weight** favors colors that stand apart from the image average. Good for pulling accents out of the noise.
+
+**Chroma selection** favors stronger, more saturated colors.
+
+**Hue spread** pushes the palette toward broader hue variety.
+
+**Selection spacing** controls how different selected colors need to be. Higher spacing avoids near-duplicates; lower spacing allows tighter, subtler color families.
+
+### Harmony controls
+
+**Seed swatch** is the starting color for harmony palettes.
+
+**Color relationship** chooses the hue structure: complementary, split complement, triad, tetrad, square, analogous, accented analogous, or monochrome.
+
+**Tonal region color** controls how shadows, midtones, and highlights shift in hue. For example, shadows can cool down while highlights warm up.
+
+**Tonal ramp steepness** controls how aggressively the harmony spreads across light and dark regions. Low values stay close to the seed; high values create stronger separation.
+
+### Cosine controls
+
+**Cosine preset** chooses the procedural color curve.
+
+**Custom cosine vectors** expose the formula behind the palette. Each row affects lightness, chroma, or hue over the palette: `a` sets the center, `b` sets the swing, `c` sets the frequency, and `d` sets the phase. Small changes can move the whole palette fast. This is the weird machine room. Powerful, but sharp.
+
+### Manual palette workflow
 
 Manual palettes can be edited swatch by swatch. Generated, reference, harmony, and cosine palettes can also be captured
 into manual swatches with four strategies:
