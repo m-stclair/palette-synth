@@ -197,6 +197,7 @@ test("palette preview renders generated locks, manual aliases, and click actions
     const state = {
       imageData: {width: 2, height: 2},
       manualEditor: {swatchId: null},
+      diagnostics: {overlay: {mode: "none", swatchIndex: null}},
       palette: [],
       paletteRecords: [
         {id: "generated-1", source: "generated", lab: [0, 7.4, 0], hex: "#000003", seedLab: [30, 0, 0], familyId: "family-a", variant: "shadow"}
@@ -209,6 +210,7 @@ test("palette preview renders generated locks, manual aliases, and click actions
     let syncedCycles = 0;
     let syncedEditor = 0;
     const copied = [];
+    const overlays = [];
 
     const preview = createPalettePreview({
       els,
@@ -239,6 +241,11 @@ test("palette preview renders generated locks, manual aliases, and click actions
       syncManualPaletteEditor: () => { syncedEditor += 1; },
       openManualPaletteEditor: record => { state.manualEditor.swatchId = record.swatchId; },
       copyPaletteHex: hex => { copied.push(hex); },
+      setDiagnosticOverlay: next => {
+        const mode = next.mode === "swatch" ? "swatch" : "none";
+        state.diagnostics.overlay = {mode, swatchIndex: mode === "swatch" ? next.swatchIndex : null};
+        overlays.push(state.diagnostics.overlay);
+      },
       setStatus: message => statuses.push(message)
     });
 
@@ -263,7 +270,13 @@ test("palette preview renders generated locks, manual aliases, and click actions
     assert.deepEqual(statuses, ["Locked family #2e2e2e."]);
 
     await chip.dispatchEvent({type: "click", shiftKey: true});
-    assert.deepEqual(copied, ["#000003"]);
+    assert.deepEqual(copied, []);
+    assert.deepEqual(overlays.at(-1), {mode: "swatch", swatchIndex: 0});
+    assert.equal(els.palettePreview.children[0].classList.contains("is-diagnostic-overlay"), true);
+
+    await els.palettePreview.children[0].dispatchEvent({type: "click", shiftKey: true});
+    assert.deepEqual(overlays.at(-1), {mode: "none", swatchIndex: null});
+    assert.equal(els.palettePreview.children[0].classList.contains("is-diagnostic-overlay"), false);
 
     config.paletteMode = "manual";
     state.paletteRecords = [{id: "manual-1", source: "manual", swatchId: "swatch-a", sourceIndex: 0, lab: [80, 0, 0], hex: "#eeeeee"}];

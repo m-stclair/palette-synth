@@ -94,6 +94,7 @@ export function createPaletteSynthApp(options = {}) {
     history,
     render: ports.render,
     cyclePreviewActions: ports.cyclePreviewActions,
+    diagnosticsActions: ports.diagnosticsActions,
     copyPaletteHex,
     setStatus
   });
@@ -113,7 +114,7 @@ export function createPaletteSynthApp(options = {}) {
     },
     setStatus
   });
-  ports.diagnostics.attach(diagnostics.controller);
+  ports.diagnostics.attach(diagnostics);
 
   const render = createRenderDomain({
     els,

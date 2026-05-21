@@ -10,6 +10,7 @@ export function createPaletteDomain({
   history = {},
   render = {},
   cyclePreviewActions = {},
+  diagnosticsActions = {},
   copyPaletteHex,
   setStatus
 }) {
@@ -29,6 +30,7 @@ export function createPaletteDomain({
     queueRender = () => {}
   } = render;
   const {syncCycleControls = () => {}} = cyclePreviewActions;
+  const {setDiagnosticOverlay = () => {}} = diagnosticsActions;
 
   const cycle = createPaletteCycle({
     getConfig: () => config,
@@ -71,6 +73,7 @@ export function createPaletteDomain({
     syncManualPaletteEditor,
     openManualPaletteEditor,
     copyPaletteHex,
+    setDiagnosticOverlay,
     setStatus
   });
 

@@ -38,6 +38,7 @@ export function createPalettePreview({
   syncManualPaletteEditor,
   openManualPaletteEditor,
   copyPaletteHex,
+  setDiagnosticOverlay = () => {},
   setStatus
 }) {
   function generatedSwatchLockable(record) {
@@ -64,8 +65,8 @@ export function createPalettePreview({
     if (els.paletteHint) {
       if (manualCycleModeEnabled()) {
         els.paletteHint.textContent = cycleTags > 0
-          ? `Cycle tags: click to toggle; Shift-click copies. ${cycleTags} tagged.`
-          : "Cycle tags: click to choose cycling colors; Shift-click copies.";
+          ? `Cycle tags: click to toggle; Shift-click shows diagnostic overlay. ${cycleTags} tagged.`
+          : "Cycle tags: click to choose cycling colors; Shift-click shows diagnostic overlay.";
       } else if (isGeneratedPaletteMode()) {
         const sourceLabel = activePaletteImageLabel();
         if (!activePaletteImageData()) {
@@ -73,30 +74,30 @@ export function createPalettePreview({
             ? "Choose reference image."
             : "Open image to generate palette.";
         } else if (activeLocks > 0) {
-          els.paletteHint.textContent = `Generated palette from ${sourceLabel}: click locks; Shift-click copies. ${activeLocks}/${maxLocks} locked.`;
+          els.paletteHint.textContent = `Generated palette from ${sourceLabel}: click locks; Shift-click shows diagnostic overlay. ${activeLocks}/${maxLocks} locked.`;
         } else {
-          els.paletteHint.textContent = `Generated palette from ${sourceLabel}: click locks; Shift-click copies.`;
+          els.paletteHint.textContent = `Generated palette from ${sourceLabel}: click locks; Shift-click shows diagnostic overlay.`;
         }
       } else if (config.paletteMode === "harmony") {
         const relationship = HARMONY_RELATIONSHIPS[config.harmonyRelationship] ?? HARMONY_RELATIONSHIPS[DEFAULT_CONFIG.harmonyRelationship];
         const regionContrast = HARMONY_REGION_CONTRASTS[config.harmonyRegionContrast] ?? HARMONY_REGION_CONTRASTS[DEFAULT_CONFIG.harmonyRegionContrast];
         const rampSteepness = Number(config.harmonyRampSteepness ?? DEFAULT_CONFIG.harmonyRampSteepness);
-        els.paletteHint.textContent = `${relationship.label} from ${config.seedSwatch}; ${regionContrast.label}; ramp ${rampSteepness.toFixed(2)}×. Shift-click copies hex.`;
+        els.paletteHint.textContent = `${relationship.label} from ${config.seedSwatch}; ${regionContrast.label}; ramp ${rampSteepness.toFixed(2)}×. Shift-click shows diagnostic overlay.`;
       } else if (config.paletteMode === "cosine") {
         const preset = config.cosinePreset === "custom"
           ? {label: "Custom"}
           : COSINE_PALETTE_PRESETS[config.cosinePreset] ?? COSINE_PALETTE_PRESETS[DEFAULT_CONFIG.cosinePreset];
-        els.paletteHint.textContent = `${preset.label} cosine palette; Shift-click copies hex.`;
+        els.paletteHint.textContent = `${preset.label} cosine palette; Shift-click shows diagnostic overlay.`;
       } else if (config.paletteMode === "manual") {
         const assist = Number(config.generatedAssist || 0) / 100;
         const adjusted = Math.abs((Number(config.paletteGamma) || 1) - 1) > 1e-6
           || Math.abs((Number(config.gammaC) || 1) - 1) > 1e-6
           || Math.abs(Number(config.paletteHue) || 0) > 1e-6;
         els.paletteHint.textContent = (assist > 0 && state.imageData) || adjusted
-          ? "Manual palette: click edits source/match anchors; Shift-click copies effective hex."
-          : "Manual palette: click edits source/match anchors; Shift-click copies.";
+          ? "Manual palette: click edits source/match anchors; Shift-click shows diagnostic overlay for the effective color."
+          : "Manual palette: click edits source/match anchors; Shift-click shows diagnostic overlay.";
       } else {
-        els.paletteHint.textContent = "Shift-click copies hex.";
+        els.paletteHint.textContent = "Shift-click shows diagnostic overlay.";
       }
     }
   }
@@ -137,6 +138,22 @@ export function createPalettePreview({
     syncCycleControls();
     setStatus(`Tagged ${record.hex ?? labToHex(record.lab)} for manual cycling.`);
     queueRender();
+  }
+
+  function diagnosticOverlayState() {
+    const overlay = state.diagnostics?.overlay || {};
+    const mode = ["swatch", "difference"].includes(overlay.mode) ? overlay.mode : "none";
+    const swatchIndex = Number.isInteger(overlay.swatchIndex) ? overlay.swatchIndex : null;
+    return {mode, swatchIndex};
+  }
+
+  function toggleDiagnosticOverlayForSwatch(swatchIndex) {
+    const index = Number(swatchIndex);
+    if (!Number.isInteger(index)) return;
+    const current = diagnosticOverlayState();
+    const alreadyActive = current.mode === "swatch" && current.swatchIndex === index;
+    setDiagnosticOverlay(alreadyActive ? {mode: "none"} : {mode: "swatch", swatchIndex: index});
+    renderSwatches();
   }
 
   function clearGeneratedLocks({announce = true} = {}) {
@@ -194,18 +211,22 @@ export function createPalettePreview({
     wrap.classList.toggle("is-generated-lock-mode", isGeneratedPaletteMode() && !!activePaletteImageData() && !cycleTagMode);
     wrap.classList.toggle("is-manual-edit-mode", config.paletteMode === "manual" && !cycleTagMode);
     wrap.classList.toggle("is-cycle-tag-mode", cycleTagMode);
-    for (const record of records) {
+    for (const [swatchPosition, record] of records.entries()) {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "chip";
+      const hex = record.hex ?? labToHex(record.lab);
+      const swatchIndex = Number.isInteger(record.displayIndex) ? record.displayIndex : swatchPosition;
+      const diagnosticOverlay = diagnosticOverlayState();
+      const diagnosticActive = diagnosticOverlay.mode === "swatch" && diagnosticOverlay.swatchIndex === swatchIndex;
       chip.dataset.paletteId = record.id;
       chip.dataset.source = record.source;
       chip.dataset.familyId = record.familyId ?? "";
       chip.dataset.variant = record.variant ?? "single";
       chip.dataset.displayIndex = String(record.displayIndex ?? "");
+      chip.dataset.diagnosticSwatchIndex = String(swatchIndex);
       chip.dataset.sourceIndex = Number.isInteger(record.sourceIndex) ? String(record.sourceIndex) : "";
       chip.dataset.swatchId = record.swatchId ?? "";
-      const hex = record.hex ?? labToHex(record.lab);
       const lockable = !cycleTagMode && generatedSwatchLockable(record);
       const editable = !cycleTagMode && manualSwatchEditable(record);
       const tagged = cycleTagMode && cycleTagged(record);
@@ -221,6 +242,7 @@ export function createPalettePreview({
       if (cycleTagMode || lockable) chip.classList.add("is-lockable");
       if (editable) chip.classList.add("is-editable");
       if (editing) chip.classList.add("is-editing");
+      if (diagnosticActive) chip.classList.add("is-diagnostic-overlay");
       const extraAnchors = [];
       if (aliasHex) extraAnchors.push({hex: aliasHex, kind: sourceHex && aliasHex === sourceHex ? "source" : "extra"});
       if (sourceAliasHex && sourceAliasHex !== aliasHex) extraAnchors.push({hex: sourceAliasHex, kind: "global source"});
@@ -251,27 +273,31 @@ export function createPalettePreview({
       }
       const titleParts = [colorInfoLabel(hex, record.lab)];
       if (record.variant && record.variant !== "single") titleParts.push(record.variant);
-      if (cycleTagMode) titleParts.push(tagged ? "Click to remove from manual cycle" : "Click to tag for manual cycle", "Shift-click to copy hex");
-      else if (lockable) titleParts.push(locked ? "Click to unlock family" : "Click to lock family", "Shift-click to copy hex");
+      if (cycleTagMode) titleParts.push(tagged ? "Click to remove from manual cycle" : "Click to tag for manual cycle", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
+      else if (lockable) titleParts.push(locked ? "Click to unlock family" : "Click to lock family", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
       else if (editable) {
         if (sourceHex !== hex) titleParts.push(`source ${colorInfoLabel(sourceHex)}`);
         titleParts.push(`always catches current ${colorInfoLabel(hex, record.lab)}`);
         if (aliasHex) titleParts.push(`also catches ${colorInfoLabel(aliasHex)} → renders ${colorInfoLabel(hex, record.lab)}`);
         if (sourceAliasHex && sourceAliasHex !== aliasHex) titleParts.push(`also catches original source ${colorInfoLabel(sourceAliasHex)} → renders ${colorInfoLabel(hex, record.lab)}`);
-        titleParts.push("Click to edit source/match anchors", "Shift-click to copy effective hex");
+        titleParts.push("Click to edit source/match anchors", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay for effective color");
       }
-      else titleParts.push("Click to copy hex");
+      else titleParts.push("Click to copy hex", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
       chip.title = titleParts.join(" · ");
       chip.addEventListener("click", async event => {
-        if (cycleTagMode && !event.shiftKey) {
+        if (event.shiftKey) {
+          toggleDiagnosticOverlayForSwatch(swatchIndex);
+          return;
+        }
+        if (cycleTagMode) {
           withHistory("Toggle manual cycle tag", () => toggleManualCycleTag(record));
           return;
         }
-        if (lockable && !event.shiftKey) {
+        if (lockable) {
           withHistory("Toggle generated lock", () => toggleGeneratedFamilyLock(record));
           return;
         }
-        if (editable && !event.shiftKey) {
+        if (editable) {
           openManualPaletteEditor(record);
           return;
         }

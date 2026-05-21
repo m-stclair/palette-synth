@@ -350,6 +350,11 @@ canvas.is-splitting { cursor: col-resize; }
 .chip.is-cycle-tagged {
   box-shadow: 0 0 0 1px rgba(255,255,255,.92), 0 0 0 2px rgba(144, 239, 112, .72);
 }
+.chip.is-diagnostic-overlay {
+  outline: 2px solid rgba(255, 241, 133, .95);
+  outline-offset: 2px;
+  z-index: 1;
+}
 .chip-lock-indicator,
 .chip-cycle-indicator,
 .chip-alias-indicator {

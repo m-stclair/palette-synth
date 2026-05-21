@@ -81,7 +81,9 @@ export function createAppPorts() {
 
     diagnosticsActions: {
       updateDiagnostics: (...args) => diagnostics.call("updateDiagnostics", ...args),
-      optionalUpdateDiagnostics: (...args) => diagnostics.optionalCall("updateDiagnostics", ...args)
+      optionalUpdateDiagnostics: (...args) => diagnostics.optionalCall("updateDiagnostics", ...args),
+      setDiagnosticOverlay: (...args) => diagnostics.call("setDiagnosticOverlay", ...args),
+      optionalSetDiagnosticOverlay: (...args) => diagnostics.optionalCall("setDiagnosticOverlay", ...args)
     },
 
     maskActions: {
