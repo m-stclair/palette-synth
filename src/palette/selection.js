@@ -20,7 +20,8 @@ import {
   hueInfoForSeedLab,
   labDistance,
   labToHex,
-  nearestHueAnchorMatch,
+  nearestHueAnchorMatchPrepared,
+  reliableHueAnchors,
   seededRandom
 } from "../color-utils.js";
 
@@ -151,8 +152,13 @@ function selectionTraceBadge(parts, spacing) {
   return badges.slice(0, 5);
 }
 
-function updateNearestFamilyMatches(entries, selectedFamily, selectedFamilyIndex, nearestFamilyByIndex) {
+function compareRankedCandidates(a, b) {
+  return (b.marginalScore - a.marginalScore) || (b.baseScore - a.baseScore) || (a.index - b.index);
+}
+
+function updateNearestFamilyMatches(entries, selectedFamily, selectedFamilyIndex, nearestFamilyByIndex, usedFlags = null) {
   for (const entry of entries) {
+    if (usedFlags?.[entry.index]) continue;
     const distance = familyDistance(entry.family, selectedFamily);
     const nearest = nearestFamilyByIndex[entry.index];
     if (distance < nearest.distance) {
@@ -167,7 +173,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   const footprintDeltaL = Number.isFinite(Number(options.deltaL)) ? Number(options.deltaL) : 10;
   const footprintChromaExp = Number.isFinite(Number(options.chromaExp)) ? Number(options.chromaExp) : 1.0;
   const familySpacing = options.familySpacing !== false;
-  const spacingFootprint = lab => familySpacing ? familyFootprint(lab, footprintDeltaL, footprintChromaExp) : [[...lab]];
+  const spacingFootprint = lab => familySpacing ? familyFootprint(lab, footprintDeltaL, footprintChromaExp) : [lab];
   const baseScored = candidates.map((lab, index) => {
     const score = baseScoreBreakdown(lab, center, weights);
     return {
@@ -193,7 +199,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   selectedFamilies.forEach((family, index) => {
     updateNearestFamilyMatches(baseScored, family, index, nearestFamilyByIndex);
   });
-  const used = new Set();
+  const usedFlags = new Uint8Array(candidates.length);
   const bandCounts = [0, 0, 0];
   selected.forEach(([L]) => { bandCounts[tonalBandIndex(L)] += 1; });
   const directColorTargets = options.directColorTargets === true;
@@ -234,49 +240,51 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   const traceRoot = trace ? trace[0] : null;
 
   for (let slot = selected.length; slot < N; slot++) {
-    const remaining = baseScored.filter(entry => !used.has(entry.index));
-    if (!remaining.length) break;
-    const selectedFamilyHexes = selectedFamilies.map(family => family.map(labToHex));
-    const bandCountsBefore = [...bandCounts];
-    const remainingWithFamilies = remaining.map(entry => {
+    const remainingWithFamilies = [];
+    const farEnough = [];
+    let bestAvailableSpacing = selectedFamilies.length ? 0 : Infinity;
+    let finiteSpacingCount = 0;
+
+    for (const entry of baseScored) {
+      if (usedFlags[entry.index]) continue;
       const nearest = nearestFamilyByIndex[entry.index];
-      const hueNearest = nearestHueAnchorMatch(entry.hueCandidate, selectedHueAnchors);
-      return {
+      const nearestFamilyDistance = nearest.distance;
+      const blockedBySpacing = selectedFamilies.length > 0 && nearestFamilyDistance < minDistance;
+      const spacingEntry = {
         ...entry,
-        nearestFamilyDistance: nearest.distance,
+        nearestFamilyDistance,
         nearestFamilyIndex: nearest.index,
-        hueNovelty: hueNearest.raw,
-        hueNearestDistanceDegrees: hueNearest.distanceDegrees,
-        hueNearestFamilyIndex: hueNearest.index,
-        hueAnchorCount: hueNearest.anchorCount,
-        hueReliableAnchorCount: hueNearest.reliableAnchorCount,
-        hueCandidateChroma: hueNearest.candidateChroma,
-        hueReliability: hueNearest.candidateReliability,
-        hueAnchorReliability: hueNearest.anchorReliability,
-        blockedBySpacing: selectedFamilies.length > 0 && nearest.distance < minDistance
+        blockedBySpacing
       };
-    });
-    const spacingDistances = remainingWithFamilies
-      .map(entry => entry.nearestFamilyDistance)
-      .filter(Number.isFinite);
-    const bestAvailableSpacing = selectedFamilies.length && spacingDistances.length
-      ? Math.max(...spacingDistances, 0)
-      : Infinity;
-    const farEnough = remainingWithFamilies.filter(entry => !entry.blockedBySpacing);
+      remainingWithFamilies.push(spacingEntry);
+      if (Number.isFinite(nearestFamilyDistance)) {
+        finiteSpacingCount += 1;
+        if (nearestFamilyDistance > bestAvailableSpacing) bestAvailableSpacing = nearestFamilyDistance;
+      }
+      if (!blockedBySpacing) farEnough.push(spacingEntry);
+    }
+
+    if (!remainingWithFamilies.length) break;
+    if (!selectedFamilies.length || !finiteSpacingCount) bestAvailableSpacing = Infinity;
+
     const spacingRelaxed = selectedFamilies.length > 0 && farEnough.length === 0;
     const effectiveSpacingTarget = spacingRelaxed && Number.isFinite(bestAvailableSpacing)
       ? bestAvailableSpacing * SPACING_RELAXATION_RATIO
       : minDistance;
-    const pool = spacingRelaxed
+    const poolBase = spacingRelaxed
       ? remainingWithFamilies.filter(entry => entry.nearestFamilyDistance >= effectiveSpacingTarget)
       : farEnough;
-    const effectiveBlocked = selectedFamilies.length
-      ? remainingWithFamilies.filter(entry => entry.nearestFamilyDistance < effectiveSpacingTarget)
-      : [];
+    if (!poolBase.length) break;
+
     const currentLows = selected.map(([L]) => L);
     const minL = currentLows.length ? Math.min(...currentLows) : null;
     const maxL = currentLows.length ? Math.max(...currentLows) : null;
-    const ranked = pool.map(entry => {
+    const preparedHueAnchors = reliableHueAnchors(selectedHueAnchors);
+    const hueAnchorCount = selectedHueAnchors.length;
+    const scored = [];
+
+    for (const entry of poolBase) {
+      const hueNearest = nearestHueAnchorMatchPrepared(entry.hueCandidate, hueAnchorCount, preparedHueAnchors);
       const [L] = entry.lab;
       const band = tonalBandIndex(L);
       const bandTarget = desiredBandCounts[band];
@@ -289,6 +297,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         else if (L > maxL) rangeExpansion = clamp((L - maxL) / 50, 0, 1);
       }
       const novelty = selectedFamilies.length ? clamp(entry.nearestFamilyDistance / 40, 0, 1) : 0;
+      const hueNovelty = hueNearest.raw;
       const noiseContribution = rng() * SELECTION_NOISE_AMOUNT;
       const parts = {
         ...entry.baseParts,
@@ -297,18 +306,18 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         crowding,
         rangeExpansion,
         novelty,
-        hueSpread: entry.hueNovelty || 0,
-        hueNearestDistanceDegrees: entry.hueNearestDistanceDegrees,
-        hueCandidateChroma: entry.hueCandidateChroma,
-        hueReliability: entry.hueReliability,
-        hueAnchorReliability: entry.hueAnchorReliability,
-        hueAnchorCount: entry.hueAnchorCount,
-        hueReliableAnchorCount: entry.hueReliableAnchorCount,
+        hueSpread: hueNovelty,
+        hueNearestDistanceDegrees: hueNearest.distanceDegrees,
+        hueCandidateChroma: hueNearest.candidateChroma,
+        hueReliability: hueNearest.candidateReliability,
+        hueAnchorReliability: hueNearest.anchorReliability,
+        hueAnchorCount: hueNearest.anchorCount,
+        hueReliableAnchorCount: hueNearest.reliableAnchorCount,
         tonalNeedContribution: bandNeed * TONAL_NEED_BONUS,
         crowdingPenalty: crowding * TONAL_CROWDING_PENALTY,
         rangeExpansionContribution: rangeExpansion * RANGE_EXPANSION_BONUS,
         noveltyContribution: novelty * NOVELTY_BONUS,
-        hueSpreadContribution: (entry.hueNovelty || 0) * hueSpreadBonus,
+        hueSpreadContribution: hueNovelty * hueSpreadBonus,
         noiseContribution
       };
       const marginalScore = entry.baseScore
@@ -318,45 +327,84 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         + parts.noveltyContribution
         + parts.hueSpreadContribution
         + noiseContribution;
-      return {...entry, band, marginalScore, parts, spacingRelaxed};
-    }).sort((a, b) => (b.marginalScore - a.marginalScore) || (b.baseScore - a.baseScore) || (a.index - b.index));
+      scored.push({
+        ...entry,
+        band,
+        marginalScore,
+        parts,
+        spacingRelaxed,
+        hueNovelty,
+        hueNearestDistanceDegrees: hueNearest.distanceDegrees,
+        hueNearestFamilyIndex: hueNearest.index,
+        hueAnchorCount: hueNearest.anchorCount,
+        hueReliableAnchorCount: hueNearest.reliableAnchorCount,
+        hueCandidateChroma: hueNearest.candidateChroma,
+        hueReliability: hueNearest.candidateReliability,
+        hueAnchorReliability: hueNearest.anchorReliability
+      });
+    }
 
-    const crowdingPenalties = ranked.map(entry => entry.parts?.crowdingPenalty || 0);
-    const crowdingStats = {
-      penalizedCandidateCount: crowdingPenalties.filter(value => value > 0).length,
-      maxPenalty: crowdingPenalties.length ? Math.max(...crowdingPenalties) : 0,
-      averagePenalty: crowdingPenalties.length ? crowdingPenalties.reduce((sum, value) => sum + value, 0) / crowdingPenalties.length : 0,
-      poolSize: ranked.length
-    };
-    const hueSpreadValues = ranked.map(entry => entry.parts?.hueSpreadContribution || 0);
-    const hueStats = {
-      reliableAnchorCount: selectedHueAnchors.filter(anchor => anchor.reliability > 0.08).length,
-      reliableCandidateCount: ranked.filter(entry => (entry.hueReliability || 0) > 0.01).length,
-      positiveCandidateCount: hueSpreadValues.filter(value => value > 0).length,
-      maxContribution: hueSpreadValues.length ? Math.max(...hueSpreadValues) : 0,
-      averageContribution: hueSpreadValues.length ? hueSpreadValues.reduce((sum, value) => sum + value, 0) / hueSpreadValues.length : 0,
-      poolSize: ranked.length
-    };
-
-    const bestScore = ranked[0].marginalScore;
+    let best = scored[0];
+    for (let i = 1; i < scored.length; i++) {
+      if (compareRankedCandidates(scored[i], best) < 0) best = scored[i];
+    }
+    const bestScore = best.marginalScore;
     const threshold = Math.max(bestScore * TOP_BAND_RATIO, bestScore - TOP_BAND_ABS_WINDOW);
-    const topBand = ranked.filter(entry => entry.marginalScore >= threshold).map(entry => ({...entry, bandThreshold: threshold}));
-    const picked = weightedPick(topBand, rng) ?? ranked[0];
-    const pickedRank = ranked.findIndex(entry => entry.index === picked.index) + 1;
-    const pickedWithThreshold = {...picked, bandThreshold: threshold};
+    const topBand = scored
+      .filter(entry => entry.marginalScore >= threshold)
+      .map(entry => ({...entry, bandThreshold: threshold}))
+      .sort(compareRankedCandidates);
+    const picked = weightedPick(topBand, rng) ?? {...best, bandThreshold: threshold};
 
     if (traceRoot) {
-      const blocked = (spacingRelaxed ? effectiveBlocked : remainingWithFamilies.filter(entry => entry.blockedBySpacing))
+      const ranked = [...scored].sort(compareRankedCandidates);
+      const crowdingPenalties = ranked.map(entry => entry.parts?.crowdingPenalty || 0);
+      const crowdingStats = {
+        penalizedCandidateCount: crowdingPenalties.filter(value => value > 0).length,
+        maxPenalty: crowdingPenalties.length ? Math.max(...crowdingPenalties) : 0,
+        averagePenalty: crowdingPenalties.length ? crowdingPenalties.reduce((sum, value) => sum + value, 0) / crowdingPenalties.length : 0,
+        poolSize: ranked.length
+      };
+      const hueSpreadValues = ranked.map(entry => entry.parts?.hueSpreadContribution || 0);
+      const hueStats = {
+        reliableAnchorCount: selectedHueAnchors.filter(anchor => anchor.reliability > 0.08).length,
+        reliableCandidateCount: ranked.filter(entry => (entry.hueReliability || 0) > 0.01).length,
+        positiveCandidateCount: hueSpreadValues.filter(value => value > 0).length,
+        maxContribution: hueSpreadValues.length ? Math.max(...hueSpreadValues) : 0,
+        averageContribution: hueSpreadValues.length ? hueSpreadValues.reduce((sum, value) => sum + value, 0) / hueSpreadValues.length : 0,
+        poolSize: ranked.length
+      };
+      const effectiveBlocked = selectedFamilies.length
+        ? remainingWithFamilies.filter(entry => entry.nearestFamilyDistance < effectiveSpacingTarget)
+        : [];
+      const blockedSource = spacingRelaxed ? effectiveBlocked : remainingWithFamilies.filter(entry => entry.blockedBySpacing);
+      const blocked = blockedSource
+        .map(entry => {
+          const hueNearest = nearestHueAnchorMatchPrepared(entry.hueCandidate, hueAnchorCount, preparedHueAnchors);
+          return {
+            ...entry,
+            hueNovelty: hueNearest.raw,
+            hueNearestDistanceDegrees: hueNearest.distanceDegrees,
+            hueNearestFamilyIndex: hueNearest.index,
+            hueAnchorCount: hueNearest.anchorCount,
+            hueReliableAnchorCount: hueNearest.reliableAnchorCount,
+            hueCandidateChroma: hueNearest.candidateChroma,
+            hueReliability: hueNearest.candidateReliability,
+            hueAnchorReliability: hueNearest.anchorReliability
+          };
+        })
         .sort((a, b) => a.nearestFamilyDistance - b.nearestFamilyDistance || a.index - b.index)
         .slice(0, 5)
         .map((entry, index) => scoredCandidateSummary({...entry, spacingRelaxed: false}, index + 1));
       const belowTargetCandidateCount = remainingWithFamilies.length - farEnough.length;
       const blockedCandidateCount = spacingRelaxed ? effectiveBlocked.length : belowTargetCandidateCount;
+      const pickedRank = ranked.findIndex(entry => entry.index === picked.index) + 1;
+      const pickedWithThreshold = {...picked, bandThreshold: threshold};
       traceRoot.rounds.push({
         slot,
-        bandCountsBefore,
+        bandCountsBefore: [...bandCounts],
         desiredBandCounts: [...desiredBandCounts],
-        selectedFamilyHexes,
+        selectedFamilyHexes: selectedFamilies.map(family => family.map(labToHex)),
         lightnessRangeBefore: minL === null ? null : {min: minL, max: maxL},
         spacing: {
           requested: minDistance,
@@ -365,11 +413,11 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
           selectedFamilyCount: selectedFamilies.length,
           enforced: !spacingRelaxed,
           relaxed: spacingRelaxed,
-          legalCandidateCount: pool.length,
+          legalCandidateCount: poolBase.length,
           blockedCandidateCount,
           belowTargetCandidateCount,
           belowEffectiveTargetCandidateCount: effectiveBlocked.length,
-          poolSize: pool.length,
+          poolSize: poolBase.length,
           nearestAcceptedDistance: picked.nearestFamilyDistance,
           nearestAcceptedFamilyIndex: picked.nearestFamilyIndex,
           bestAvailableDistance: bestAvailableSpacing,
@@ -404,27 +452,29 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     const pickedFamily = picked.family ?? spacingFootprint(picked.lab);
     selectedFamilies.push(pickedFamily);
     selectedHueAnchors.push(hueInfoForSeedLab(picked.lab));
-    used.add(picked.index);
+    usedFlags[picked.index] = 1;
     bandCounts[picked.band] += 1;
     if (selected.length < N) {
       updateNearestFamilyMatches(
-        baseScored.filter(entry => !used.has(entry.index)),
+        baseScored,
         pickedFamily,
         pickedFamilyIndex,
-        nearestFamilyByIndex
+        nearestFamilyByIndex,
+        usedFlags
       );
     }
   }
 
   if (selected.length >= N) return selected;
-  for (const entry of baseScored.sort((a, b) => b.baseScore - a.baseScore)) {
+  for (const entry of [...baseScored].sort((a, b) => b.baseScore - a.baseScore)) {
     if (selected.length >= N) break;
-    if (used.has(entry.index)) continue;
+    if (usedFlags[entry.index]) continue;
     selected.push(entry.lab);
-    selectedFamilies.push(spacingFootprint(entry.lab));
+    selectedFamilies.push(entry.family ?? spacingFootprint(entry.lab));
     selectedHueAnchors.push(hueInfoForSeedLab(entry.lab));
-    used.add(entry.index);
+    usedFlags[entry.index] = 1;
     if (traceRoot) {
+      const family = entry.family ?? spacingFootprint(entry.lab);
       traceRoot.rounds.push({
         slot: selected.length - 1,
         fallbackFill: true,
@@ -432,7 +482,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
           index: entry.index,
           rank: null,
           hex: labToHex(entry.lab),
-          familyHexes: spacingFootprint(entry.lab).map(labToHex),
+          familyHexes: family.map(labToHex),
           band: selectionBandName(tonalBandIndex(entry.lab[0])),
           baseScore: entry.baseScore,
           marginalScore: entry.baseScore,

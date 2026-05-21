@@ -228,7 +228,12 @@ export function compareHueThenLightness(a, b) {
     }
     return (paletteHue(a) - paletteHue(b)) || (a[0] - b[0]) || (ca - cb);
   }
-export function labDistance(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); }
+export function labDistance(a, b) {
+    const dL = a[0] - b[0];
+    const da = a[1] - b[1];
+    const db = a[2] - b[2];
+    return Math.sqrt(dL * dL + da * da + db * db);
+  }
 export function sortLabWalkRecords(records, labForRecord = record => record.lab) {
     const remaining = [...records];
     if (remaining.length <= 1) return remaining;
@@ -384,14 +389,17 @@ export function familyFootprint(seedLab, deltaL = 10, chromaExp = 1.0) {
   }
 
 export function familyDistance(aFamily, bFamily) {
-    let best = Infinity;
+    let bestSq = Infinity;
     for (const aLab of aFamily) {
       for (const bLab of bFamily) {
-        const distance = labDistance(aLab, bLab);
-        if (distance < best) best = distance;
+        const dL = aLab[0] - bLab[0];
+        const da = aLab[1] - bLab[1];
+        const db = aLab[2] - bLab[2];
+        const distanceSq = dL * dL + da * da + db * db;
+        if (distanceSq < bestSq) bestSq = distanceSq;
       }
     }
-    return best;
+    return Math.sqrt(bestSq);
   }
 
 export function smoothstep(edge0, edge1, value) {
@@ -423,28 +431,33 @@ export function hueInfoForSeedLab(lab) {
     };
   }
 
-export function nearestHueAnchorMatch(candidate, selectedHueAnchors) {
+export function reliableHueAnchors(selectedHueAnchors) {
     const anchors = Array.isArray(selectedHueAnchors) ? selectedHueAnchors : [];
-    const reliableAnchors = anchors
+    return anchors
       .map((anchor, index) => ({...anchor, index}))
       .filter(anchor => anchor.reliability > 0.05);
-    if (!reliableAnchors.length || candidate.reliability <= 0.01) {
+  }
+
+export function nearestHueAnchorMatchPrepared(candidate, anchorCount, reliableAnchors) {
+    const reliable = Array.isArray(reliableAnchors) ? reliableAnchors : [];
+    const safeCandidate = candidate || {chroma: 0, reliability: 0, hue: 0};
+    if (!reliable.length || safeCandidate.reliability <= 0.01) {
       return {
         raw: 0,
         distanceDegrees: Infinity,
         index: -1,
-        anchorCount: anchors.length,
-        reliableAnchorCount: reliableAnchors.length,
-        candidateChroma: candidate.chroma,
-        candidateReliability: candidate.reliability,
+        anchorCount,
+        reliableAnchorCount: reliable.length,
+        candidateChroma: safeCandidate.chroma,
+        candidateReliability: safeCandidate.reliability,
         anchorReliability: 0
       };
     }
     let nearest = Infinity;
     let nearestIndex = -1;
     let nearestReliability = 0;
-    for (const anchor of reliableAnchors) {
-      const distance = hueDistanceDegrees(candidate.hue, anchor.hue);
+    for (const anchor of reliable) {
+      const distance = hueDistanceDegrees(safeCandidate.hue, anchor.hue);
       if (distance < nearest) {
         nearest = distance;
         nearestIndex = anchor.index;
@@ -452,13 +465,18 @@ export function nearestHueAnchorMatch(candidate, selectedHueAnchors) {
       }
     }
     return {
-      raw: clamp(smoothstep(5, 90, nearest) * candidate.reliability * nearestReliability, 0, 1),
+      raw: clamp(smoothstep(5, 90, nearest) * safeCandidate.reliability * nearestReliability, 0, 1),
       distanceDegrees: nearest,
       index: nearestIndex,
-      anchorCount: anchors.length,
-      reliableAnchorCount: reliableAnchors.length,
-      candidateChroma: candidate.chroma,
-      candidateReliability: candidate.reliability,
+      anchorCount,
+      reliableAnchorCount: reliable.length,
+      candidateChroma: safeCandidate.chroma,
+      candidateReliability: safeCandidate.reliability,
       anchorReliability: nearestReliability
     };
+  }
+
+export function nearestHueAnchorMatch(candidate, selectedHueAnchors) {
+    const anchors = Array.isArray(selectedHueAnchors) ? selectedHueAnchors : [];
+    return nearestHueAnchorMatchPrepared(candidate, anchors.length, reliableHueAnchors(anchors));
   }

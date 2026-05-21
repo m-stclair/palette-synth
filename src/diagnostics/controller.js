@@ -357,12 +357,17 @@ export function createDiagnosticsController({
     const histogramOpen = histogramPanelIsOpen();
     const xrayOpen = xrayPanelIsOpen();
     const selectionDiagnosticsOpen = selectionDiagnosticsPanelIsOpen();
-    if (selectionDiagnosticsOpen) renderDiagnosticsSelection();
+    if (selectionDiagnosticsOpen) {
+      const generatedMode = config.paletteMode === "generated" || config.paletteMode === "generatedReference";
+      if (state.paletteDirty || !state.paletteRecords.length || (generatedMode && !state.paletteSelectionTrace)) ensurePalette({captureTrace: generatedMode});
+      renderDiagnosticsSelection();
+    }
 
     // Full palette diagnostics sample thousands of pixels. Keep that work
     // tied to the palette diagnostics panel only; the pixel inspector has
-    // its own single-pixel path above. Cheap selection diagnostics and the
-    // X-Ray are palette-structure views and do not need image sampling.
+    // its own single-pixel path above. Selection diagnostics asks palette
+    // generation for its trace only while the families/selection tab is open.
+    // The X-Ray is a palette-structure view and does not need image sampling.
     if (!fullDiagnosticsOpen && !histogramOpen && !xrayOpen) return;
     if (state.paletteDirty || !state.paletteRecords.length) ensurePalette();
     if (!state.paletteRecords.length) {

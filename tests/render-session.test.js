@@ -62,7 +62,7 @@ function makeSession(overrides = {}) {
     state,
     config,
     ensureLevelAdjustedSources: () => calls.push("ensureLevels"),
-    getPaletteRecords: () => records,
+    getPaletteRecords: overrides.getPaletteRecords || (() => records),
     paletteUniformEntries: (paletteRecords, renderLabs) => paletteRecords.map((record, index) => ({
       featureLab: record.lab,
       renderLab: renderLabs[index] ?? record.lab
@@ -220,6 +220,34 @@ test("ensurePalette refreshes records, uniforms, and swatches once", () => {
 
   session.ensurePalette();
   assert.deepEqual(calls.filter(call => call === "renderSwatches"), ["renderSwatches"]);
+});
+
+
+
+test("ensurePalette captures selection trace only when requested for generated palettes", () => {
+  const state = makeState({paletteSelectionTrace: null});
+  const config = makeConfig({paletteMode: "generated"});
+  const getPaletteCalls = [];
+  const {session} = makeSession({
+    state,
+    config,
+    getPaletteRecords: options => {
+      getPaletteCalls.push(options);
+      state.paletteSelectionTrace = options?.captureTrace ? {rounds: []} : null;
+      return [{lab: [50, 1, 2]}];
+    }
+  });
+
+  session.ensurePalette();
+  assert.deepEqual(getPaletteCalls, [{captureTrace: false}]);
+  assert.equal(state.paletteSelectionTrace, null);
+
+  session.ensurePalette({captureTrace: true});
+  assert.deepEqual(getPaletteCalls, [{captureTrace: false}, {captureTrace: true}]);
+  assert.deepEqual(state.paletteSelectionTrace, {rounds: []});
+
+  session.ensurePalette({captureTrace: true});
+  assert.deepEqual(getPaletteCalls, [{captureTrace: false}, {captureTrace: true}]);
 });
 
 test("palette-only refresh keeps existing swatch buttons mounted", () => {

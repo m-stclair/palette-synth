@@ -133,7 +133,7 @@ export function createPaletteRuntime({
       fallbackSwatches: syncManualSwatches(),
       captureTrace
     });
-    if (captureTrace) state.paletteSelectionTrace = result.trace;
+    state.paletteSelectionTrace = captureTrace ? result.trace : null;
     return result.records;
   }
 
@@ -312,14 +312,14 @@ export function createPaletteRuntime({
     }));
   }
 
-  function getPaletteRecords() {
+  function getPaletteRecords(options = {}) {
     let raw;
     if (!isGeneratedPaletteMode()) state.paletteSelectionTrace = null;
     if (config.paletteMode === "manual") raw = manualPalette();
     else if (config.paletteMode === "preset") raw = presetPalette();
     else if (config.paletteMode === "harmony") raw = harmonyPalette();
     else if (config.paletteMode === "cosine") raw = cosinePalette();
-    else raw = generatedPalette({captureTrace: true});
+    else raw = generatedPalette({captureTrace: options.captureTrace === true});
     const records = raw.length ? raw : fallbackPaletteRecords();
     return sortPaletteRecords(applyPaletteAdjustments(records), config.sortMode);
   }

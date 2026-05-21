@@ -151,39 +151,6 @@ test("generated image palettes can select individual colors without tint/shade f
   assert.equal(result.trace.expansion, null);
 });
 
-
-test("direct-color generated image palettes can use two colors with shadow/highlight targets", () => {
-  const data = new Uint8ClampedArray([
-    0, 0, 0, 255,         255, 255, 255, 255,   128, 128, 128, 255,
-    40, 40, 80, 255,      220, 210, 180, 255,   120, 60, 30, 255,
-    15, 15, 15, 255,      245, 245, 245, 255,   90, 130, 160, 255
-  ]);
-  const imageData = {width: 3, height: 3, data};
-  const config = {
-    ...DEFAULT_CONFIG,
-    paletteSize: 2,
-    generatedTintShadeFamilies: false,
-    seed: 4,
-    samplingMode: "stratified",
-    blockSize: 1,
-    minDistance: 12,
-    selectWeights: [0.1, 0.2, 0.3],
-    generatedLocks: []
-  };
-
-  const result = createGeneratedPalette({config, mode: "generated", imageData, captureTrace: true});
-
-  assert.equal(result.records.length, 2);
-  assert.equal(result.records.every(record => record.variant === "single"), true);
-  assert.equal(result.trace.selectionCount, 2);
-  assert.equal(result.trace.finalPaletteSize, 2);
-  assert.equal(result.trace.tintShadeFamilies, false);
-  assert.deepEqual(result.trace.tonalTargets, [
-    {band: "shadow", count: 1},
-    {band: "midtone", count: 0},
-    {band: "highlight", count: 1}
-  ]);
-});
 test("direct-color tonal endpoint targets scale in six-color bands", () => {
   assert.deepEqual(targetBandCounts(2, {directColorTargets: true}), [1, 0, 1]);
   assert.deepEqual(targetBandCounts(6, {directColorTargets: true}), [1, 2, 1]);

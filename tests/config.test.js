@@ -141,26 +141,12 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.manualMatchAliases.length, 0);
 });
 
-test("config sanitization keeps direct-color image sizes and snaps family sizes", () => {
+test("config sanitization keeps direct-color palette sizes and snaps family sizes", () => {
   const direct = sanitizeConfigSnapshot({paletteSize: 20, generatedTintShadeFamilies: false});
-  const directMinimum = sanitizeConfigSnapshot({paletteSize: 2, generatedTintShadeFamilies: false});
-  const referenceMinimum = sanitizeConfigSnapshot({
-    paletteMode: "generatedReference",
-    paletteSize: 2,
-    generatedTintShadeFamilies: false
-  });
   const family = sanitizeConfigSnapshot({paletteSize: 20, generatedTintShadeFamilies: true});
-  const nonImage = sanitizeConfigSnapshot({
-    paletteMode: "harmony",
-    paletteSize: 2,
-    generatedTintShadeFamilies: false
-  });
 
   assert.equal(direct.paletteSize, 20);
-  assert.equal(directMinimum.paletteSize, 2);
-  assert.equal(referenceMinimum.paletteSize, 2);
   assert.equal(family.paletteSize, 21);
-  assert.equal(nonImage.paletteSize, 3);
 });
 
 test("palette swatch scale normalizes and cycles through allowed sizes", () => {

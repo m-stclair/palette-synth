@@ -144,6 +144,43 @@ test("diagnostics controller refreshes family selection only while its inspector
 });
 
 
+
+
+test("diagnostics controller requests selection trace only for generated selection tab", () => {
+  const ensureCalls = [];
+  let selected = 0;
+  const state = {
+    imageData: {width: 1, height: 1, data: new Uint8ClampedArray([0, 0, 0, 255])},
+    diagnostics: {pixelInspectorOpen: true, inspectorTab: "selection"},
+    paletteRecords: [{lab: [0, 0, 0]}],
+    paletteSelectionTrace: null,
+    paletteDirty: false
+  };
+  const controller = createDiagnosticsController({
+    els: {
+      pixelInspectorPane: makePanel(),
+      inspectorPanelSelection: makePanel(),
+      inspectorPanelDiagnostics: makePanel()
+    },
+    state,
+    config: {paletteMode: "generated"},
+    ensurePalette: options => {
+      ensureCalls.push(options);
+      state.paletteSelectionTrace = {rounds: []};
+    },
+    renderDiagnosticsSelection: () => { selected++; }
+  });
+
+  controller.updateDiagnostics();
+  assert.deepEqual(ensureCalls, [{captureTrace: true}]);
+  assert.equal(selected, 1);
+
+  state.paletteSelectionTrace = null;
+  controller.setInspectorTab("pixel", {update: false});
+  controller.updateDiagnostics();
+  assert.deepEqual(ensureCalls, [{captureTrace: true}]);
+});
+
 test("diagnostics controller renders X-Ray tab from palette records without image sampling", () => {
   let xrayRendered = 0;
   let computed = 0;

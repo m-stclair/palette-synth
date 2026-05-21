@@ -170,10 +170,13 @@ export function createRenderSession({
     return mask.texture;
   }
 
-  function ensurePalette() {
+  function ensurePalette(options = {}) {
     ensureLevelAdjustedSources();
-    if (state.paletteDirty || !state.paletteBlock || !state.paletteFeatures) {
-      state.paletteRecords = getPaletteRecords();
+    const generatedMode = config.paletteMode === "generated" || config.paletteMode === "generatedReference";
+    const captureTrace = options.captureTrace === true && generatedMode;
+    const needsSelectionTrace = captureTrace && !state.paletteSelectionTrace;
+    if (state.paletteDirty || !state.paletteBlock || !state.paletteFeatures || needsSelectionTrace) {
+      state.paletteRecords = getPaletteRecords({captureTrace});
       state.palette = paletteLabs(state.paletteRecords);
       const uniformEntries = paletteUniformEntries(state.paletteRecords, renderPaletteLabs(state.paletteRecords));
       const {paletteBlock, paletteBaseBlock, paletteFeatures, paletteSourceIndices} = preprocessPaletteEntries(uniformEntries);
