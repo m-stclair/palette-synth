@@ -247,17 +247,30 @@ function finiteNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
-export function clampPaletteSize(value) {
-  return clamp(Math.round(Number(value) || DEFAULT_CONFIG.paletteSize), 3, 42);
+export function isGeneratedImagePaletteMode(mode) {
+  return mode === "generated" || mode === "generatedReference";
+}
+
+export function usesDirectGeneratedImageColors(config = {}) {
+  return isGeneratedImagePaletteMode(config.paletteMode) && config.generatedTintShadeFamilies === false;
+}
+
+export function minPaletteSizeForConfig(config = {}) {
+  return usesDirectGeneratedImageColors(config) ? 2 : 3;
+}
+
+export function clampPaletteSize(value, {min = 3} = {}) {
+  return clamp(Math.round(Number(value) || DEFAULT_CONFIG.paletteSize), min, 42);
 }
 
 export function snapPaletteSizeToFamilyMultiple(value) {
   return Math.max(3, Math.round(clampPaletteSize(value) / 3) * 3);
 }
 
-export function sanitizePaletteSize(value, {tintShadeFamilies = true} = {}) {
-  const size = clampPaletteSize(value);
-  return tintShadeFamilies ? snapPaletteSizeToFamilyMultiple(size) : size;
+export function sanitizePaletteSize(value, {tintShadeFamilies = true, paletteMode = DEFAULT_CONFIG.paletteMode} = {}) {
+  const directImageColors = usesDirectGeneratedImageColors({paletteMode, generatedTintShadeFamilies: tintShadeFamilies});
+  const size = clampPaletteSize(value, {min: directImageColors ? 2 : 3});
+  return directImageColors ? size : snapPaletteSizeToFamilyMultiple(size);
 }
 
 export function normalizeCosineCustomVectors(value) {
@@ -287,7 +300,10 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.showPaletteRegion = !!base.showPaletteRegion;
   base.paletteSwatchScale = normalizePaletteSwatchScale(base.paletteSwatchScale);
   base.generatedTintShadeFamilies = base.generatedTintShadeFamilies !== false;
-  base.paletteSize = sanitizePaletteSize(base.paletteSize, {tintShadeFamilies: base.generatedTintShadeFamilies});
+  base.paletteSize = sanitizePaletteSize(base.paletteSize, {
+    paletteMode: base.paletteMode,
+    tintShadeFamilies: base.generatedTintShadeFamilies
+  });
   base.seedSwatch = normalizeHexColor(base.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   base.harmonyRelationship = Object.prototype.hasOwnProperty.call(HARMONY_RELATIONSHIPS, base.harmonyRelationship) ? base.harmonyRelationship : DEFAULT_CONFIG.harmonyRelationship;
   base.harmonyRegionContrast = Object.prototype.hasOwnProperty.call(HARMONY_REGION_CONTRASTS, base.harmonyRegionContrast) ? base.harmonyRegionContrast : DEFAULT_CONFIG.harmonyRegionContrast;

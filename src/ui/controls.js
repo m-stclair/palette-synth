@@ -1,5 +1,11 @@
 import { $, SELECT_WEIGHT_CONTROL_IDS } from "./dom.js";
-import { COSINE_VECTOR_KEYS, normalizeCosineCustomVectors, snapPaletteSizeToFamilyMultiple } from "../state/config.js";
+import {
+  COSINE_VECTOR_KEYS,
+  minPaletteSizeForConfig,
+  normalizeCosineCustomVectors,
+  sanitizePaletteSize,
+  usesDirectGeneratedImageColors
+} from "../state/config.js";
 import { createShortcutDispatcher } from "./shortcuts.js";
 import { cyclePaletteSwatchScale, syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
@@ -124,14 +130,19 @@ const CONDITIONAL_PANEL_KEYS = new Set([
 export function syncGeneratedPaletteSizeControl(config, {root = document, setOutputText = null, snapToFamilies = false} = {}) {
   const el = $("paletteSize", root);
   if (!el || !config) return false;
-  const usesFamilies = config.generatedTintShadeFamilies !== false;
-  el.step = usesFamilies ? "3" : "1";
+  const directImageColors = usesDirectGeneratedImageColors(config);
+  const minSize = minPaletteSizeForConfig(config);
+  el.min = String(minSize);
+  el.step = directImageColors ? "1" : "3";
 
   let sizeChanged = false;
-  if (usesFamilies && snapToFamilies) {
-    const snapped = snapPaletteSizeToFamilyMultiple(config.paletteSize);
-    if (snapped !== config.paletteSize) {
-      config.paletteSize = snapped;
+  if (snapToFamilies || Number(config.paletteSize) < minSize) {
+    const normalized = sanitizePaletteSize(config.paletteSize, {
+      paletteMode: config.paletteMode,
+      tintShadeFamilies: config.generatedTintShadeFamilies
+    });
+    if (normalized !== config.paletteSize) {
+      config.paletteSize = normalized;
       sizeChanged = true;
     }
   }
@@ -182,8 +193,8 @@ export function bindControls({
       const changed = !Object.is(config[key], nextValue);
       config[key] = nextValue;
 
-      const sizeChanged = key === "generatedTintShadeFamilies"
-        ? syncGeneratedPaletteSizeControl(config, {setOutputText, snapToFamilies: config.generatedTintShadeFamilies !== false})
+      const sizeChanged = key === "generatedTintShadeFamilies" || key === "paletteMode"
+        ? syncGeneratedPaletteSizeControl(config, {setOutputText, snapToFamilies: true})
         : false;
 
       setOutputText(key, out, config[key]);
