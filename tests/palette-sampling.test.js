@@ -80,3 +80,34 @@ test("generated palette generation reuses cached candidate samples across non-sa
   assert.equal(dataReads, 1);
   assert.equal(cache.size, 1);
 });
+
+test("generated locks seed selection before automatic families are picked", () => {
+  const data = new Uint8ClampedArray([
+    255, 0, 0, 255,     0, 255, 0, 255,     0, 0, 255, 255,     255, 255, 255, 255,
+    255, 255, 0, 255,   0, 255, 255, 255,   255, 0, 255, 255,   0, 0, 0, 255,
+    120, 60, 30, 255,   30, 120, 60, 255,   60, 30, 120, 255,   220, 120, 60, 255,
+    60, 220, 120, 255,  120, 60, 220, 255,  220, 220, 220, 255, 40, 40, 40, 255
+  ]);
+  const imageData = {width: 4, height: 4, data};
+  const config = {
+    ...DEFAULT_CONFIG,
+    paletteSize: 9,
+    seed: 2,
+    samplingMode: "stratified",
+    blockSize: 1,
+    minDistance: 30,
+    selectWeights: [0.1, 0.2, 0.3],
+    generatedLocks: [{id: "lock-red", hex: "#ff0000"}]
+  };
+
+  const result = createGeneratedPalette({config, mode: "generated", imageData, captureTrace: true});
+  const lockedRecords = result.records.filter(record => record.locked);
+
+  assert.equal(result.records.length, 9);
+  assert.equal(lockedRecords.length, 3);
+  assert.equal(lockedRecords.every(record => record.lockId === "lock-red"), true);
+  assert.equal(result.trace.rounds.length, 2);
+  assert.equal(result.trace.rounds[0].slot, 1);
+  assert.equal(result.trace.rounds[0].spacing.selectedFamilyCount, 1);
+  assert.deepEqual(result.trace.rounds[0].selectedFamilyHexes[0], ["#ff0000", "#ff937a", "#8e0000"]);
+});

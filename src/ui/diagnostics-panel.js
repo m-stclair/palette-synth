@@ -1136,7 +1136,7 @@ export function createDiagnosticsPanel({
     const expansion = trace.expansion || {};
     const sample = trace.sample || {};
     const lockNote = syncGeneratedLocks().length
-      ? `<div class="selection-note">Shows automatic seed selection before locked families replace claimed slots.</div>`
+      ? `<div class="selection-note">Locked families are seeded first, so automatic picks are scored around those anchors.</div>`
       : "";
     const targetText = (trace.tonalTargets || []).map(target => `${target.band} ${target.count}`).join(" · ");
     const rules = `<div class="selection-rules">

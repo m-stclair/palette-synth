@@ -13,7 +13,6 @@ import {
   expandSwatchVariants,
   fitLabToSrgb,
   hexToLab,
-  labDistance,
   labToOklch,
   makePaletteRecord,
   normalizeHexColor,
@@ -299,6 +298,10 @@ export function createGeneratedPalette({
   const requestedSize = Math.max(3, Math.min(42, Math.round(config.paletteSize / 3) * 3));
   const baseCount = Math.max(1, Math.round(requestedSize / 3));
   const lockedEntries = activeGeneratedLocks(config, baseCount);
+  const lockedSeeds = lockedEntries.map(entry => ({
+    entry,
+    seedLab: generatedLockLab(entry)
+  }));
   const origins = buildPatchOrigins(CANDIDATE_SAMPLE_COUNT, imageData.width, imageData.height, config.seed, config.samplingMode, sampleRegion);
   const candidates = samplePaletteLabs(imageData, imageData.width, imageData.height, origins, config.blockSize, paletteSampleCacheKey({
     sampleCount: CANDIDATE_SAMPLE_COUNT,
@@ -319,6 +322,7 @@ export function createGeneratedPalette({
     deltaL: config.deltaL,
     chromaExp: 1,
     hueSpread: config.hueSpread,
+    initialSelected: lockedSeeds.map(lock => lock.seedLab),
     trace: captureTrace ? selectionTrace : null
   });
 
@@ -337,35 +341,15 @@ export function createGeneratedPalette({
     }
   } : null;
 
-  const slots = selected.map((seedLab, familyIndex) => ({
-    seedLab,
-    familyIndex,
-    locked: false,
-    lockId: null
-  }));
-
-  const claimedSlots = new Set();
-  for (const entry of lockedEntries) {
-    const lockLab = generatedLockLab(entry);
-    let bestIndex = -1;
-    let bestDistance = Infinity;
-    for (let i = 0; i < slots.length; i++) {
-      if (claimedSlots.has(i)) continue;
-      const distance = labDistance(lockLab, slots[i].seedLab);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = i;
-      }
-    }
-    if (bestIndex < 0) continue;
-    claimedSlots.add(bestIndex);
-    slots[bestIndex] = {
-      ...slots[bestIndex],
-      seedLab: lockLab,
-      locked: true,
-      lockId: entry.id
+  const slots = selected.map((seedLab, familyIndex) => {
+    const lockedSeed = lockedSeeds[familyIndex] ?? null;
+    return {
+      seedLab,
+      familyIndex,
+      locked: !!lockedSeed,
+      lockId: lockedSeed?.entry.id ?? null
     };
-  }
+  });
 
   const records = slots.flatMap(slot => buildFamilyRecords(slot.seedLab, slot.familyIndex, config, sourceKey, slot.familyIndex, {
     familyId: slot.locked ? `${sourceKey}-lock-${slot.lockId}` : `${sourceKey}-${slot.familyIndex}`,
