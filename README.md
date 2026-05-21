@@ -112,6 +112,8 @@ Use **Mode** to choose where the palette comes from.
 **Hue spread** pushes the palette toward broader hue variety.
 
 **Selection spacing** controls how different selected colors need to be. Higher spacing avoids near-duplicates; lower spacing allows tighter, subtler color families.
+Selection spacing takes precedence over other generation criteria. So, on large palettes, selection spacing can easily overwhelm weights, as later picks
+will be forced to spread away from early high-weighted picks.
 
 ### Harmony controls
 
