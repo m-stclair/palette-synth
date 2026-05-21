@@ -3,6 +3,7 @@ import { COSINE_VECTOR_KEYS, normalizeCosineCustomVectors, snapPaletteSizeToFami
 import { createShortcutDispatcher } from "./shortcuts.js";
 import { cyclePaletteSwatchScale, syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
+import { DEFAULT_DEMO_IMAGE_ID, demoImages } from "../demo-image.js";
 
 export function cosineCustomInputId(key, channel) {
   return `cosineCustom${key.toUpperCase()}${channel}`;
@@ -343,6 +344,19 @@ export function bindImageDropControls({documentRef = document, windowRef = windo
   windowRef.addEventListener?.("blur", clearDragging);
 }
 
+export function populateDemoImageSelect(select, demos = demoImages, documentRef = document) {
+  if (!select) return;
+  select.textContent = "";
+  for (const demo of demos) {
+    const option = documentRef.createElement("option");
+    option.value = demo.id;
+    option.textContent = demo.name;
+    option.title = demo.description || demo.name;
+    select.append(option);
+  }
+  select.value = demos.some(demo => demo.id === DEFAULT_DEMO_IMAGE_ID) ? DEFAULT_DEMO_IMAGE_ID : demos[0]?.id || "";
+}
+
 export function bindAppControls({
   els,
   config,
@@ -363,6 +377,7 @@ export function bindAppControls({
   queueRender,
   loadFile,
   loadReferenceFile,
+  loadDemo,
   downloadCanvas,
   downloadFullImage,
   exportPalette,
@@ -419,6 +434,12 @@ export function bindAppControls({
   syncCycleControls();
   window.addEventListener("resize", queueRender);
 
+  const demoImageSelect = $("demoImageSelect");
+  if (demoImageSelect) {
+    els.demoImageSelect = demoImageSelect;
+    populateDemoImageSelect(demoImageSelect);
+    demoImageSelect.addEventListener("change", event => loadDemo?.(event.target.value));
+  }
   $("imageInput")?.addEventListener("change", event => loadFile(event.target.files?.[0]));
   $("referenceImageInput")?.addEventListener("change", event => loadReferenceFile(event.target.files?.[0]));
   $("downloadImage")?.addEventListener("click", downloadCanvas);

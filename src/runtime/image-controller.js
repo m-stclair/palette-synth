@@ -1,4 +1,4 @@
-import { demoSvg } from "../demo-image.js";
+import { DEFAULT_DEMO_IMAGE_ID, getDemoImage } from "../demo-image.js";
 
 function sourceSize(source) {
   const width = source?.width || source?.naturalWidth || 0;
@@ -148,10 +148,12 @@ export function createImageController({
     img.src = url;
   }
 
-  function loadDemo() {
+  function loadDemo(id = DEFAULT_DEMO_IMAGE_ID) {
+    const demo = getDemoImage(id);
     const img = createImage();
-    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(demoSvg)}`;
-    img.onload = () => loadImageFromBitmapSource(img, "demo image");
+    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(demo.svg)}`;
+    img.onload = () => loadImageFromBitmapSource(img, demo.statusName || demo.name || "demo image");
+    img.onerror = () => setStatus(`Could not load ${demo.name || "demo image"}.`);
     img.src = url;
   }
 

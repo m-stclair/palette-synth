@@ -31,9 +31,10 @@
             </div>
             <div class="actions app-actions" aria-label="Application actions">
               <label class="file-button">
-                <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+                <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" />
                 Open
               </label>
+              <select id="demoImageSelect" class="demo-image-select" title="Switch built-in demo image" aria-label="Built-in demo image"></select>
               <button id="downloadImage" type="button" title="Export visible preview PNG">View PNG</button>
               <button id="downloadFullImage" type="button" title="Export full-resolution processed PNG">Full PNG</button>
               <details class="toolbar-menu export-menu">
@@ -199,7 +200,7 @@
           <label for="referenceImageInput">Reference image</label>
           <div class="preset-row">
             <label class="mini-file">
-              <input id="referenceImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+              <input id="referenceImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" />
               Choose reference
             </label>
           </div>

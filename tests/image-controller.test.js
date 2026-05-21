@@ -154,3 +154,45 @@ test("image controller file loaders wire object URLs, history, success, and erro
   assert.deepEqual(urlCalls.at(-1), ["revoke", "blob:bad.png"]);
   assert.deepEqual(calls.at(-1), ["status", "Could not load that image."]);
 });
+
+
+test("image controller loads selectable demo SVG fixtures", () => {
+  const images = [];
+  class FakeImage {
+    constructor() {
+      this.width = 1280;
+      this.height = 820;
+      images.push(this);
+    }
+  }
+  const {controller, calls} = makeController({Image: FakeImage});
+
+  controller.loadDemo("low-contrast");
+
+  assert.equal(images.length, 1);
+  assert.match(images[0].src, /^data:image\/svg\+xml;charset=utf-8,/);
+  assert.ok(decodeURIComponent(images[0].src).includes("#b8b8ac"));
+
+  images[0].onload();
+
+  assert.deepEqual(calls.at(-2), ["status", "demo low contrast: 100×64"]);
+  assert.equal(calls.at(-1), "queueRender");
+});
+
+test("image controller falls back when an unknown demo id is requested", () => {
+  const images = [];
+  class FakeImage {
+    constructor() {
+      this.width = 1280;
+      this.height = 820;
+      images.push(this);
+    }
+  }
+  const {controller, calls} = makeController({Image: FakeImage});
+
+  controller.loadDemo("missing-demo");
+  images[0].onload();
+
+  assert.deepEqual(calls.at(-2), ["status", "demo image: 100×64"]);
+  assert.equal(calls.at(-1), "queueRender");
+});

@@ -12,6 +12,7 @@ export const UI_ELEMENT_IDS = [
   "paletteHint",
   "paletteSwatchScaleToggle",
   "randomizePalette",
+  "demoImageSelect",
   "clearCycleTags",
   "clearPaletteLocks",
   "viewStatus",

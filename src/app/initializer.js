@@ -363,6 +363,7 @@ export function createAppInitializer(deps = {}) {
       queueRender,
       loadFile,
       loadReferenceFile,
+      loadDemo,
       downloadCanvas,
       downloadFullImage,
       exportPalette,
