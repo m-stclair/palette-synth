@@ -41,6 +41,8 @@ uniform float u_ditherLumaAmount;
 uniform float u_ditherScale;
 uniform int u_diagnosticOverlayMode;
 uniform int u_diagnosticOverlaySwatch;
+uniform float u_compareSplit;
+uniform int u_compareEnabled;
 uniform float u_pixelBlockSize;
 uniform vec2 u_sourceImageSize;
 uniform int u_blockSampledInput;
@@ -989,6 +991,21 @@ void main() {
         return;
     }
 
+
+    if (u_compareEnabled == 1 && u_compareSplit >= 0.0) {
+        float lineWidth = max(1.5 / max(u_resolution.x, 1.0), 0.0015);
+        float distToSplit = abs(screenUv.x - u_compareSplit);
+        if (distToSplit <= lineWidth) {
+            float core = step(distToSplit, lineWidth * 0.45);
+            vec3 lineColor = mix(vec3(0.02), vec3(1.0), core);
+            outColor = vec4(lineColor, 1.0);
+            return;
+        }
+        if (screenUv.x < u_compareSplit) {
+            outColor = vec4(color, 1.0);
+            return;
+        }
+    }
 
     outColor = vec4(finalColor, 1.0);
 }

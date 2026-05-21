@@ -23,6 +23,8 @@ export function renderPalettePass(gl, program, {
   manualCycleEnabled = false,
   diagnosticOverlayMode = "none",
   diagnosticOverlaySwatch = -1,
+  compareEnabled = false,
+  compareSplit = -1,
   settings = {}
 }) {
   const forbiddenFlags = maskForbiddenSourceFlags instanceof Int32Array
@@ -75,5 +77,7 @@ export function renderPalettePass(gl, program, {
   const overlaySwatch = Number(diagnosticOverlaySwatch);
   gl.uniform1i(gl.getUniformLocation(program, "u_diagnosticOverlayMode"), overlayCode);
   gl.uniform1i(gl.getUniformLocation(program, "u_diagnosticOverlaySwatch"), Number.isFinite(overlaySwatch) ? Math.round(overlaySwatch) : -1);
+  gl.uniform1f(gl.getUniformLocation(program, "u_compareSplit"), Number.isFinite(compareSplit) ? compareSplit : -1);
+  gl.uniform1i(gl.getUniformLocation(program, "u_compareEnabled"), compareEnabled ? 1 : 0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }

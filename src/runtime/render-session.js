@@ -312,11 +312,6 @@ export function createRenderSession({
     return state.postProcess;
   }
 
-  function compareCompositeActive(overlay = {}) {
-    if (overlay && overlay.mode && overlay.mode !== "none") return false;
-    return !!config.compareEnabled;
-  }
-
   function drawWithCompositePass(gl, program, {canvas, viewRect, runPostProcess}) {
     if (!viewCompositeFragmentSource || !vertexSource || (runPostProcess && !postProcessFragmentSource)) {
       throw new Error("Composite shader source is missing.");
@@ -403,7 +398,7 @@ export function createRenderSession({
 
     const overlay = state.diagnostics?.overlay || {mode: "none"};
     const runPostProcess = postProcessActive(config, overlay);
-    const runCompositePass = runPostProcess || compareCompositeActive(overlay);
+    const runCompositePass = runPostProcess;
     if (runCompositePass) {
       try {
         drawWithCompositePass(gl, program, {canvas, viewRect, runPostProcess});
@@ -437,7 +432,9 @@ export function createRenderSession({
       viewportOrigin: [viewRect.x, viewRect.y],
       viewCenter: [state.view.centerX, state.view.centerY],
       viewSpan: [viewSpanX, viewSpanY],
-      sourceImageSize: [state.sourceCanvas.width || 1, state.sourceCanvas.height || 1]
+      sourceImageSize: [state.sourceCanvas.width || 1, state.sourceCanvas.height || 1],
+      compareEnabled: !!config.compareEnabled && (!overlay.mode || overlay.mode === "none"),
+      compareSplit: config.compareEnabled ? config.compareSplit : -1
     });
   }
 

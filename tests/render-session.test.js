@@ -373,7 +373,7 @@ test("draw runs the post-process pipeline when enabled and overlay is off", () =
   assert.equal(directRender, undefined);
 });
 
-test("draw uses the composite pass for compare split even without despeckle", () => {
+test("draw keeps compare split on the direct palette path without despeckle", () => {
   const state = makeState({
     diagnostics: {signature: "", pixel: null, overlay: {mode: "none"}},
     gl: {canvas: {width: 10, height: 10}, NEAREST: "NEAREST", LINEAR: "LINEAR"}
@@ -393,18 +393,15 @@ test("draw uses the composite pass for compare split even without despeckle", ()
   session.draw();
 
   assert.equal(calls.find(call => Array.isArray(call) && call[0] === "postPasses"), undefined);
-  const composite = calls.find(call => Array.isArray(call) && call[0] === "composite");
-  assert.ok(composite, "compare split should run through the composite pass");
-  assert.equal(composite[1].processedTexture, "offscreenTex");
-  assert.equal(composite[1].compareSplit, 0.3);
-  assert.equal(composite[1].compareEnabled, true);
-  const configure = calls.find(call => Array.isArray(call) && call[0] === "configure");
-  assert.deepEqual(configure, ["configure", state.gl, "offscreenTex", {filter: "LINEAR"}]);
+  assert.equal(calls.find(call => Array.isArray(call) && call[0] === "composite"), undefined);
+  assert.equal(calls.find(call => Array.isArray(call) && call[0] === "configure"), undefined);
 
   const directRender = calls.find(call =>
     Array.isArray(call) && call[0] === "render" && call[1].viewport && call[1].viewport.w === 180
   );
-  assert.equal(directRender, undefined);
+  assert.ok(directRender, "compare split without post-processing should use the normal direct path");
+  assert.equal(directRender[1].compareSplit, 0.3);
+  assert.equal(directRender[1].compareEnabled, true);
 });
 
 test("draw bypasses post-process when a diagnostic overlay is active", () => {
