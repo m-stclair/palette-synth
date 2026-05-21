@@ -41,11 +41,8 @@ export const DEFAULT_CONFIG = {
   paletteMode: "generated",
   presetName: "amigaWorkbench",
   manualPalette: [
-    {id: "manual-default-1", hex: "#111111", aliasHex: null},
-    {id: "manual-default-2", hex: "#f04a2a", aliasHex: null},
-    {id: "manual-default-3", hex: "#f6d365", aliasHex: null},
-    {id: "manual-default-4", hex: "#2f80ed", aliasHex: null},
-    {id: "manual-default-5", hex: "#eeeeee", aliasHex: null}
+    {id: "manual-default-1", hex: "#000000", aliasHex: null},
+    {id: "manual-default-2", hex: "#ffffff", aliasHex: null},
   ],
   manualMatchAliases: [],
   paletteRegionRect: null,
