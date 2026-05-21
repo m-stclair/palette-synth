@@ -77,9 +77,10 @@ into manual swatches with four strategies:
 - fill unlocked manual slots
 - save as a manual preset
 
-Manual swatches can preserve source colors while using match aliases, which lets a swatch display one color but
-participate in matching as another. That is the small secret trapdoor in the palette machine: visual color on one side,
-matching color on the other.
+Manual swatches use additive match anchors: each swatch always catches its current color, and can also catch
+extra colors that route to the same rendered swatch. Use per-swatch **Also catch original source**,
+**Pick from source image**, or the global **Also catch all original sources** when palette adjustments move
+the visible colors but source pixels should still route to the edited swatches.
 
 ## Diagnostics
 

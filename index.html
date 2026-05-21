@@ -258,7 +258,7 @@
           <div class="field"><label for="paletteHue">Hue <output id="paletteHueValue"></output></label><input id="paletteHue" type="range" min="-180" max="180" step="1" /></div>
           <div class="field manual-only"><label for="generatedAssist">Generated assist <output id="generatedAssistValue"></output></label><input id="generatedAssist" type="range" min="0" max="100" step="1" /></div>
         </div>
-        <label class="manual-only field checkbox-field" for="aliasAllSources"><span>Alias all source colors</span><input id="aliasAllSources" type="checkbox" /></label>
+        <label class="manual-only field checkbox-field" for="aliasAllSources" title="Each manual swatch still catches its current color, and also catches its original source color. Useful before global palette edits."><span>Also catch all original sources</span><input id="aliasAllSources" type="checkbox" /></label>
       </section>
 
       <section class="panel generated-only">

@@ -76,6 +76,10 @@ function makeElement(tagName = "div") {
       if (!listeners.has(type)) listeners.set(type, []);
       listeners.get(type).push(listener);
     },
+    removeEventListener(type, listener) {
+      if (!listeners.has(type)) return;
+      listeners.set(type, listeners.get(type).filter(candidate => candidate !== listener));
+    },
     dispatchEvent(event) {
       const normalized = typeof event === "string" ? {type: event} : event;
       for (const listener of listeners.get(normalized.type) || []) listener(normalized);
@@ -130,6 +134,10 @@ function installFakeDocument() {
     addEventListener(type, listener) {
       if (!listeners.has(type)) listeners.set(type, []);
       listeners.get(type).push(listener);
+    },
+    removeEventListener(type, listener) {
+      if (!listeners.has(type)) return;
+      listeners.set(type, listeners.get(type).filter(candidate => candidate !== listener));
     },
     dispatchEvent(event) {
       const normalized = typeof event === "string" ? {type: event} : event;
@@ -233,7 +241,77 @@ test("manual palette editor renders through callbacks and routes source/alias ed
     aliasToggle.dispatchEvent("change");
 
     assert.equal(aliasHex, "#112233");
-    assert.deepEqual(history.at(-1), ["with", "Toggle match alias"]);
+    assert.deepEqual(history.at(-1), ["with", "Add match anchor"]);
+  } finally {
+    restore();
+  }
+});
+
+
+test("manual palette editor can pick an extra match anchor from the source image", () => {
+  const restore = installFakeDocument();
+  try {
+    const palettePreview = makeElement("div");
+    const canvas = makeElement("canvas");
+    const els = {palettePreview, canvas};
+    const config = {paletteMode: "manual", generatedAssist: 0, pixelBlockSize: 1, pixelBlockSampleMode: "center"};
+    const state = {
+      imageData: {width: 2, height: 1, data: new Uint8ClampedArray([10, 20, 30, 255, 200, 150, 100, 255])},
+      manualEditor: {sourceIndex: null, swatchId: null, colorInputActive: false},
+      paletteRecords: []
+    };
+    const swatch = {id: "swatch-1", hex: "#112233"};
+    const record = {source: "manual", swatchId: "swatch-1", sourceIndex: 0, hex: "#112233", lab: [20, 0, 0]};
+    state.paletteRecords = [record];
+    let aliasHex = null;
+    const history = [];
+    const statuses = [];
+
+    const editor = createManualPaletteEditor({
+      els,
+      getConfig: () => config,
+      getState: () => state,
+      syncManualSwatches: () => [swatch],
+      manualSwatchIndex: identifier => identifier === 0 || identifier === "swatch-1" ? 0 : -1,
+      manualSwatchAt: identifier => identifier === 0 || identifier === "swatch-1" ? swatch : null,
+      manualSwatchIndexForId: id => id === "swatch-1" ? 0 : -1,
+      manualSourceHex: () => swatch.hex,
+      manualMatchAliasHex: () => aliasHex,
+      setManualMatchAlias: (id, color) => {
+        assert.equal(id, "swatch-1");
+        aliasHex = color;
+      },
+      manualSwatchEditable: candidate => candidate?.source === "manual" && candidate.swatchId === "swatch-1",
+      paletteRecordForManualSwatchId: () => record,
+      withHistory: (label, fn) => {
+        history.push(label);
+        return fn();
+      },
+      clientPointToImagePixel: () => ({x: 1, y: 0}),
+      setStatus: message => statuses.push(message)
+    });
+
+    editor.openManualPaletteEditor(record);
+    findButton(els.paletteEditor, "Pick from source image").dispatchEvent("click");
+
+    assert.equal(state.manualEditor.aliasPickActive, true);
+    assert.equal(canvas.classList.contains("is-picking-alias"), true);
+    assert.match(statuses.at(-1), /Click the source image/);
+
+    canvas.dispatchEvent({
+      type: "click",
+      clientX: 10,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+      stopImmediatePropagation() {}
+    });
+
+    assert.equal(aliasHex, "#c89664");
+    assert.deepEqual(history, ["Pick source-image match anchor"]);
+    assert.equal(state.manualEditor.aliasPickActive, false);
+    assert.equal(canvas.classList.contains("is-picking-alias"), false);
+    assert.match(statuses.at(-1), /also catches source-image #c89664/);
   } finally {
     restore();
   }

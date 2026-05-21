@@ -272,7 +272,7 @@ test("palette preview renders generated locks, manual aliases, and click actions
     const manualChip = els.palettePreview.children[0];
     assert.equal(manualChip.classList.contains("is-editable"), true);
     assert.equal(manualChip.classList.contains("has-match-alias"), true);
-    assert.equal(els.paletteCount.textContent, "1 colors · 1 match alias");
+    assert.equal(els.paletteCount.textContent, "1 colors · 1 extra anchor");
     manualChip.dispatchEvent({type: "click", shiftKey: false});
     assert.equal(state.manualEditor.swatchId, "swatch-a");
   } finally {

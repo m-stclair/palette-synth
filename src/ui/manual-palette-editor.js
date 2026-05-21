@@ -1,4 +1,5 @@
-import { clamp01, colorInfoLabel, hexToLab, labToHex, normalizeHexColor } from "../color-utils.js";
+import { byteRgbToHex, clamp01, colorInfoLabel, hexToLab, labToHex, normalizeHexColor } from "../color-utils.js";
+import { samplePixelBlockColor } from "../diagnostics/pixel-inspector.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
 
 export function createManualPaletteEditor({
@@ -21,18 +22,35 @@ export function createManualPaletteEditor({
   onDuplicateSwatch,
   onRemoveSwatch,
   copyPaletteHex,
-  setStatus
+  setStatus,
+  clientPointToImagePixel
 } = {}) {
   const config = () => getConfig?.() || {};
   const state = () => getState?.() || {};
   const editorState = () => {
     const currentState = state();
     if (!currentState.manualEditor) {
-      currentState.manualEditor = {sourceIndex: null, swatchId: null, colorInputActive: false};
+      currentState.manualEditor = {sourceIndex: null, swatchId: null, colorInputActive: false, aliasPickActive: false, aliasPickSwatchId: null};
     }
     return currentState.manualEditor;
   };
   let dismissHandlersBound = false;
+
+  let aliasPickState = null;
+
+  function clearAliasPickClass() {
+    els.canvas?.classList?.remove?.("is-picking-alias");
+  }
+
+  function cancelAliasPick({announce = false} = {}) {
+    const manualEditor = editorState();
+    if (aliasPickState?.cleanup) aliasPickState.cleanup();
+    aliasPickState = null;
+    manualEditor.aliasPickActive = false;
+    manualEditor.aliasPickSwatchId = null;
+    clearAliasPickClass();
+    if (announce) setStatus?.("Source-image match-anchor pick cancelled.");
+  }
 
   function eventPathIncludes(event, node) {
     if (!node) return false;
@@ -66,12 +84,18 @@ export function createManualPaletteEditor({
   function handleEditorDismissKeydown(event) {
     if (!manualPaletteEditorOpen() || event?.defaultPrevented) return;
     if (event?.key !== "Escape") return;
+    if (editorState().aliasPickActive) {
+      cancelAliasPick({announce: true});
+      event.preventDefault?.();
+      return;
+    }
     closeManualPaletteEditor();
     event.preventDefault?.();
   }
 
   function handleEditorOutsidePointer(event) {
     if (!manualPaletteEditorOpen()) return;
+    if (editorState().aliasPickActive) return;
     if (eventPathIncludes(event, els.paletteEditor) || nodeContains(els.paletteEditor, event?.target)) return;
     if (targetWithinColorPickerPopover(event)) return;
     closeManualPaletteEditor();
@@ -101,10 +125,13 @@ export function createManualPaletteEditor({
   }
 
   function closeManualPaletteEditor() {
+    cancelAliasPick();
     const manualEditor = editorState();
     manualEditor.sourceIndex = null;
     manualEditor.swatchId = null;
     manualEditor.colorInputActive = false;
+    manualEditor.aliasPickActive = false;
+    manualEditor.aliasPickSwatchId = null;
     if (els.paletteEditor) els.paletteEditor.hidden = true;
     if (els.palettePreview) {
       els.palettePreview.querySelectorAll(".chip.is-editing").forEach(chip => chip.classList.remove("is-editing"));
@@ -169,7 +196,7 @@ export function createManualPaletteEditor({
     colorInput.value = sourceHex;
     colorInput.title = `Edit source color · ${colorInfoLabel(sourceHex)}`;
     colorInput.setAttribute("aria-label", "Edit source color");
-    attachColorPicker(colorInput, {label: "Edit source color"});
+    const sourceColorPicker = attachColorPicker(colorInput, {label: "Edit source color"});
     const beginColorInputEdit = () => {
       editorState().colorInputActive = true;
     };
@@ -249,6 +276,13 @@ export function createManualPaletteEditor({
     const aliasSection = document.createElement("div");
     aliasSection.className = "palette-editor-alias";
 
+    const routeLine = document.createElement("div");
+    routeLine.className = "palette-editor-match-route";
+    const routeTitle = document.createElement("strong");
+    routeTitle.textContent = "Match anchors";
+    const routeText = document.createElement("span");
+    routeLine.append(routeTitle, routeText);
+
     const aliasLabel = document.createElement("label");
     aliasLabel.className = "palette-editor-alias-toggle";
 
@@ -257,16 +291,16 @@ export function createManualPaletteEditor({
     aliasToggle.checked = !!aliasHex;
 
     const aliasLabelText = document.createElement("span");
-    aliasLabelText.textContent = "Also match as";
+    aliasLabelText.textContent = "Also catch pixels like";
     aliasLabel.append(aliasToggle, aliasLabelText);
 
     const aliasColorInput = document.createElement("input");
     aliasColorInput.type = "text";
     aliasColorInput.value = aliasHex || sourceHex;
     aliasColorInput.disabled = !aliasToggle.checked;
-    aliasColorInput.title = `Input color this swatch should also catch · ${colorInfoLabel(aliasHex || sourceHex)}`;
-    aliasColorInput.setAttribute("aria-label", "Match alias color picker");
-    attachColorPicker(aliasColorInput, {label: "Match alias color"});
+    aliasColorInput.title = `Input color this swatch should catch · ${colorInfoLabel(aliasHex || sourceHex)}`;
+    aliasColorInput.setAttribute("aria-label", "Catch color picker");
+    const aliasColorPicker = attachColorPicker(aliasColorInput, {label: "Catch color"});
 
     const aliasTextInput = document.createElement("input");
     aliasTextInput.type = "text";
@@ -274,27 +308,56 @@ export function createManualPaletteEditor({
     aliasTextInput.placeholder = "#00aa55";
     aliasTextInput.spellcheck = false;
     aliasTextInput.disabled = !aliasToggle.checked;
-    aliasTextInput.setAttribute("aria-label", "Match alias hex color");
+    aliasTextInput.setAttribute("aria-label", "Catch hex color");
     aliasTextInput.title = colorInfoLabel(aliasHex || sourceHex);
 
-    const aliasCopyButton = document.createElement("button");
-    aliasCopyButton.type = "button";
-    aliasCopyButton.textContent = "Use source";
-    aliasCopyButton.disabled = !aliasToggle.checked;
-    aliasCopyButton.title = "Clear the alias; the swatch still matches itself.";
+    const sourceLockButton = document.createElement("button");
+    sourceLockButton.type = "button";
+    sourceLockButton.textContent = "Also catch original source";
+    sourceLockButton.title = "Add this swatch's source color as an extra match anchor. The swatch still also catches its current color.";
+
+    const recolorButton = document.createElement("button");
+    recolorButton.type = "button";
+    recolorButton.textContent = "Recolor source pixels";
+    recolorButton.title = "Add the source color as an extra match anchor, then open the swatch color picker. The swatch still also catches its current color.";
+
+    const pickSourceImageButton = document.createElement("button");
+    pickSourceImageButton.type = "button";
+    pickSourceImageButton.textContent = "Pick from source image";
+    pickSourceImageButton.disabled = !state().imageData || !els.canvas || typeof clientPointToImagePixel !== "function";
+    pickSourceImageButton.title = pickSourceImageButton.disabled
+      ? "Open a source image first"
+      : "Click the source image to add that pixel color as an extra match anchor.";
+
+    const routeLabelFor = current => {
+      const anchors = [`current ${effectiveHex}`];
+      if (current) {
+        const safeCurrent = normalizeHexColor(current, sourceHex);
+        const sourceAnchored = safeCurrent === normalizeHexColor(sourceHex, sourceHex);
+        anchors.push(`${sourceAnchored ? "source" : "extra"} ${safeCurrent}`);
+      }
+      if (cfg.aliasAllSources && Array.isArray(currentRecord?.sourceLab)) {
+        const globalSourceHex = labToHex(currentRecord.sourceLab);
+        const duplicate = anchors.some(anchor => anchor.endsWith(globalSourceHex));
+        if (!duplicate) anchors.push(`global source ${globalSourceHex}`);
+      }
+      return `Catches ${anchors.join(" + ")} → renders ${effectiveHex}`;
+    };
 
     const updateAliasControls = () => {
       const current = manualMatchAliasHex(swatch.id);
       aliasToggle.checked = !!current;
       aliasColorInput.disabled = !aliasToggle.checked;
       aliasTextInput.disabled = !aliasToggle.checked;
-      aliasCopyButton.disabled = !aliasToggle.checked;
       aliasColorInput.value = current || sourceHex;
       syncColorPickerInput(aliasColorInput);
       aliasTextInput.value = current || "";
+      routeText.textContent = routeLabelFor(current);
+      aliasColorInput.title = `Input color this swatch should catch · ${colorInfoLabel(current || sourceHex)}`;
+      aliasTextInput.title = colorInfoLabel(current || sourceHex);
     };
 
-    aliasToggle.addEventListener("change", () => withHistory?.("Toggle match alias", () => {
+    aliasToggle.addEventListener("change", () => withHistory?.(aliasToggle.checked ? "Add match anchor" : "Remove extra match anchor", () => {
       setManualMatchAlias(swatch.id, aliasToggle.checked ? aliasColorInput.value : null);
       renderManualPaletteEditor(paletteRecordForManualSwatchId(swatch.id));
     }));
@@ -303,7 +366,7 @@ export function createManualPaletteEditor({
       editorState().colorInputActive = true;
     };
     const finishAliasInputEdit = () => {
-      commitHistory?.("Edit match alias");
+      commitHistory?.("Edit catch color");
       editorState().colorInputActive = false;
       syncManualPaletteEditor();
     };
@@ -312,29 +375,108 @@ export function createManualPaletteEditor({
     aliasColorInput.addEventListener("focus", beginAliasInputEdit);
     aliasColorInput.addEventListener("input", () => {
       beginAliasInputEdit();
-      beginHistory?.("Edit match alias");
+      beginHistory?.("Edit catch color");
       aliasTextInput.value = aliasColorInput.value;
       setManualMatchAlias(swatch.id, aliasColorInput.value);
+      routeText.textContent = routeLabelFor(aliasColorInput.value);
     });
     aliasColorInput.addEventListener("change", finishAliasInputEdit);
-    aliasColorInput.addEventListener("blur", () => commitHistory?.("Edit match alias"));
+    aliasColorInput.addEventListener("blur", () => commitHistory?.("Edit catch color"));
 
     aliasTextInput.addEventListener("change", () => {
-      beginHistory?.("Edit match alias");
+      beginHistory?.("Edit catch color");
       const safe = normalizeHexColor(aliasTextInput.value, aliasColorInput.value || sourceHex);
       aliasTextInput.value = safe;
       aliasColorInput.value = safe;
       syncColorPickerInput(aliasColorInput);
       setManualMatchAlias(swatch.id, safe);
-      commitHistory?.("Edit match alias");
+      routeText.textContent = routeLabelFor(safe);
+      commitHistory?.("Edit catch color");
     });
 
-    aliasCopyButton.addEventListener("click", () => withHistory?.("Clear match alias", () => {
-      setManualMatchAlias(swatch.id, null);
+    const beginSourceImageAliasPick = () => {
+      if (!state().imageData || !els.canvas || typeof clientPointToImagePixel !== "function") {
+        setStatus?.("Open a source image before picking a match anchor.");
+        return;
+      }
+      cancelAliasPick();
+      const manualEditor = editorState();
+      manualEditor.aliasPickActive = true;
+      manualEditor.aliasPickSwatchId = swatch.id;
+      els.canvas.classList?.add?.("is-picking-alias");
+      pickSourceImageButton.textContent = "Click source image…";
+      pickSourceImageButton.disabled = true;
+
+      const doc = els.canvas.ownerDocument || globalThis.document;
+      const stopCanvasEvent = event => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        event?.stopImmediatePropagation?.();
+      };
+      const cleanup = () => {
+        els.canvas?.removeEventListener?.("pointerdown", stopCanvasEvent, true);
+        els.canvas?.removeEventListener?.("pointermove", stopCanvasEvent, true);
+        els.canvas?.removeEventListener?.("click", pickFromCanvas, true);
+        doc?.removeEventListener?.("keydown", cancelOnEscape, true);
+      };
+      const finishWithHex = pickedHex => {
+        withHistory?.("Pick source-image match anchor", () => {
+          setManualMatchAlias(swatch.id, pickedHex);
+        });
+        cancelAliasPick();
+        setStatus?.(`Swatch ${index + 1} also catches source-image ${pickedHex}.`);
+        renderManualPaletteEditor(paletteRecordForManualSwatchId(swatch.id));
+      };
+      function pickFromCanvas(event) {
+        stopCanvasEvent(event);
+        const imagePoint = clientPointToImagePixel(event.clientX, event.clientY);
+        const sampled = imagePoint && samplePixelBlockColor(
+          state().imageData,
+          imagePoint.x,
+          imagePoint.y,
+          config().pixelBlockSize,
+          config().pixelBlockSampleMode
+        );
+        if (!sampled) {
+          cancelAliasPick();
+          setStatus?.("Could not sample that source-image pixel.");
+          renderManualPaletteEditor(paletteRecordForManualSwatchId(swatch.id));
+          return;
+        }
+        finishWithHex(byteRgbToHex(sampled.r, sampled.g, sampled.b));
+      }
+      function cancelOnEscape(event) {
+        if (event?.key !== "Escape") return;
+        stopCanvasEvent(event);
+        cancelAliasPick({announce: true});
+        renderManualPaletteEditor(paletteRecordForManualSwatchId(swatch.id));
+      }
+      aliasPickState = {swatchId: swatch.id, cleanup};
+      els.canvas.addEventListener?.("pointerdown", stopCanvasEvent, true);
+      els.canvas.addEventListener?.("pointermove", stopCanvasEvent, true);
+      els.canvas.addEventListener?.("click", pickFromCanvas, true);
+      doc?.addEventListener?.("keydown", cancelOnEscape, true);
+      setStatus?.(`Click the source image to add a match anchor for swatch ${index + 1}.`);
+    };
+
+    sourceLockButton.addEventListener("click", () => withHistory?.("Add source match anchor", () => {
+      setManualMatchAlias(swatch.id, sourceHex);
       updateAliasControls();
+      setStatus?.(`Swatch ${index + 1} also catches source ${sourceHex}.`);
     }));
 
-    aliasSection.append(aliasLabel, aliasColorInput, aliasTextInput, aliasCopyButton);
+    recolorButton.addEventListener("click", () => withHistory?.("Recolor source pixels", () => {
+      setManualMatchAlias(swatch.id, sourceHex);
+      updateAliasControls();
+      setStatus?.(`Swatch ${index + 1} also catches source ${sourceHex}; choose a new render color.`);
+      sourceColorPicker?.open?.({focus: true});
+      colorInput.focus?.();
+    }));
+
+    pickSourceImageButton.addEventListener("click", beginSourceImageAliasPick);
+
+    updateAliasControls();
+    aliasSection.append(routeLine, aliasLabel, aliasColorInput, aliasTextInput, sourceLockButton, recolorButton, pickSourceImageButton);
     editor.append(summary, controls, aliasSection);
   }
 

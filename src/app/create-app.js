@@ -64,6 +64,17 @@ export function createPaletteSynthApp(options = {}) {
     paletteRegionActions: ports.paletteRegionActions
   });
 
+  const view = createViewDomain({
+    els,
+    state,
+    config,
+    render: ports.render,
+    configActions: ports.configActions,
+    history,
+    conditionalPanelsActions: ports.conditionalPanelsActions,
+    setStatus
+  });
+
   const manual = createManualDomain({
     els,
     state,
@@ -71,7 +82,8 @@ export function createPaletteSynthApp(options = {}) {
     history,
     render: ports.render,
     copyPaletteHex,
-    setStatus
+    setStatus,
+    clientPointToImagePixel: view.clientPointToImagePixel
   });
 
   const palette = createPaletteDomain({
@@ -83,17 +95,6 @@ export function createPaletteSynthApp(options = {}) {
     render: ports.render,
     cyclePreviewActions: ports.cyclePreviewActions,
     copyPaletteHex,
-    setStatus
-  });
-
-  const view = createViewDomain({
-    els,
-    state,
-    config,
-    render: ports.render,
-    configActions: ports.configActions,
-    history,
-    conditionalPanelsActions: ports.conditionalPanelsActions,
     setStatus
   });
   ports.paletteRegion.attach(view.paletteRegionController);

@@ -93,8 +93,8 @@ export function createPalettePreview({
           || Math.abs((Number(config.gammaC) || 1) - 1) > 1e-6
           || Math.abs(Number(config.paletteHue) || 0) > 1e-6;
         els.paletteHint.textContent = (assist > 0 && state.imageData) || adjusted
-          ? "Manual palette: click edits source; Shift-click copies effective hex."
-          : "Manual palette: click edits; Shift-click copies.";
+          ? "Manual palette: click edits source/match anchors; Shift-click copies effective hex."
+          : "Manual palette: click edits source/match anchors; Shift-click copies.";
       } else {
         els.paletteHint.textContent = "Shift-click copies hex.";
       }
@@ -211,8 +211,9 @@ export function createPalettePreview({
       const tagged = cycleTagMode && cycleTagged(record);
       const locked = lockable && !!record.locked;
       const editing = editable && state.manualEditor.swatchId === record.swatchId;
+      const sourceHex = editable ? manualSourceHex(record.swatchId ?? record.sourceIndex) : null;
       const aliasHex = editable ? manualMatchAliasHex(record.swatchId ?? record.sourceIndex) : null;
-      const sourceAliasHex = editable && config.aliasAllSources ? manualSourceHex(record.swatchId ?? record.sourceIndex) : null;
+      const sourceAliasHex = editable && config.aliasAllSources ? sourceHex : null;
       chip.dataset.locked = locked ? "true" : "false";
       chip.dataset.cycleTagged = tagged ? "true" : "false";
       chip.style.background = hex;
@@ -220,13 +221,18 @@ export function createPalettePreview({
       if (cycleTagMode || lockable) chip.classList.add("is-lockable");
       if (editable) chip.classList.add("is-editable");
       if (editing) chip.classList.add("is-editing");
-      if (aliasHex || (sourceAliasHex && sourceAliasHex !== hex)) {
+      const extraAnchors = [];
+      if (aliasHex) extraAnchors.push({hex: aliasHex, kind: sourceHex && aliasHex === sourceHex ? "source" : "extra"});
+      if (sourceAliasHex && sourceAliasHex !== aliasHex) extraAnchors.push({hex: sourceAliasHex, kind: "global source"});
+      if (extraAnchors.length) {
         chip.classList.add("has-match-alias");
         const indicator = document.createElement("span");
-        indicator.className = "chip-alias-indicator";
+        const primaryAnchor = extraAnchors[0];
+        indicator.className = `chip-alias-indicator${primaryAnchor.kind.includes("source") ? " is-source-alias" : ""}`;
         indicator.setAttribute("aria-hidden", "true");
-        indicator.style.background = aliasHex || sourceAliasHex;
-        indicator.title = colorInfoLabel(aliasHex || sourceAliasHex);
+        indicator.style.background = primaryAnchor.hex;
+        const anchorList = extraAnchors.map(anchor => `${anchor.kind} ${colorInfoLabel(anchor.hex)}`).join(" + ");
+        indicator.title = `Also catches ${anchorList}; current ${colorInfoLabel(hex, record.lab)} always matches → renders ${colorInfoLabel(hex, record.lab)}`;
         chip.append(indicator);
       }
       if (tagged) {
@@ -248,11 +254,11 @@ export function createPalettePreview({
       if (cycleTagMode) titleParts.push(tagged ? "Click to remove from manual cycle" : "Click to tag for manual cycle", "Shift-click to copy hex");
       else if (lockable) titleParts.push(locked ? "Click to unlock family" : "Click to lock family", "Shift-click to copy hex");
       else if (editable) {
-        const sourceHex = manualSourceHex(record.swatchId ?? record.sourceIndex);
         if (sourceHex !== hex) titleParts.push(`source ${colorInfoLabel(sourceHex)}`);
-        if (aliasHex) titleParts.push(`also matches ${colorInfoLabel(aliasHex)}`);
-        if (sourceAliasHex && sourceAliasHex !== hex) titleParts.push(`also matches source ${colorInfoLabel(sourceAliasHex)}`);
-        titleParts.push("Click to edit source/alias", "Shift-click to copy effective hex");
+        titleParts.push(`always catches current ${colorInfoLabel(hex, record.lab)}`);
+        if (aliasHex) titleParts.push(`also catches ${colorInfoLabel(aliasHex)} → renders ${colorInfoLabel(hex, record.lab)}`);
+        if (sourceAliasHex && sourceAliasHex !== aliasHex) titleParts.push(`also catches original source ${colorInfoLabel(sourceAliasHex)} → renders ${colorInfoLabel(hex, record.lab)}`);
+        titleParts.push("Click to edit source/match anchors", "Shift-click to copy effective hex");
       }
       else titleParts.push("Click to copy hex");
       chip.title = titleParts.join(" · ");
@@ -282,7 +288,7 @@ export function createPalettePreview({
       } else {
         els.paletteCount.textContent = isGeneratedPaletteMode()
           ? `${records.length} colors · ${activeLocks} lock${activeLocks === 1 ? "" : "s"}`
-          : (activeAliases > 0 ? `${records.length} colors · ${activeAliases} match alias${activeAliases === 1 ? "" : "es"}` : `${records.length} colors`);
+          : (activeAliases > 0 ? `${records.length} colors · ${activeAliases} extra anchor${activeAliases === 1 ? "" : "s"}` : `${records.length} colors`);
       }
     }
     updateGeneratedLockUi();

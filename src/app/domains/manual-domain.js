@@ -10,7 +10,8 @@ export function createManualDomain({
   history = {},
   render = {},
   copyPaletteHex,
-  setStatus
+  setStatus,
+  clientPointToImagePixel
 }) {
   const {
     beginHistory,
@@ -102,7 +103,8 @@ export function createManualDomain({
       return next;
     },
     copyPaletteHex,
-    setStatus
+    setStatus,
+    clientPointToImagePixel
   });
 
   return {
