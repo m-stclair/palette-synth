@@ -20,6 +20,8 @@ export function createPaletteDomain({
     manualSwatchEditable,
     manualMatchAliasHex,
     manualSourceHex,
+    manualSwatchMuted,
+    toggleManualSwatchMuted,
     activeManualMatchAliasCount,
     syncManualPaletteEditor,
     openManualPaletteEditor
@@ -65,6 +67,8 @@ export function createPaletteDomain({
     manualSwatchEditable,
     manualMatchAliasHex,
     manualSourceHex,
+    manualSwatchMuted,
+    toggleManualSwatchMuted,
     activeManualMatchAliasCount,
     withHistory,
     markPaletteDirty,

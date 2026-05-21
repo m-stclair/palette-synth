@@ -444,6 +444,7 @@ export function createManualPalette({
       sourceIndex,
       swatchId: swatch.id,
       sourceLab: sourceLabs[sourceIndex],
+      muted: !!swatch.muted,
       role: assist > 0 && imageDataAvailable ? "manual-assisted-swatch" : "manual-swatch"
     });
   });

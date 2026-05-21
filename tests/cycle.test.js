@@ -50,6 +50,25 @@ test("manual cycle keys normalize and tag only selected records", () => {
   assert.equal(cycleTagged(config, records[1]), false);
 });
 
+
+test("manual cycle ignores muted records", () => {
+  const config = {
+    CYCLE_MODE: "manual",
+    cycleOffset: 1,
+    cycleManualKeys: ["manual-one", "manual-two", "manual-three"],
+    manualPalette: [{id: "manual-one"}, {id: "manual-two"}, {id: "manual-three"}]
+  };
+  const records = [
+    record([1, 0, 0], "manual:manual-one"),
+    {...record([2, 0, 0], "manual:manual-two"), muted: true},
+    record([3, 0, 0], "manual:manual-three")
+  ];
+
+  assert.deepEqual(manualCycleIndices(config, records), [0, 2]);
+  assert.equal(cycleTagged(config, records[1]), false);
+  assert.deepEqual(applyManualCycle(config, records), [[3, 0, 0], [2, 0, 0], [1, 0, 0]]);
+});
+
 test("manual cycle rotates only tagged render labs", () => {
   const config = {
     CYCLE_MODE: "manual",

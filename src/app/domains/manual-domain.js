@@ -41,6 +41,8 @@ export function createManualDomain({
     setManualMatchAlias,
     insertManualSwatchAfter,
     removeManualSwatchAt,
+    manualSwatchMuted,
+    toggleManualSwatchMuted,
     manualSwatchEditable,
     paletteRecordForManualSwatchId
   } = manualSwatches;

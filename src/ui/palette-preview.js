@@ -30,6 +30,8 @@ export function createPalettePreview({
   manualSwatchEditable,
   manualMatchAliasHex,
   manualSourceHex,
+  manualSwatchMuted = identifier => !!identifier && false,
+  toggleManualSwatchMuted = () => null,
   activeManualMatchAliasCount,
   withHistory,
   markPaletteDirty,
@@ -102,8 +104,8 @@ export function createPalettePreview({
           || Math.abs((Number(config.gammaC) || 1) - 1) > 1e-6
           || Math.abs(Number(config.paletteHue) || 0) > 1e-6;
         els.paletteHint.textContent = (assist > 0 && state.imageData) || adjusted
-          ? "Manual palette: click edits source/match anchors; Shift-click shows diagnostic overlay for the effective color."
-          : "Manual palette: click edits source/match anchors; Shift-click shows diagnostic overlay.";
+          ? "Manual palette: click edits source/match anchors; Ctrl-click mutes/unmutes; Shift-click shows diagnostic overlay for the effective color."
+          : "Manual palette: click edits source/match anchors; Ctrl-click mutes/unmutes; Shift-click shows diagnostic overlay.";
       } else {
         els.paletteHint.textContent = "Shift-click shows diagnostic overlay.";
       }
@@ -145,6 +147,21 @@ export function createPalettePreview({
     updateGeneratedLockUi();
     syncCycleControls();
     setStatus(`Tagged ${record.hex ?? labToHex(record.lab)} for manual cycling.`);
+    queueRender();
+  }
+
+  function toggleManualSwatchMute(record) {
+    if (!manualSwatchEditable(record)) return;
+    const identifier = record.swatchId ?? record.sourceIndex;
+    const wasMuted = manualSwatchMuted(identifier) || !!record.muted;
+    const next = toggleManualSwatchMuted(identifier);
+    if (!next) {
+      setStatus("At least one manual swatch must stay active.");
+      return;
+    }
+    markPaletteDirty();
+    syncCycleControls();
+    setStatus(`${next.hex ?? record.hex ?? labToHex(record.lab)} ${wasMuted ? "unmuted" : "muted"}; muted swatches stay visible but are not assigned.`);
     queueRender();
   }
 
@@ -237,6 +254,7 @@ export function createPalettePreview({
       chip.dataset.swatchId = record.swatchId ?? "";
       const lockable = !cycleTagMode && generatedSwatchLockable(record);
       const editable = !cycleTagMode && manualSwatchEditable(record);
+      const muted = editable && (manualSwatchMuted(record.swatchId ?? record.sourceIndex) || !!record.muted);
       const tagged = cycleTagMode && cycleTagged(record);
       const locked = lockable && !!record.locked;
       const editing = editable && state.manualEditor.swatchId === record.swatchId;
@@ -245,10 +263,12 @@ export function createPalettePreview({
       const sourceAliasHex = editable && config.aliasAllSources ? sourceHex : null;
       chip.dataset.locked = locked ? "true" : "false";
       chip.dataset.cycleTagged = tagged ? "true" : "false";
+      chip.dataset.muted = muted ? "true" : "false";
       chip.style.background = hex;
       chip.setAttribute("aria-pressed", cycleTagMode ? String(tagged) : (lockable ? String(locked) : (editable ? String(editing) : "false")));
       if (cycleTagMode || lockable) chip.classList.add("is-lockable");
       if (editable) chip.classList.add("is-editable");
+      if (muted) chip.classList.add("is-muted");
       if (editing) chip.classList.add("is-editing");
       if (diagnosticActive) chip.classList.add("is-diagnostic-overlay");
       const extraAnchors = [];
@@ -284,17 +304,22 @@ export function createPalettePreview({
       if (cycleTagMode) titleParts.push(tagged ? "Click to remove from manual cycle" : "Click to tag for manual cycle", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
       else if (lockable) titleParts.push(locked ? `Click to unlock ${generatedLockLabel()}` : `Click to lock ${generatedLockLabel()}`, diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
       else if (editable) {
+        if (muted) titleParts.push("muted; not assigned");
         if (sourceHex !== hex) titleParts.push(`source ${colorInfoLabel(sourceHex)}`);
-        titleParts.push(`always catches current ${colorInfoLabel(hex, record.lab)}`);
-        if (aliasHex) titleParts.push(`also catches ${colorInfoLabel(aliasHex)} → renders ${colorInfoLabel(hex, record.lab)}`);
-        if (sourceAliasHex && sourceAliasHex !== aliasHex) titleParts.push(`also catches original source ${colorInfoLabel(sourceAliasHex)} → renders ${colorInfoLabel(hex, record.lab)}`);
-        titleParts.push("Click to edit source/match anchors", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay for effective color");
+        if (!muted) titleParts.push(`always catches current ${colorInfoLabel(hex, record.lab)}`);
+        if (!muted && aliasHex) titleParts.push(`also catches ${colorInfoLabel(aliasHex)} → renders ${colorInfoLabel(hex, record.lab)}`);
+        if (!muted && sourceAliasHex && sourceAliasHex !== aliasHex) titleParts.push(`also catches original source ${colorInfoLabel(sourceAliasHex)} → renders ${colorInfoLabel(hex, record.lab)}`);
+        titleParts.push("Click to edit source/match anchors", muted ? "Ctrl-click to unmute" : "Ctrl-click to mute without removing", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay for effective color");
       }
       else titleParts.push("Click to copy hex", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
       chip.title = titleParts.join(" · ");
       chip.addEventListener("click", async event => {
         if (event.shiftKey) {
           toggleDiagnosticOverlayForSwatch(swatchIndex);
+          return;
+        }
+        if (editable && (event.ctrlKey || event.metaKey)) {
+          withHistory("Toggle manual swatch mute", () => toggleManualSwatchMute(record));
           return;
         }
         if (cycleTagMode) {
@@ -311,14 +336,28 @@ export function createPalettePreview({
         }
         await copyPaletteHex(hex);
       });
+      chip.addEventListener("contextmenu", event => {
+        if (!editable || !event.ctrlKey) return;
+        event.preventDefault?.();
+        withHistory("Toggle manual swatch mute", () => toggleManualSwatchMute(record));
+      });
       wrap.append(chip);
     }
     const activeLocks = isGeneratedPaletteMode() ? activeGeneratedLocks().length : 0;
     const activeAliases = activeManualMatchAliasCount(records);
+    const mutedCount = config.paletteMode === "manual" ? records.filter(record => !!record?.muted).length : 0;
     const cycleTags = manualCycleModeEnabled() ? manualCycleIndices(records).length : 0;
     if (els.paletteCount) {
       if (manualCycleModeEnabled()) {
         els.paletteCount.textContent = `${records.length} colors · ${cycleTags} cycle tag${cycleTags === 1 ? "" : "s"}`;
+      } else if (config.paletteMode === "manual" && mutedCount > 0) {
+        const countParts = [
+          `${records.length} colors`,
+          `${Math.max(0, records.length - mutedCount)} active`,
+          `${mutedCount} muted`
+        ];
+        if (activeAliases > 0) countParts.push(`${activeAliases} extra anchor${activeAliases === 1 ? "" : "s"}`);
+        els.paletteCount.textContent = countParts.join(" · ");
       } else {
         els.paletteCount.textContent = isGeneratedPaletteMode()
           ? `${records.length} colors · ${activeLocks} lock${activeLocks === 1 ? "" : "s"}`

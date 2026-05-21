@@ -18,7 +18,8 @@ export function createManualSwatch(color = "#eeeeee", aliasHex = null, seed = "s
     id: createManualSwatchId(seed),
     hex,
     aliasHex: normalizeOptionalHexColor(aliasHex),
-    locked: !!locked
+    locked: !!locked,
+    muted: false
   };
   if (exactLab && normalizeHexColor(labToHex(exactLab), "") === hex) {
     swatch.lab = exactLab;
@@ -108,10 +109,38 @@ export function insertManualSwatchAfter(config, index, color, aliasHex = null, s
   return swatch;
 }
 
+export function activeManualSwatchCount(config) {
+  return syncManualSwatches(config).filter(swatch => !swatch.muted).length;
+}
+
+export function manualSwatchMuted(config, identifier) {
+  return !!manualSwatchAt(config, identifier)?.muted;
+}
+
+export function setManualSwatchMuted(config, identifier, muted = true) {
+  const index = manualSwatchIndex(config, identifier);
+  if (index < 0) return null;
+  const swatches = syncManualSwatches(config);
+  const swatch = swatches[index];
+  const nextMuted = !!muted;
+  if (nextMuted && !swatch.muted && activeManualSwatchCount(config) <= 1) return null;
+  swatch.muted = nextMuted;
+  swatches[index] = swatch;
+  config.manualPalette = swatches;
+  return swatch;
+}
+
+export function toggleManualSwatchMuted(config, identifier) {
+  const current = manualSwatchAt(config, identifier);
+  if (!current) return null;
+  return setManualSwatchMuted(config, identifier, !current.muted);
+}
+
 export function removeManualSwatchAt(config, index) {
   const swatches = syncManualSwatches(config);
   if (swatches.length <= 1 || index < 0 || index >= swatches.length) return null;
   swatches.splice(index, 1);
+  if (swatches.length && swatches.every(swatch => swatch.muted)) swatches[Math.min(index, swatches.length - 1)].muted = false;
   config.manualPalette = swatches;
   config.cycleManualKeys = normalizeCycleManualKeys(config.cycleManualKeys, swatches);
   return swatches[Math.min(index, swatches.length - 1)] || null;
@@ -137,7 +166,7 @@ export function paletteRecordForManualSourceIndex(config, index, records = []) {
 export function activeManualMatchAliasCount(config, records = []) {
   if (config?.paletteMode !== "manual") return 0;
   return (records || []).reduce((count, record) => {
-    if (!manualSwatchEditable(config, record)) return count;
+    if (!manualSwatchEditable(config, record) || manualSwatchMuted(config, record.swatchId ?? record.sourceIndex)) return count;
     let next = count;
     if (manualMatchAliasHex(config, record.swatchId ?? record.sourceIndex)) next += 1;
     if (config.aliasAllSources && Array.isArray(record.sourceLab) && Array.isArray(record.lab) && labDistance(record.sourceLab, record.lab) >= 0.1) next += 1;
@@ -164,6 +193,10 @@ export function createManualSwatchModel({getConfig, getRecords = () => [], onAli
     },
     insertManualSwatchAfter: (index, color, aliasHex = null, seed = "copy") => insertManualSwatchAfter(config(), index, color, aliasHex, seed),
     removeManualSwatchAt: index => removeManualSwatchAt(config(), index),
+    activeManualSwatchCount: () => activeManualSwatchCount(config()),
+    manualSwatchMuted: identifier => manualSwatchMuted(config(), identifier),
+    setManualSwatchMuted: (identifier, muted = true) => setManualSwatchMuted(config(), identifier, muted),
+    toggleManualSwatchMuted: identifier => toggleManualSwatchMuted(config(), identifier),
     manualSwatchEditable: record => manualSwatchEditable(config(), record),
     paletteRecordForManualSwatchId: (swatchId, inputRecords = undefined) => paletteRecordForManualSwatchId(swatchId, records(inputRecords)),
     activeManualMatchAliasCount: (inputRecords = undefined) => activeManualMatchAliasCount(config(), records(inputRecords))

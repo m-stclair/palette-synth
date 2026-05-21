@@ -41,8 +41,8 @@ export const DEFAULT_CONFIG = {
   paletteMode: "generated",
   presetName: "amigaWorkbench",
   manualPalette: [
-    {id: "manual-default-1", hex: "#000000", aliasHex: null},
-    {id: "manual-default-2", hex: "#ffffff", aliasHex: null},
+    {id: "manual-default-1", hex: "#000000", aliasHex: null, muted: false},
+    {id: "manual-default-2", hex: "#ffffff", aliasHex: null, muted: false},
   ],
   manualMatchAliases: [],
   paletteRegionRect: null,
@@ -161,7 +161,8 @@ export function normalizeManualSwatches(value, legacyAliases = []) {
       id,
       hex,
       aliasHex: normalizeOptionalHexColor(aliasCandidate),
-      locked: objectEntry ? !!entry.locked : false
+      locked: objectEntry ? !!entry.locked : false,
+      muted: objectEntry ? !!entry.muted : false
     };
     if (exactLab && normalizeHexColor(labToHex(exactLab), "") === hex) {
       swatch.lab = exactLab;
@@ -170,7 +171,9 @@ export function normalizeManualSwatches(value, legacyAliases = []) {
     out.push(swatch);
   });
 
-  return out.length ? out : normalizeManualSwatches(DEFAULT_CONFIG.manualPalette, []);
+  if (!out.length) return normalizeManualSwatches(DEFAULT_CONFIG.manualPalette, []);
+  if (out.every(swatch => swatch.muted)) out[0].muted = false;
+  return out;
 }
 
 export function normalizeCycleManualKeys(value = [], swatches = []) {

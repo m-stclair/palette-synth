@@ -232,7 +232,9 @@ export function createPaletteRuntime({
   function paletteUniformEntries(records, renderPalette = paletteLabs(records)) {
     const safeRecords = Array.isArray(records) ? records : [];
     const safeRenderPalette = Array.isArray(renderPalette) ? renderPalette : paletteLabs(safeRecords);
+    const recordAssignable = record => !(config.paletteMode === "manual" && record?.muted);
     const natural = safeRecords.slice(0, MAX_PALETTE_SIZE).map((record, index) => {
+      if (!recordAssignable(record)) return null;
       const entry = {
         featureLab: record.lab,
         renderLab: safeRenderPalette[index] || record.lab,
@@ -247,14 +249,14 @@ export function createPaletteRuntime({
         entry.featureHue = record.scaledHue;
       }
       return entry;
-    });
+    }).filter(Boolean);
 
     const entries = [...natural];
     if (config.paletteMode !== "manual" || entries.length >= MAX_PALETTE_SIZE) return entries;
 
     for (let i = 0; i < safeRecords.length && entries.length < MAX_PALETTE_SIZE; i++) {
       const record = safeRecords[i];
-      if (!manualSwatchEditable(record)) continue;
+      if (!manualSwatchEditable(record) || !recordAssignable(record)) continue;
       const renderLab = safeRenderPalette[i] || record.lab;
       const aliasHex = manualMatchAliasHex(record.swatchId ?? record.sourceIndex);
       const aliasLabs = [];

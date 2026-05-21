@@ -25,9 +25,9 @@ test("default config clones are deep copies", () => {
   assert.notEqual(snapshot.manualPalette[1].hex, a.manualPalette[1].hex);
 });
 
-test("manual swatches normalize IDs, aliases, locks, and duplicates", () => {
+test("manual swatches normalize IDs, aliases, locks, mutes, and duplicates", () => {
   const swatches = normalizeManualSwatches([
-    {id: "Accent", hex: "f04", alias: "00ff00", locked: true},
+    {id: "Accent", hex: "f04", alias: "00ff00", locked: true, muted: true},
     {id: "Accent", color: "#112233", matchAliasHex: "not-a-color"},
     "abc"
   ]);
@@ -36,8 +36,20 @@ test("manual swatches normalize IDs, aliases, locks, and duplicates", () => {
   assert.equal(swatches[0].hex, "#ff0044");
   assert.equal(swatches[0].aliasHex, "#00ff00");
   assert.equal(swatches[0].locked, true);
+  assert.equal(swatches[0].muted, true);
   assert.equal(swatches[1].aliasHex, null);
   assert.equal(swatches[2].hex, "#aabbcc");
+});
+
+
+test("manual swatch normalization keeps at least one swatch assignable", () => {
+  const swatches = normalizeManualSwatches([
+    {id: "A", hex: "#111111", muted: true},
+    {id: "B", hex: "#222222", muted: true}
+  ]);
+
+  assert.equal(swatches[0].muted, false);
+  assert.equal(swatches[1].muted, true);
 });
 
 test("cycle manual keys migrate legacy index keys and preserve generated keys", () => {

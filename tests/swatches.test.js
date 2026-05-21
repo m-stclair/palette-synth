@@ -10,11 +10,13 @@ import {
   manualSourceHex,
   manualSwatchAt,
   manualSwatchEditable,
+  manualSwatchMuted,
   manualSwatchIndex,
   manualSwatchesFromColors,
   normalizeCapturedPaletteEntry,
   removeManualSwatchAt,
   setManualMatchAlias,
+  toggleManualSwatchMuted,
   syncManualSwatches
 } from "../src/manual/swatches.js";
 
@@ -51,6 +53,7 @@ test("manual swatches create, normalize, index by id, and expose source hex", ()
   assert.equal(manualSwatchAt(config, 1).id, second.id);
   assert.equal(manualSourceHex(config, first.id), "#123456");
   assert.equal(manualMatchAliasHex(config, first.id), "#abcdef");
+  assert.equal(manualSwatchMuted(config, first.id), false);
 });
 
 test("manual swatches from colors cap to the manual palette limit and ignore invalid colors", () => {
@@ -59,6 +62,25 @@ test("manual swatches from colors cap to the manual palette limit and ignore inv
 
   assert.equal(swatches.length, 41);
   assert.ok(swatches.every(swatch => swatch.id.startsWith("manual-batch-")));
+});
+
+
+test("manual swatch muting toggles assignment availability without allowing zero active colors", () => {
+  const first = createManualSwatch("#111111", null, "one");
+  const second = createManualSwatch("#222222", null, "two");
+  const config = configWithSwatches([first, second]);
+
+  const muted = toggleManualSwatchMuted(config, first.id);
+  assert.equal(muted.id, first.id);
+  assert.equal(muted.muted, true);
+  assert.equal(manualSwatchMuted(config, first.id), true);
+
+  const blocked = toggleManualSwatchMuted(config, second.id);
+  assert.equal(blocked, null);
+  assert.equal(manualSwatchMuted(config, second.id), false);
+
+  const unmuted = toggleManualSwatchMuted(config, first.id);
+  assert.equal(unmuted.muted, false);
 });
 
 test("alias, insert, remove, and editable helpers mutate only the manual model", () => {

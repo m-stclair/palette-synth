@@ -211,6 +211,7 @@ test("palette preview renders generated locks, manual aliases, and click actions
     let syncedEditor = 0;
     const copied = [];
     const overlays = [];
+    const manualMuted = new Set();
 
     const preview = createPalettePreview({
       els,
@@ -230,7 +231,19 @@ test("palette preview renders generated locks, manual aliases, and click actions
       manualSwatchEditable: record => record.source === "manual",
       manualMatchAliasHex: id => id === "swatch-a" ? "#abcdef" : null,
       manualSourceHex: () => "#123456",
-      activeManualMatchAliasCount: records => records.filter(record => record.swatchId === "swatch-a").length,
+      manualSwatchMuted: id => manualMuted.has(id),
+      toggleManualSwatchMuted: id => {
+        const record = state.paletteRecords.find(item => item.swatchId === id);
+        if (manualMuted.has(id)) {
+          manualMuted.delete(id);
+          if (record) record.muted = false;
+          return {id, hex: record?.hex ?? "#eeeeee", muted: false};
+        }
+        manualMuted.add(id);
+        if (record) record.muted = true;
+        return {id, hex: record?.hex ?? "#eeeeee", muted: true};
+      },
+      activeManualMatchAliasCount: records => records.filter(record => record.swatchId === "swatch-a" && !record.muted).length,
       withHistory: (label, fn) => {
         history.push(label);
         return fn();
@@ -279,14 +292,32 @@ test("palette preview renders generated locks, manual aliases, and click actions
     assert.equal(els.palettePreview.children[0].classList.contains("is-diagnostic-overlay"), false);
 
     config.paletteMode = "manual";
-    state.paletteRecords = [{id: "manual-1", source: "manual", swatchId: "swatch-a", sourceIndex: 0, lab: [80, 0, 0], hex: "#eeeeee"}];
+    state.paletteRecords = [
+      {id: "manual-1", source: "manual", swatchId: "swatch-a", sourceIndex: 0, lab: [80, 0, 0], hex: "#eeeeee"},
+      {id: "manual-2", source: "manual", swatchId: "swatch-b", sourceIndex: 1, lab: [20, 0, 0], hex: "#222222"}
+    ];
     preview.renderSwatches();
 
     const manualChip = els.palettePreview.children[0];
     assert.equal(manualChip.classList.contains("is-editable"), true);
     assert.equal(manualChip.classList.contains("has-match-alias"), true);
-    assert.equal(els.paletteCount.textContent, "1 colors · 1 extra anchor");
-    manualChip.dispatchEvent({type: "click", shiftKey: false});
+    assert.equal(els.paletteCount.textContent, "2 colors · 1 extra anchor");
+    manualChip.dispatchEvent({type: "click", ctrlKey: true, shiftKey: false});
+    assert.equal(manualMuted.has("swatch-a"), true);
+    assert.deepEqual(history.at(-1), "Toggle manual swatch mute");
+    assert.match(statuses.at(-1), /muted; muted swatches stay visible but are not assigned/);
+
+    preview.renderSwatches();
+    const mutedChip = els.palettePreview.children[0];
+    assert.equal(mutedChip.classList.contains("is-muted"), true);
+    assert.equal(els.paletteCount.textContent, "2 colors · 1 active · 1 muted");
+
+    mutedChip.dispatchEvent({type: "click", ctrlKey: true, shiftKey: false});
+    assert.equal(manualMuted.has("swatch-a"), false);
+
+    preview.renderSwatches();
+    const editableChip = els.palettePreview.children[0];
+    editableChip.dispatchEvent({type: "click", shiftKey: false});
     assert.equal(state.manualEditor.swatchId, "swatch-a");
   } finally {
     restore();

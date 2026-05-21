@@ -20,7 +20,7 @@ export function manualCycleKeySet(config, swatches = config?.manualPalette || []
 }
 
 export function cycleTaggable(config, record) {
-  return manualCycleModeEnabled(config) && !!record?.cycleKey;
+  return manualCycleModeEnabled(config) && !!record?.cycleKey && !record?.muted;
 }
 
 export function cycleTagged(config, record, swatches = config?.manualPalette || []) {
@@ -31,7 +31,7 @@ export function manualCycleIndices(config, records = [], keySet = manualCycleKey
   const indices = [];
   const safeRecords = Array.isArray(records) ? records : [];
   safeRecords.forEach((record, index) => {
-    if (record?.cycleKey && keySet.has(record.cycleKey)) indices.push(index);
+    if (record?.cycleKey && !record?.muted && keySet.has(record.cycleKey)) indices.push(index);
   });
   return indices;
 }

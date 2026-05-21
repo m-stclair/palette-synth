@@ -282,6 +282,7 @@ export function makePaletteRecord({
     sourceLab = null,
     locked = false,
     lockId = null,
+    muted = false,
     role = "display"
   }) {
     const safeLab = [...lab];
@@ -304,6 +305,7 @@ export function makePaletteRecord({
       sourceLab: sourceLab ? [...sourceLab] : (seedLab ? [...seedLab] : [...safeLab]),
       locked,
       lockId,
+      muted: !!muted,
       role,
       cycleKey: source === "manual" && swatchId ? manualCycleKeyForId(swatchId) : `${source}:${familyId ?? sourceIndex ?? "x"}:${variant}:${variantIndex}`,
       displayIndex: null

@@ -103,6 +103,26 @@ test("manual palette uniform entries append match aliases without changing rende
   assert.deepEqual(entries[1].sourceRecord, record);
 });
 
+
+test("manual palette uniform entries omit muted swatches but keep visible records", () => {
+  const {runtime} = makeRuntime({
+    config: {paletteMode: "manual"},
+    aliases: {muted: "#ffffff"},
+    swatches: [
+      {id: "active", hex: "#000000", muted: false},
+      {id: "muted", hex: "#ffffff", muted: true}
+    ]
+  });
+
+  const records = runtime.getPaletteRecords();
+  assert.equal(records.length, 2);
+  assert.equal(records.some(record => record.swatchId === "muted" && record.muted), true);
+
+  const entries = runtime.paletteUniformEntries(records);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].sourceRecord.swatchId, "active");
+});
+
 test("getPaletteRecords clears stale generated traces outside generated modes and falls back safely", () => {
   const {runtime, state} = makeRuntime({
     config: {paletteMode: "manual", generatedAssist: 0},
