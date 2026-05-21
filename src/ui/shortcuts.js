@@ -54,6 +54,7 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "Shift+O", label: "Open reference image"},
   {key: "Shift+R", label: "Reset settings"},
   {key: "C", label: "Toggle compare"},
+  {key: "Shift+C", label: "Copy current palette hex"},
   {key: "P", label: "Toggle pixel-perfect preview"},
   {key: PALETTE_SWATCH_SCALE_HOTKEY, label: "Cycle palette swatch bar size"},
   {key: "I", label: "Toggle floating inspector"},
@@ -395,6 +396,7 @@ function annotateShortcutTargets(root) {
     ["resetButton", "Shift+R"],
     ["collapseAllPanelsButton", "Shift+-"],
     ["compareToggle", "C"],
+    ["copyPaletteHexStrings", "Shift+C"],
     ["pixelPerfectToggle", "P"],
     ["paletteSwatchScaleToggle", PALETTE_SWATCH_SCALE_HOTKEY],
     ["togglePixelInspector", "I Shift+I"],
@@ -443,6 +445,7 @@ export function createShortcutDispatcher({
   loadReferenceFile = () => {},
   exportPalette = () => {},
   downloadFullImage = () => {},
+  copyCurrentPaletteHexStrings = () => {},
   captureCurrentPaletteToManual = () => {},
   switchPalettePreset = () => false,
   addPixelSourceToManualPalette = () => {},
@@ -697,7 +700,10 @@ export function createShortcutDispatcher({
       return true;
     },
     "c": event => {
-      if (event.shiftKey) return false;
+      if (event.shiftKey) {
+        copyCurrentPaletteHexStrings();
+        return true;
+      }
       toggleCompare();
       return true;
     },

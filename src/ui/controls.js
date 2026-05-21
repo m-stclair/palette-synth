@@ -472,6 +472,7 @@ export function bindAppControls({
     loadReferenceFile,
     exportPalette,
     downloadFullImage,
+    copyCurrentPaletteHexStrings,
     captureCurrentPaletteToManual,
     switchPalettePreset,
     addPixelSourceToManualPalette,

@@ -323,6 +323,7 @@ test("shortcut dispatcher routes requested app actions", () => {
     markTextureDirty: () => calls.push(["texture"]),
     queueRender: () => calls.push(["render"]),
     captureCurrentPaletteToManual: strategy => calls.push(["capture", strategy]),
+    copyCurrentPaletteHexStrings: () => calls.push(["copyPaletteHexStrings"]),
     exportPalette: () => calls.push(["exportPalette"]),
     downloadFullImage: () => calls.push(["fullImage"]),
     setDiagnosticOverlay: next => { state.diagnostics.overlay = next; calls.push(["overlay", next.mode]); },
@@ -330,6 +331,7 @@ test("shortcut dispatcher routes requested app actions", () => {
   });
 
   dispatcher.handleKeydown(keyEvent("c"));
+  dispatcher.handleKeydown(keyEvent("C", {shiftKey: true}));
   dispatcher.handleKeydown(keyEvent("p"));
   dispatcher.handleKeydown(keyEvent("m"));
   dispatcher.handleKeydown(keyEvent("M", {shiftKey: true}));
@@ -341,6 +343,7 @@ test("shortcut dispatcher routes requested app actions", () => {
   assert.equal(config.pixelPerfect, true);
   assert.equal(config.paletteMode, "manual");
   assert.deepEqual(calls.filter(call => call[0] === "capture"), [["capture", "replace"]]);
+  assert.deepEqual(calls.filter(call => call[0] === "copyPaletteHexStrings"), [["copyPaletteHexStrings"]]);
   assert.deepEqual(calls.filter(call => call[0] === "exportPalette"), [["exportPalette"]]);
   assert.deepEqual(calls.filter(call => call[0] === "fullImage"), [["fullImage"]]);
   assert.deepEqual(state.diagnostics.overlay, {mode: "difference"});
