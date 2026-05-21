@@ -1,4 +1,6 @@
 {
+  "name": "Palette Synth",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "check": "node tools/check-js.js",
@@ -7,5 +9,5 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0"
-  }
+  },
 }
