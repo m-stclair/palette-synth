@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { paletteSampleCacheKey, samplePaletteLabs } from "../src/palette/sampling.js";
 import { createGeneratedPalette } from "../src/palette/generation.js";
+import { targetBandCounts } from "../src/palette/selection.js";
 import { DEFAULT_CONFIG } from "../src/state/config.js";
 
 test("samplePaletteLabs caches palette candidate samples on capable image sources", () => {
@@ -97,7 +98,8 @@ test("generated locks seed selection before automatic families are picked", () =
     blockSize: 1,
     minDistance: 30,
     selectWeights: [0.1, 0.2, 0.3],
-    generatedLocks: [{id: "lock-red", hex: "#ff0000"}]
+    generatedLocks: [{id: "lock-red", hex: "#ff0000"}],
+    generatedTintShadeFamilies: true
   };
 
   const result = createGeneratedPalette({config, mode: "generated", imageData, captureTrace: true});
@@ -110,4 +112,111 @@ test("generated locks seed selection before automatic families are picked", () =
   assert.equal(result.trace.rounds[0].slot, 1);
   assert.equal(result.trace.rounds[0].spacing.selectedFamilyCount, 1);
   assert.deepEqual(result.trace.rounds[0].selectedFamilyHexes[0], ["#ff0000", "#ff937a", "#8e0000"]);
+});
+
+test("generated image palettes can select individual colors without tint/shade families", () => {
+  const data = new Uint8ClampedArray([
+    255, 0, 0, 255,       0, 255, 0, 255,       0, 0, 255, 255,
+    255, 255, 0, 255,     0, 255, 255, 255,     255, 0, 255, 255,
+    255, 128, 0, 255,     128, 0, 255, 255,     0, 0, 0, 255
+  ]);
+  const imageData = {width: 3, height: 3, data};
+  const config = {
+    ...DEFAULT_CONFIG,
+    paletteSize: 6,
+    generatedTintShadeFamilies: false,
+    seed: 4,
+    samplingMode: "stratified",
+    blockSize: 1,
+    minDistance: 12,
+    selectWeights: [0.1, 0.2, 0.3],
+    generatedLocks: []
+  };
+
+  const result = createGeneratedPalette({config, mode: "generated", imageData, captureTrace: true});
+
+  assert.equal(result.records.length, 6);
+  assert.equal(result.records.every(record => record.variant === "single"), true);
+  assert.equal(result.records.every(record => !["tint", "shade", "base"].includes(record.variant)), true);
+  assert.equal(result.trace.selectionCount, 6);
+  assert.equal(result.trace.tintShadeFamilies, false);
+  assert.equal(result.trace.spacingMode, "color");
+  assert.deepEqual(result.trace.tonalTargets, [
+    {band: "shadow", count: 1},
+    {band: "midtone", count: 2},
+    {band: "highlight", count: 1}
+  ]);
+  assert.equal(result.trace.tonalTargetMode, "direct-colors");
+  assert.equal(result.trace.tonalTargetBoost, 0);
+  assert.equal(result.trace.expansion, null);
+});
+
+test("direct-color tonal endpoint targets scale in six-color bands", () => {
+  assert.deepEqual(targetBandCounts(2, {directColorTargets: true}), [1, 0, 1]);
+  assert.deepEqual(targetBandCounts(6, {directColorTargets: true}), [1, 2, 1]);
+  assert.deepEqual(targetBandCounts(7, {directColorTargets: true}), [2, 3, 2]);
+  assert.deepEqual(targetBandCounts(12, {directColorTargets: true}), [2, 4, 2]);
+  assert.deepEqual(targetBandCounts(13, {directColorTargets: true}), [3, 6, 3]);
+  assert.deepEqual(targetBandCounts(18, {directColorTargets: true}), [3, 6, 3]);
+  assert.deepEqual(targetBandCounts(19, {directColorTargets: true}), [4, 8, 4]);
+});
+
+test("direct-color generated palettes use two shadow and highlight targets at seven or more colors", () => {
+  const data = new Uint8ClampedArray([
+    255, 0, 0, 255,       0, 255, 0, 255,       0, 0, 255, 255,
+    255, 255, 0, 255,     0, 255, 255, 255,     255, 0, 255, 255,
+    255, 128, 0, 255,     128, 0, 255, 255,     0, 0, 0, 255
+  ]);
+  const imageData = {width: 3, height: 3, data};
+  const config = {
+    ...DEFAULT_CONFIG,
+    paletteSize: 7,
+    generatedTintShadeFamilies: false,
+    seed: 4,
+    samplingMode: "stratified",
+    blockSize: 1,
+    minDistance: 12,
+    selectWeights: [0.1, 0.2, 0.3],
+    generatedLocks: []
+  };
+
+  const result = createGeneratedPalette({config, mode: "generated", imageData, captureTrace: true});
+
+  assert.equal(result.records.length, 7);
+  assert.equal(result.trace.selectionCount, 7);
+  assert.equal(result.trace.finalPaletteSize, 7);
+  assert.deepEqual(result.trace.tonalTargets, [
+    {band: "shadow", count: 2},
+    {band: "midtone", count: 3},
+    {band: "highlight", count: 2}
+  ]);
+});
+
+test("generated image locks become individual colors when tint/shade families are disabled", () => {
+  const data = new Uint8ClampedArray([
+    255, 0, 0, 255,       0, 255, 0, 255,       0, 0, 255, 255,
+    255, 255, 0, 255,     0, 255, 255, 255,     255, 0, 255, 255,
+    255, 128, 0, 255,     128, 0, 255, 255,     0, 0, 0, 255
+  ]);
+  const imageData = {width: 3, height: 3, data};
+  const config = {
+    ...DEFAULT_CONFIG,
+    paletteSize: 6,
+    generatedTintShadeFamilies: false,
+    seed: 4,
+    samplingMode: "stratified",
+    blockSize: 1,
+    minDistance: 12,
+    selectWeights: [0.1, 0.2, 0.3],
+    generatedLocks: [{id: "lock-red", hex: "#ff0000"}]
+  };
+
+  const result = createGeneratedPalette({config, mode: "generated", imageData});
+  const lockedRecords = result.records.filter(record => record.locked);
+
+  assert.equal(result.records.length, 6);
+  assert.equal(lockedRecords.length, 1);
+  assert.equal(lockedRecords[0].variant, "single");
+  assert.equal(lockedRecords[0].role, "locked-color");
+  assert.equal(lockedRecords[0].lockId, "lock-red");
 });

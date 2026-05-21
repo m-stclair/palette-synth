@@ -18,6 +18,7 @@ import {
   createManualPalette,
   createPresetPalette,
   generatedFamilyCount as generatedFamilyCountForConfig,
+  generatedImageSelectionCount,
   syncGeneratedLocks as syncGeneratedLocksForConfig
 } from "./generation.js";
 import { normalizeSampleRegion } from "./sampling.js";
@@ -70,7 +71,9 @@ export function createPaletteRuntime({
   }
 
   function generatedFamilyCount() {
-    return generatedFamilyCountForConfig(config);
+    return isGeneratedPaletteMode()
+      ? generatedImageSelectionCount(config)
+      : generatedFamilyCountForConfig(config);
   }
 
   function syncGeneratedLocks() {

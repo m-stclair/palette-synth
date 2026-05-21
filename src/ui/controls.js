@@ -1,5 +1,5 @@
 import { $, SELECT_WEIGHT_CONTROL_IDS } from "./dom.js";
-import { COSINE_VECTOR_KEYS, normalizeCosineCustomVectors } from "../state/config.js";
+import { COSINE_VECTOR_KEYS, normalizeCosineCustomVectors, snapPaletteSizeToFamilyMultiple } from "../state/config.js";
 import { createShortcutDispatcher } from "./shortcuts.js";
 import { cyclePaletteSwatchScale, syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
@@ -95,6 +95,7 @@ export const SIMPLE_CONTROL_KEYS = [
   "ditherLumaAmount",
   "ditherScale",
   "generatedAssist",
+  "generatedTintShadeFamilies",
   "levelsExposure",
   "levelsGamma",
   "levelsShoulder",
@@ -115,8 +116,31 @@ const CONDITIONAL_PANEL_KEYS = new Set([
   "cosinePreset",
   "assignMode",
   "outputMode",
-  "CYCLE_MODE"
+  "CYCLE_MODE",
+  "generatedTintShadeFamilies"
 ]);
+
+export function syncGeneratedPaletteSizeControl(config, {root = document, setOutputText = null, snapToFamilies = false} = {}) {
+  const el = $("paletteSize", root);
+  if (!el || !config) return false;
+  const usesFamilies = config.generatedTintShadeFamilies !== false;
+  el.step = usesFamilies ? "3" : "1";
+
+  let sizeChanged = false;
+  if (usesFamilies && snapToFamilies) {
+    const snapped = snapPaletteSizeToFamilyMultiple(config.paletteSize);
+    if (snapped !== config.paletteSize) {
+      config.paletteSize = snapped;
+      sizeChanged = true;
+    }
+  }
+
+  el.value = config.paletteSize;
+  const out = $("paletteSizeValue", root);
+  if (typeof setOutputText === "function") setOutputText("paletteSize", out, config.paletteSize);
+  else if (out) out.textContent = String(config.paletteSize);
+  return sizeChanged;
+}
 
 export function bindControls({
   els,
@@ -157,11 +181,16 @@ export function bindControls({
       const changed = !Object.is(config[key], nextValue);
       config[key] = nextValue;
 
+      const sizeChanged = key === "generatedTintShadeFamilies"
+        ? syncGeneratedPaletteSizeControl(config, {setOutputText, snapToFamilies: config.generatedTintShadeFamilies !== false})
+        : false;
+
       setOutputText(key, out, config[key]);
 
-      if (!changed) return false;
+      if (!changed && !sizeChanged) return false;
 
-      handleControlDirty(key);
+      if (changed) handleControlDirty(key);
+      if (sizeChanged) handleControlDirty("paletteSize");
 
       if (key === "cycleOffset" || key === "CYCLE_MODE" || key === "cyclePreviewSpeed") {
         if (manualCycleModeEnabled() && key === "cycleOffset") {
@@ -186,6 +215,8 @@ export function bindControls({
     });
     el.addEventListener("blur", () => commitHistory(`Change ${key}`));
   }
+
+  syncGeneratedPaletteSizeControl(config, {setOutputText});
 
   bindCosineCustomVectorControls({
     config,

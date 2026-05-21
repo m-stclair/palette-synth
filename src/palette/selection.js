@@ -1,3 +1,5 @@
+const SPACING_RELAXATION_RATIO = 0.9;
+
 import {
   DEFAULT_HUE_SPREAD_BONUS,
   HIGHLIGHT_L_CUTOFF,
@@ -65,10 +67,20 @@ export function tonalBandIndex(L) {
   return 1;
 }
 
-export function targetBandCounts(N) {
-  if (N <= 1) return [0, 1, 0];
-  if (N === 2) return [1, 0, 1];
-  return [1, N - 2, 1];
+export function targetBandCounts(N, options = {}) {
+  const directColorTargets = options && typeof options === "object" && options.directColorTargets === true;
+  const targetBoost = options && typeof options === "object"
+    ? Math.max(0, Math.round(Number(options.boost) || 0))
+    : Math.max(0, Math.round(Number(options) || 0));
+  const directEndpointCount = directColorTargets && N >= 3
+    ? Math.max(1, Math.floor((N - 1) / 6) + 1)
+    : 0;
+  const counts = directEndpointCount
+    ? [directEndpointCount, Math.min(N - directEndpointCount * 2, directEndpointCount * 2), directEndpointCount]
+    : (N <= 1
+      ? [0, 1, 0]
+      : (N === 2 ? [1, 0, 1] : [1, N - 2, 1]));
+  return targetBoost ? counts.map(count => count + targetBoost) : counts;
 }
 
 function weightedPick(entries, rng) {
@@ -92,12 +104,14 @@ export function selectionBandName(index) {
 }
 
 function scoredCandidateSummary(entry, rank = null) {
-  const family = entry.family || familyFootprint(entry.lab);
+  const familySpacing = entry.familySpacing !== false;
+  const family = entry.family || (familySpacing ? familyFootprint(entry.lab) : [entry.lab]);
+  const spacingLabel = familySpacing ? "family" : "color";
   const spacingRelaxed = !!entry.spacingRelaxed;
   const belowSpacingTarget = !!entry.blockedBySpacing;
   const blockedBySpacing = belowSpacingTarget && !spacingRelaxed;
   const reason = blockedBySpacing
-    ? "blocked by family spacing"
+    ? `blocked by ${spacingLabel} spacing`
     : (belowSpacingTarget && spacingRelaxed
       ? "eligible after spacing relaxation"
       : (entry.marginalScore >= entry.bandThreshold ? "inside weighted lottery band" : "below lottery band"));
@@ -130,8 +144,9 @@ function selectionTraceBadge(parts, spacing) {
   if (parts.tonalNeedContribution > 0.08) badges.push(`filled ${parts.band} target`);
   if (parts.rangeExpansionContribution > 0.06) badges.push("expanded lightness range");
   if (parts.hueSpreadContribution > 0.04) badges.push("expanded hue spread");
-  if (parts.noveltyContribution > 0.06) badges.push("kept family footprint apart");
-  if (spacing?.relaxed) badges.push("family spacing relaxed");
+  const spacingLabel = spacing?.familySpacing === false ? "color" : "family";
+  if (parts.noveltyContribution > 0.06) badges.push(spacing?.familySpacing === false ? "kept colors apart" : "kept family footprint apart");
+  if (spacing?.relaxed) badges.push(`${spacingLabel} spacing relaxed`);
   if (parts.noiseContribution > SELECTION_NOISE_AMOUNT * 0.7) badges.push("seeded jitter helped");
   return badges.slice(0, 5);
 }
@@ -151,6 +166,8 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   const center = meanLab(candidates);
   const footprintDeltaL = Number.isFinite(Number(options.deltaL)) ? Number(options.deltaL) : 10;
   const footprintChromaExp = Number.isFinite(Number(options.chromaExp)) ? Number(options.chromaExp) : 1.0;
+  const familySpacing = options.familySpacing !== false;
+  const spacingFootprint = lab => familySpacing ? familyFootprint(lab, footprintDeltaL, footprintChromaExp) : [[...lab]];
   const baseScored = candidates.map((lab, index) => {
     const score = baseScoreBreakdown(lab, center, weights);
     return {
@@ -158,7 +175,8 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
       index,
       baseScore: score.total,
       baseParts: score,
-      family: familyFootprint(lab, footprintDeltaL, footprintChromaExp),
+      family: spacingFootprint(lab),
+      familySpacing,
       hueCandidate: hueInfoForSeedLab(lab)
     };
   });
@@ -169,7 +187,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     ? options.initialSelected.map(lab => [...lab]).slice(0, Math.max(0, N))
     : [];
   const selected = [...initialSelected];
-  const selectedFamilies = selected.map(lab => familyFootprint(lab, footprintDeltaL, footprintChromaExp));
+  const selectedFamilies = selected.map(spacingFootprint);
   const selectedHueAnchors = selected.map(hueInfoForSeedLab);
   const nearestFamilyByIndex = candidates.map(() => ({distance: Infinity, index: -1}));
   selectedFamilies.forEach((family, index) => {
@@ -178,20 +196,26 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   const used = new Set();
   const bandCounts = [0, 0, 0];
   selected.forEach(([L]) => { bandCounts[tonalBandIndex(L)] += 1; });
-  const desiredBandCounts = targetBandCounts(N);
+  const directColorTargets = options.directColorTargets === true;
+  const tonalTargetBoost = Math.max(0, Math.round(Number(options.tonalTargetBoost) || 0));
+  const desiredBandCounts = targetBandCounts(N, {directColorTargets, boost: tonalTargetBoost});
 
   if (trace) {
     trace.length = 0;
     trace.push({
       type: "settings",
       baseCount: N,
+      spacingMode: familySpacing ? "family" : "color",
       familySpacing: minDistance,
+      colorSpacing: familySpacing ? null : minDistance,
       candidateCount: candidates.length,
       centerLab: [...center],
       centerHex: labToHex(center),
       weights: {...weights},
-      expansion: {deltaL: footprintDeltaL, chromaExp: footprintChromaExp},
+      expansion: familySpacing ? {deltaL: footprintDeltaL, chromaExp: footprintChromaExp} : null,
       tonalTargets: desiredBandCounts.map((count, index) => ({band: selectionBandName(index), count})),
+      tonalTargetMode: directColorTargets ? "direct-colors" : "family-seeds",
+      tonalTargetBoost,
       constants: {
         tonalNeedBonus: TONAL_NEED_BONUS,
         tonalCrowdingPenalty: TONAL_CROWDING_PENALTY,
@@ -232,12 +256,23 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         blockedBySpacing: selectedFamilies.length > 0 && nearest.distance < minDistance
       };
     });
+    const spacingDistances = remainingWithFamilies
+      .map(entry => entry.nearestFamilyDistance)
+      .filter(Number.isFinite);
+    const bestAvailableSpacing = selectedFamilies.length && spacingDistances.length
+      ? Math.max(...spacingDistances, 0)
+      : Infinity;
     const farEnough = remainingWithFamilies.filter(entry => !entry.blockedBySpacing);
     const spacingRelaxed = selectedFamilies.length > 0 && farEnough.length === 0;
-    const pool = spacingRelaxed ? remainingWithFamilies : farEnough;
-    const bestAvailableSpacing = selectedFamilies.length
-      ? Math.max(...remainingWithFamilies.map(entry => entry.nearestFamilyDistance).filter(Number.isFinite), 0)
-      : Infinity;
+    const effectiveSpacingTarget = spacingRelaxed && Number.isFinite(bestAvailableSpacing)
+      ? bestAvailableSpacing * SPACING_RELAXATION_RATIO
+      : minDistance;
+    const pool = spacingRelaxed
+      ? remainingWithFamilies.filter(entry => entry.nearestFamilyDistance >= effectiveSpacingTarget)
+      : farEnough;
+    const effectiveBlocked = selectedFamilies.length
+      ? remainingWithFamilies.filter(entry => entry.nearestFamilyDistance < effectiveSpacingTarget)
+      : [];
     const currentLows = selected.map(([L]) => L);
     const minL = currentLows.length ? Math.min(...currentLows) : null;
     const maxL = currentLows.length ? Math.max(...currentLows) : null;
@@ -311,14 +346,12 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     const pickedWithThreshold = {...picked, bandThreshold: threshold};
 
     if (traceRoot) {
-      const blocked = spacingRelaxed
-        ? []
-        : remainingWithFamilies
-          .filter(entry => entry.blockedBySpacing)
-          .sort((a, b) => a.nearestFamilyDistance - b.nearestFamilyDistance || a.index - b.index)
-          .slice(0, 5)
-          .map((entry, index) => scoredCandidateSummary({...entry, spacingRelaxed}, index + 1));
+      const blocked = (spacingRelaxed ? effectiveBlocked : remainingWithFamilies.filter(entry => entry.blockedBySpacing))
+        .sort((a, b) => a.nearestFamilyDistance - b.nearestFamilyDistance || a.index - b.index)
+        .slice(0, 5)
+        .map((entry, index) => scoredCandidateSummary({...entry, spacingRelaxed: false}, index + 1));
       const belowTargetCandidateCount = remainingWithFamilies.length - farEnough.length;
+      const blockedCandidateCount = spacingRelaxed ? effectiveBlocked.length : belowTargetCandidateCount;
       traceRoot.rounds.push({
         slot,
         bandCountsBefore,
@@ -327,17 +360,21 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         lightnessRangeBefore: minL === null ? null : {min: minL, max: maxL},
         spacing: {
           requested: minDistance,
+          effectiveTarget: effectiveSpacingTarget,
+          relaxationRatio: spacingRelaxed ? SPACING_RELAXATION_RATIO : 1,
           selectedFamilyCount: selectedFamilies.length,
           enforced: !spacingRelaxed,
           relaxed: spacingRelaxed,
-          legalCandidateCount: farEnough.length,
-          blockedCandidateCount: spacingRelaxed ? 0 : belowTargetCandidateCount,
+          legalCandidateCount: pool.length,
+          blockedCandidateCount,
           belowTargetCandidateCount,
+          belowEffectiveTargetCandidateCount: effectiveBlocked.length,
           poolSize: pool.length,
           nearestAcceptedDistance: picked.nearestFamilyDistance,
           nearestAcceptedFamilyIndex: picked.nearestFamilyIndex,
           bestAvailableDistance: bestAvailableSpacing,
-          pickedSatisfaction: selectedFamilies.length ? clamp(picked.nearestFamilyDistance / Math.max(minDistance, 1e-6), 0, 1) : 1
+          pickedSatisfaction: selectedFamilies.length ? clamp(picked.nearestFamilyDistance / Math.max(effectiveSpacingTarget, 1e-6), 0, 1) : 1,
+          pickedRequestedSatisfaction: selectedFamilies.length ? clamp(picked.nearestFamilyDistance / Math.max(minDistance, 1e-6), 0, 1) : 1
         },
         crowding: crowdingStats,
         hue: hueStats,
@@ -355,7 +392,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
           ...scoredCandidateSummary(pickedWithThreshold, pickedRank),
           lab: [...picked.lab],
           parts: {...picked.parts},
-          badges: selectionTraceBadge(picked.parts, {relaxed: spacingRelaxed})
+          badges: selectionTraceBadge(picked.parts, {relaxed: spacingRelaxed, familySpacing})
         },
         nearMisses: ranked.slice(0, 6).map((entry, index) => scoredCandidateSummary({...entry, bandThreshold: threshold}, index + 1)),
         blockedNearMisses: blocked
@@ -364,7 +401,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
 
     selected.push(picked.lab);
     const pickedFamilyIndex = selectedFamilies.length;
-    const pickedFamily = picked.family ?? familyFootprint(picked.lab, footprintDeltaL, footprintChromaExp);
+    const pickedFamily = picked.family ?? spacingFootprint(picked.lab);
     selectedFamilies.push(pickedFamily);
     selectedHueAnchors.push(hueInfoForSeedLab(picked.lab));
     used.add(picked.index);
@@ -384,7 +421,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     if (selected.length >= N) break;
     if (used.has(entry.index)) continue;
     selected.push(entry.lab);
-    selectedFamilies.push(familyFootprint(entry.lab, footprintDeltaL, footprintChromaExp));
+    selectedFamilies.push(spacingFootprint(entry.lab));
     selectedHueAnchors.push(hueInfoForSeedLab(entry.lab));
     used.add(entry.index);
     if (traceRoot) {
@@ -395,7 +432,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
           index: entry.index,
           rank: null,
           hex: labToHex(entry.lab),
-          familyHexes: familyFootprint(entry.lab, footprintDeltaL, footprintChromaExp).map(labToHex),
+          familyHexes: spacingFootprint(entry.lab).map(labToHex),
           band: selectionBandName(tonalBandIndex(entry.lab[0])),
           baseScore: entry.baseScore,
           marginalScore: entry.baseScore,

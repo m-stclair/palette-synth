@@ -23,6 +23,7 @@ export function createConditionalPanelsController({
     else delete root.body.dataset.cosinePreset;
     root.body.dataset.assignMode = config.assignMode;
     root.body.dataset.outputMode = config.outputMode;
+    root.body.dataset.generatedTintShadeFamilies = config.generatedTintShadeFamilies === false ? "false" : "true";
     if (config.paletteMode !== "manual" || manualCycleModeEnabled()) closeManualPaletteEditor();
     updateGeneratedLockUi();
     updateCapturePaletteUi();

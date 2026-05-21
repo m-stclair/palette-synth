@@ -18,6 +18,11 @@ import {
 } from "../color-utils.js";
 import { cpuDistanceBreakdown } from "../diagnostics/metrics.js";
 
+function capitalize(value) {
+  const text = String(value || "");
+  return text ? text[0].toUpperCase() + text.slice(1) : text;
+}
+
 export function formatDistance(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
@@ -1135,18 +1140,24 @@ export function createDiagnosticsPanel({
     const constants = trace.constants || {};
     const expansion = trace.expansion || {};
     const sample = trace.sample || {};
+    const spacingMode = trace.spacingMode === "color" || trace.tintShadeFamilies === false ? "color" : "family";
+    const spacingLabel = spacingMode === "color" ? "color" : "family";
+    const spacingPlural = spacingMode === "color" ? "colors" : "families";
+    const expansionLine = spacingMode === "family"
+      ? `<div><span>expansion</span><b>ΔL ${formatScore(expansion.deltaL)}</b><small>chroma ${formatScore(expansion.chromaExp)}</small></div>`
+      : `<div><span>expansion</span><b>off</b><small>direct color picks</small></div>`;
     const lockNote = syncGeneratedLocks().length
-      ? `<div class="selection-note">Locked families are seeded first, so automatic picks are scored around those anchors.</div>`
+      ? `<div class="selection-note">Locked ${spacingPlural} are seeded first, so automatic picks are scored around those anchors.</div>`
       : "";
     const targetText = (trace.tonalTargets || []).map(target => `${target.band} ${target.count}`).join(" · ");
     const rules = `<div class="selection-rules">
         <div><span>source</span><b>${trace.sourceLabel || "image"}</b></div>
-        <div><span>families</span><b>${trace.baseCount}</b><small>${trace.finalPaletteSize || trace.requestedSize || "—"} swatches</small></div>
+        <div><span>${spacingPlural}</span><b>${trace.selectionCount ?? trace.baseCount}</b><small>${trace.finalPaletteSize || trace.requestedSize || "—"} swatches</small></div>
         <div><span>sample</span><b>${sample.count ?? trace.candidateCount}</b><small>${sample.samplingMode || "random"}, block ${sample.blockSize ?? "—"}</small></div>
         <div><span>weights</span><b>C ${formatScore(weights.chroma)}</b><small>O ${formatScore(weights.outlier)} · M ${formatScore(weights.midtone)}</small></div>
         <div><span>hue spread</span><b>${formatScore(constants.hueSpreadBonus)}</b><small>seed hue anchors, C ${formatScore(constants.hueReliabilityChromaLow)}–${formatScore(constants.hueReliabilityChromaHigh)}</small></div>
-        <div><span>family spacing</span><b>${formatDistance(trace.familySpacing)}</b><small>whole footprint</small></div>
-        <div><span>expansion</span><b>ΔL ${formatScore(expansion.deltaL)}</b><small>chroma ${formatScore(expansion.chromaExp)}</small></div>
+        <div><span>${spacingLabel} spacing</span><b>${formatDistance(trace.colorSpacing ?? trace.familySpacing)}</b><small>${spacingMode === "family" ? "whole footprint" : "direct picks"}</small></div>
+        ${expansionLine}
         <div><span>tonal target</span><b>${targetText || "—"}</b></div>
         <div><span>lottery</span><b>${formatScore(constants.topBandRatio)}</b><small>or −${formatScore(constants.topBandAbsWindow)}</small></div>
       </div>${lockNote}`;
@@ -1160,10 +1171,14 @@ export function createDiagnosticsPanel({
       const pickedDistance = Number.isFinite(spacing.nearestAcceptedDistance) ? formatDistance(spacing.nearestAcceptedDistance) : "first pick";
       const bestDistance = Number.isFinite(spacing.bestAvailableDistance) ? formatDistance(spacing.bestAvailableDistance) : "—";
       const spacingSatisfaction = Number.isFinite(spacing.pickedSatisfaction) ? `${Math.round(spacing.pickedSatisfaction * 100)}%` : "—";
+      const requestedTarget = formatDistance(spacing.requested);
+      const effectiveTarget = Number.isFinite(spacing.effectiveTarget) ? formatDistance(spacing.effectiveTarget) : requestedTarget;
       const belowTargetCount = spacing.belowTargetCandidateCount ?? spacing.blockedCandidateCount ?? 0;
+      const belowEffectiveCount = spacing.belowEffectiveTargetCandidateCount ?? spacing.blockedCandidateCount ?? 0;
+      const relaxationPct = Number.isFinite(spacing.relaxationRatio) ? Math.round(spacing.relaxationRatio * 100) : 90;
       const spacingLine = spacing.relaxed
-        ? `<div class="selection-warning">Family spacing relaxed: no candidates met target ${formatDistance(spacing.requested)}; best available ${bestDistance}; picked ${pickedDistance} (${spacingSatisfaction}). ${belowTargetCount} below target, fallback pool ${spacing.poolSize || 0}.</div>`
-        : `<div class="selection-note">Family spacing enforced: picked ${pickedDistance} of target ${formatDistance(spacing.requested)} (${spacingSatisfaction}); best available ${bestDistance}. ${spacing.legalCandidateCount ?? "—"} legal, ${spacing.blockedCandidateCount ?? 0} blocked.</div>`;
+        ? `<div class="selection-warning">${capitalize(spacingLabel)} spacing relaxed: no candidates met target ${requestedTarget}; new target ${effectiveTarget} (${relaxationPct}% of best available ${bestDistance}); picked ${pickedDistance} (${spacingSatisfaction}). ${belowTargetCount} below original target, ${belowEffectiveCount} still blocked, pool ${spacing.poolSize || 0}.</div>`
+        : `<div class="selection-note">${capitalize(spacingLabel)} spacing enforced: picked ${pickedDistance} of target ${requestedTarget} (${spacingSatisfaction}); best available ${bestDistance}. ${spacing.legalCandidateCount ?? "—"} legal, ${spacing.blockedCandidateCount ?? 0} blocked.</div>`;
       const crowding = round.crowding || {};
       const crowdingLine = `<div class="selection-note">Crowding pressure: ${crowding.penalizedCandidateCount || 0} of ${crowding.poolSize || 0} scored candidates penalized; max ${formatSignedScore(-(crowding.maxPenalty || 0))}; picked ${formatSignedScore(-(parts.crowdingPenalty || 0))}.</div>`;
       const hue = round.hue || {};

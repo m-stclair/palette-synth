@@ -45,6 +45,14 @@ export function createPalettePreview({
     return isGeneratedPaletteMode() && !!activePaletteImageData() && !!record && Array.isArray(record.lab);
   }
 
+  function generatedLockLabel() {
+    return config.generatedTintShadeFamilies === false ? "color" : "family";
+  }
+
+  function generatedLockLabelPlural() {
+    return config.generatedTintShadeFamilies === false ? "colors" : "families";
+  }
+
   function updateGeneratedLockUi() {
     const totalLocks = syncGeneratedLocks().length;
     const activeLocks = activeGeneratedLocks().length;
@@ -74,9 +82,9 @@ export function createPalettePreview({
             ? "Choose reference image."
             : "Open image to generate palette.";
         } else if (activeLocks > 0) {
-          els.paletteHint.textContent = `Generated palette from ${sourceLabel}: click locks; Shift-click shows diagnostic overlay. ${activeLocks}/${maxLocks} locked.`;
+          els.paletteHint.textContent = `Generated palette from ${sourceLabel}: click locks ${generatedLockLabelPlural()}; Shift-click shows diagnostic overlay. ${activeLocks}/${maxLocks} locked.`;
         } else {
-          els.paletteHint.textContent = `Generated palette from ${sourceLabel}: click locks; Shift-click shows diagnostic overlay.`;
+          els.paletteHint.textContent = `Generated palette from ${sourceLabel}: click locks ${generatedLockLabelPlural()}; Shift-click shows diagnostic overlay.`;
         }
       } else if (config.paletteMode === "harmony") {
         const relationship = HARMONY_RELATIONSHIPS[config.harmonyRelationship] ?? HARMONY_RELATIONSHIPS[DEFAULT_CONFIG.harmonyRelationship];
@@ -159,13 +167,13 @@ export function createPalettePreview({
   function clearGeneratedLocks({announce = true} = {}) {
     if (!syncGeneratedLocks().length) {
       updateGeneratedLockUi();
-      if (announce) setStatus("No generated families are locked.");
+      if (announce) setStatus(`No generated ${generatedLockLabelPlural()} are locked.`);
       return;
     }
     config.generatedLocks = [];
     markPaletteDirty();
     updateGeneratedLockUi();
-    if (announce) setStatus("Cleared generated family locks.");
+    if (announce) setStatus(`Cleared generated ${generatedLockLabel()} locks.`);
     queueRender();
   }
 
@@ -179,13 +187,13 @@ export function createPalettePreview({
       config.generatedLocks = locks;
       markPaletteDirty();
       updateGeneratedLockUi();
-      setStatus(`Unlocked family ${seedHex}.`);
+      setStatus(`Unlocked ${generatedLockLabel()} ${seedHex}.`);
       queueRender();
       return;
     }
     const maxLocks = generatedFamilyCount();
     if (locks.length >= maxLocks) {
-      setStatus(`All ${maxLocks} generated families are already locked.`);
+      setStatus(`All ${maxLocks} generated ${generatedLockLabelPlural()} are already locked.`);
       return;
     }
     locks.push({
@@ -197,7 +205,7 @@ export function createPalettePreview({
     config.generatedLocks = locks;
     markPaletteDirty();
     updateGeneratedLockUi();
-    setStatus(`Locked family ${seedHex}.`);
+    setStatus(`Locked ${generatedLockLabel()} ${seedHex}.`);
     queueRender();
   }
 
@@ -274,7 +282,7 @@ export function createPalettePreview({
       const titleParts = [colorInfoLabel(hex, record.lab)];
       if (record.variant && record.variant !== "single") titleParts.push(record.variant);
       if (cycleTagMode) titleParts.push(tagged ? "Click to remove from manual cycle" : "Click to tag for manual cycle", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
-      else if (lockable) titleParts.push(locked ? "Click to unlock family" : "Click to lock family", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
+      else if (lockable) titleParts.push(locked ? `Click to unlock ${generatedLockLabel()}` : `Click to lock ${generatedLockLabel()}`, diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
       else if (editable) {
         if (sourceHex !== hex) titleParts.push(`source ${colorInfoLabel(sourceHex)}`);
         titleParts.push(`always catches current ${colorInfoLabel(hex, record.lab)}`);

@@ -92,6 +92,7 @@ export const DEFAULT_CONFIG = {
   ditherLumaAmount: 0,
   ditherScale: 1,
   generatedAssist: 0,
+  generatedTintShadeFamilies: false,
   levelsExposure: 0,
   levelsGamma: 1,
   levelsShoulder: 2.5,
@@ -246,6 +247,19 @@ function finiteNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+export function clampPaletteSize(value) {
+  return clamp(Math.round(Number(value) || DEFAULT_CONFIG.paletteSize), 3, 42);
+}
+
+export function snapPaletteSizeToFamilyMultiple(value) {
+  return Math.max(3, Math.round(clampPaletteSize(value) / 3) * 3);
+}
+
+export function sanitizePaletteSize(value, {tintShadeFamilies = true} = {}) {
+  const size = clampPaletteSize(value);
+  return tintShadeFamilies ? snapPaletteSizeToFamilyMultiple(size) : size;
+}
+
 export function normalizeCosineCustomVectors(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   return Object.fromEntries(COSINE_VECTOR_KEYS.map(key => {
@@ -272,8 +286,8 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.paletteRegionRect = normalizePaletteRegionSnapshot(base.paletteRegionRect);
   base.showPaletteRegion = !!base.showPaletteRegion;
   base.paletteSwatchScale = normalizePaletteSwatchScale(base.paletteSwatchScale);
-  base.paletteSize = clamp(Math.round(Number(base.paletteSize) || DEFAULT_CONFIG.paletteSize), 3, 42);
-  base.paletteSize = Math.max(3, Math.round(base.paletteSize / 3) * 3);
+  base.generatedTintShadeFamilies = base.generatedTintShadeFamilies !== false;
+  base.paletteSize = sanitizePaletteSize(base.paletteSize, {tintShadeFamilies: base.generatedTintShadeFamilies});
   base.seedSwatch = normalizeHexColor(base.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   base.harmonyRelationship = Object.prototype.hasOwnProperty.call(HARMONY_RELATIONSHIPS, base.harmonyRelationship) ? base.harmonyRelationship : DEFAULT_CONFIG.harmonyRelationship;
   base.harmonyRegionContrast = Object.prototype.hasOwnProperty.call(HARMONY_REGION_CONTRASTS, base.harmonyRegionContrast) ? base.harmonyRegionContrast : DEFAULT_CONFIG.harmonyRegionContrast;

@@ -1,5 +1,5 @@
 import { $, SELECT_WEIGHT_CONTROL_IDS } from "../ui/dom.js";
-import { syncCosineCustomVectorControls } from "../ui/controls.js";
+import { syncCosineCustomVectorControls, syncGeneratedPaletteSizeControl } from "../ui/controls.js";
 import { syncColorPickerInput } from "../ui/color-picker.js";
 import { syncPaletteSwatchScaleUi } from "../ui/palette-swatch-scale.js";
 import {
@@ -9,7 +9,7 @@ import {
 
 export const PALETTE_DIRTY_KEYS = new Set([
   "paletteMode", "presetName", "paletteSize", "seedSwatch", "harmonyRelationship", "harmonyRegionContrast", "harmonyRampSteepness", "cosinePreset", "cosineCustomVectors", "deltaL", "paletteGamma", "gammaC", "paletteHue", "hueSpread", "minDistance",
-  "sortMode", "blockSize", "seed", "samplingMode", "generatedAssist", "aliasAllSources", "manualMatchAliases", "CYCLE_MODE"
+  "sortMode", "blockSize", "seed", "samplingMode", "generatedAssist", "generatedTintShadeFamilies", "aliasAllSources", "manualMatchAliases", "CYCLE_MODE"
 ]);
 
 export const TEXTURE_DIRTY_KEYS = new Set(["pixelPerfect"]);
@@ -103,6 +103,7 @@ export function createConfigController({
       syncColorPickerInput(el);
       setOutputText(key, byId(`${key}Value`), Array.isArray(config[key]) ? el.value : config[key]);
     }
+    syncGeneratedPaletteSizeControl(config, {root, setOutputText});
     syncCosineCustomVectorControls(config, root);
     SELECT_WEIGHT_CONTROL_IDS.forEach((id, i) => {
       const el = byId(id);

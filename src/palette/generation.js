@@ -39,6 +39,24 @@ export function generatedFamilyCount(config) {
   return Math.max(1, Math.round(requestedSize / 3));
 }
 
+export function imagePaletteUsesTintShadeFamilies(config) {
+  return config?.generatedTintShadeFamilies !== false;
+}
+
+export function requestedGeneratedImagePaletteSize(config) {
+  const rawSize = Math.max(3, Math.min(42, Math.round(Number(config?.paletteSize) || 3)));
+  return imagePaletteUsesTintShadeFamilies(config)
+    ? Math.max(3, Math.round(rawSize / 3) * 3)
+    : rawSize;
+}
+
+export function generatedImageSelectionCount(config) {
+  const requestedSize = requestedGeneratedImagePaletteSize(config);
+  return imagePaletteUsesTintShadeFamilies(config)
+    ? Math.max(1, Math.round(requestedSize / 3))
+    : requestedSize;
+}
+
 export function normalizeGeneratedLockEntry(entry, index = 0) {
   if (!entry) return null;
   if (typeof entry === "string") {
@@ -295,9 +313,10 @@ export function createGeneratedPalette({
     };
   }
 
-  const requestedSize = Math.max(3, Math.min(42, Math.round(config.paletteSize / 3) * 3));
-  const baseCount = Math.max(1, Math.round(requestedSize / 3));
-  const lockedEntries = activeGeneratedLocks(config, baseCount);
+  const tintShadeFamilies = imagePaletteUsesTintShadeFamilies(config);
+  const requestedSize = requestedGeneratedImagePaletteSize(config);
+  const selectionCount = generatedImageSelectionCount(config);
+  const lockedEntries = activeGeneratedLocks(config, selectionCount);
   const lockedSeeds = lockedEntries.map(entry => ({
     entry,
     seedLab: generatedLockLab(entry)
@@ -318,10 +337,12 @@ export function createGeneratedPalette({
     chroma: config.selectWeights[2]
   };
   const selectionTrace = [];
-  const selected = selectTopNScoredSwatches(candidates, weights, baseCount, config.minDistance, config.seed, {
+  const selected = selectTopNScoredSwatches(candidates, weights, selectionCount, config.minDistance, config.seed, {
     deltaL: config.deltaL,
     chromaExp: 1,
+    familySpacing: tintShadeFamilies,
     hueSpread: config.hueSpread,
+    directColorTargets: !tintShadeFamilies,
     initialSelected: lockedSeeds.map(lock => lock.seedLab),
     trace: captureTrace ? selectionTrace : null
   });
@@ -332,6 +353,8 @@ export function createGeneratedPalette({
     mode,
     sourceLabel,
     requestedSize,
+    selectionCount,
+    tintShadeFamilies,
     finalPaletteSize: requestedSize,
     sample: {
       count: candidates.length,
@@ -351,12 +374,27 @@ export function createGeneratedPalette({
     };
   });
 
-  const records = slots.flatMap(slot => buildFamilyRecords(slot.seedLab, slot.familyIndex, config, sourceKey, slot.familyIndex, {
-    familyId: slot.locked ? `${sourceKey}-lock-${slot.lockId}` : `${sourceKey}-${slot.familyIndex}`,
-    locked: slot.locked,
-    lockId: slot.lockId,
-    role: slot.locked ? "locked-family" : (sourceKey === "reference" ? "reference-family-member" : "family-member")
-  }));
+  const records = tintShadeFamilies
+    ? slots.flatMap(slot => buildFamilyRecords(slot.seedLab, slot.familyIndex, config, sourceKey, slot.familyIndex, {
+      familyId: slot.locked ? `${sourceKey}-lock-${slot.lockId}` : `${sourceKey}-${slot.familyIndex}`,
+      locked: slot.locked,
+      lockId: slot.lockId,
+      role: slot.locked ? "locked-family" : (sourceKey === "reference" ? "reference-family-member" : "family-member")
+    }))
+    : slots.map(slot => makePaletteRecord({
+      lab: slot.seedLab,
+      source: sourceKey,
+      familyId: slot.locked ? `${sourceKey}-lock-${slot.lockId}` : `${sourceKey}-${slot.familyIndex}`,
+      familyIndex: slot.familyIndex,
+      variant: "single",
+      variantIndex: 0,
+      sourceIndex: slot.familyIndex,
+      seedLab: slot.seedLab,
+      sourceLab: slot.seedLab,
+      locked: slot.locked,
+      lockId: slot.lockId,
+      role: slot.locked ? "locked-color" : (sourceKey === "reference" ? "reference-color" : "generated-color")
+    }));
   return {
     records: sortPaletteRecords(records, config.sortMode),
     trace

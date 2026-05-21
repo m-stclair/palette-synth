@@ -101,14 +101,15 @@ test("config sanitization clamps values and honors injected preset lookup", () =
     maxDistance: 250,
     compareSplit: 2,
     pixelBlockSize: 99,
-    pixelBlockSampleMode: "nonsense"
+    pixelBlockSampleMode: "nonsense",
+    generatedTintShadeFamilies: false
   }, {
     presetExists: name => name === "customPreset"
   });
 
   assert.equal(clean.paletteMode, DEFAULT_CONFIG.paletteMode);
   assert.equal(clean.presetName, "customPreset");
-  assert.equal(clean.paletteSize, 18);
+  assert.equal(clean.paletteSize, 17);
   assert.equal(clean.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   assert.equal(clean.harmonyRegionContrast, DEFAULT_CONFIG.harmonyRegionContrast);
   assert.equal(clean.harmonyRampSteepness, 2.5);
@@ -124,7 +125,16 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.compareSplit, 1);
   assert.equal(clean.pixelBlockSize, 16);
   assert.equal(clean.pixelBlockSampleMode, DEFAULT_CONFIG.pixelBlockSampleMode);
+  assert.equal(clean.generatedTintShadeFamilies, false);
   assert.equal(clean.manualMatchAliases.length, 0);
+});
+
+test("config sanitization keeps direct-color palette sizes and snaps family sizes", () => {
+  const direct = sanitizeConfigSnapshot({paletteSize: 20, generatedTintShadeFamilies: false});
+  const family = sanitizeConfigSnapshot({paletteSize: 20, generatedTintShadeFamilies: true});
+
+  assert.equal(direct.paletteSize, 20);
+  assert.equal(family.paletteSize, 21);
 });
 
 test("palette swatch scale normalizes and cycles through allowed sizes", () => {
