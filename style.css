@@ -2458,8 +2458,8 @@ canvas {
 }
 .selection-round summary {
   display: grid;
-  grid-template-columns: minmax(4.8em, auto) minmax(48px, 1fr) auto auto;
-  gap: 6px;
+  grid-template-columns: minmax(4.8em, max-content) max-content minmax(0, max-content) max-content max-content;
+  gap: 5px;
   align-items: center;
   min-width: 0;
   padding: 6px 7px;
@@ -2471,10 +2471,17 @@ canvas {
   font-weight: 900;
 }
 .selection-round-score,
-.selection-round-rank {
+.selection-round-rank,
+.selection-round-seed {
   color: var(--muted);
   font-size: 10px;
   white-space: nowrap;
+}
+.selection-round-seed {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .selection-round-swatches,
 .selection-alt {

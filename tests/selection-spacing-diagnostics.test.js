@@ -84,6 +84,8 @@ test("diagnostics panel labels nonbinary relaxed spacing with active blocks", ()
   panel.renderDiagnosticsPanel({records: [], entries: [], sample: null});
 
   assert.match(els.diagnosticsSelection.innerHTML, /Family spacing relaxed/);
+  assert.match(els.diagnosticsSelection.innerHTML, /#[0-9a-f]{6} · LCH /);
+  assert.doesNotMatch(els.diagnosticsSelection.innerHTML, /<b>seed<\/b>/);
   assert.match(els.diagnosticsSelection.innerHTML, /new target/);
   assert.match(els.diagnosticsSelection.innerHTML, /below original target/);
   assert.match(els.diagnosticsSelection.innerHTML, /still blocked/);

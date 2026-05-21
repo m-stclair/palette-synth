@@ -125,6 +125,12 @@ function swatchListHtml(hexes = []) {
   }).join("");
 }
 
+function familySeedReadoutHtml(picked = {}) {
+  const seedHex = picked.hex || (Array.isArray(picked.lab) ? labToHex(picked.lab) : "");
+  const seedInfo = seedHex ? colorInfoLabel(seedHex, picked.lab) : (Array.isArray(picked.lab) ? colorInfoLabel("", picked.lab) : "");
+  return `<span class="selection-round-seed" title="family seed ${seedInfo || "—"}">${seedInfo || "—"}</span>`;
+}
+
 function pixelInspectorSwatchNumber(match, config = {}) {
   const record = match?.record;
   if (config?.paletteMode === "manual" && record?.source === "manual" && Number.isInteger(record.sourceIndex)) {
@@ -1167,6 +1173,7 @@ export function createDiagnosticsPanel({
       const parts = picked.parts || {};
       const spacing = round.spacing || {};
       const familyHexes = picked.familyHexes || [picked.hex].filter(Boolean);
+      const familySeedReadout = familySeedReadoutHtml(picked);
       const badges = (picked.badges || []).map(badge => `<em>${badge}</em>`).join("");
       const pickedDistance = Number.isFinite(spacing.nearestAcceptedDistance) ? formatDistance(spacing.nearestAcceptedDistance) : "first pick";
       const bestDistance = Number.isFinite(spacing.bestAvailableDistance) ? formatDistance(spacing.bestAvailableDistance) : "—";
@@ -1199,6 +1206,7 @@ export function createDiagnosticsPanel({
           <summary>
             <span class="selection-round-title">Family ${i + 1}</span>
             <span class="selection-round-swatches">${swatchListHtml(familyHexes)}</span>
+            ${familySeedReadout}
             <span class="selection-round-score">score ${formatScore(picked.marginalScore ?? picked.baseScore)}</span>
             <span class="selection-round-rank">rank ${lottery.pickedRank ? `#${lottery.pickedRank}` : "—"}</span>
           </summary>
