@@ -5,6 +5,8 @@ coverage/
 dist/
 *.log
 package-lock.json
+palette-synth*.zip
+
 
 .idea/
 .vscode/
