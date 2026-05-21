@@ -759,3 +759,38 @@ test("shouldIgnoreShortcut only blocks keys consumed by focused controls", () =>
   assert.equal(shouldIgnoreShortcut(keyEvent("ArrowDown", {target: select})), true);
   assert.equal(shouldIgnoreShortcut(keyEvent("F5", {target: select})), false);
 });
+
+test("shift-P cycles palette swatch bar size", () => {
+  const styleProps = {};
+  const palettePreview = makeElement({
+    style: {setProperty(name, value) { styleProps[name] = value; }},
+    dataset: {}
+  });
+  const paletteSwatchScaleToggle = makeElement({type: "button", textContent: ""});
+  const root = makeRoot({palettePreview, paletteSwatchScaleToggle});
+  const config = {paletteSwatchScale: 1};
+  const statuses = [];
+  const history = [];
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    els: {palettePreview, paletteSwatchScaleToggle},
+    withHistory: (label, mutator) => {
+      history.push(label);
+      return mutator();
+    },
+    setStatus: value => statuses.push(value)
+  });
+
+  const event = keyEvent("P", {shiftKey: true});
+  dispatcher.handleKeydown(event);
+
+  assert.equal(event.prevented, true);
+  assert.equal(config.paletteSwatchScale, 2);
+  assert.equal(styleProps["--palette-swatch-scale"], "2");
+  assert.equal(palettePreview.dataset.swatchScale, "2");
+  assert.equal(paletteSwatchScaleToggle.textContent, "2×");
+  assert.equal(paletteSwatchScaleToggle["aria-pressed"], "true");
+  assert.deepEqual(history, ["Change palette swatch size"]);
+  assert.deepEqual(statuses, ["Palette swatches 2×."]);
+});

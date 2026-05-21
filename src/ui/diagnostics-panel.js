@@ -380,13 +380,12 @@ export function createDiagnosticsPanel({
       return `<div class="diagnostics-histogram-card is-empty"><div class="diagnostics-subhead">${scopeLabel}</div><div class="diagnostics-histogram-empty">${message}</div></div>`;
     }
 
-    const width = 320;
-    const height = 154;
-    const padX = 14;
-    const padTop = 16;
+    const width = 360;
+    const height = 112;
+    const padX = 16;
+    const padTop = 8;
     const plotH = 82;
-    const axisY = padTop + plotH + 14;
-    const readoutY = height - 24;
+    const markerY = height - 8;
     const plotW = width - padX * 2;
     const max = Math.max(1, Number(histogram.max) || Math.max(...bins, 1));
     const fallbackMax = histogram.channel === "hue" ? 360 : (histogram.channel === "chroma" ? 32 : 100);
@@ -443,13 +442,19 @@ export function createDiagnosticsPanel({
       const x = xForValue(value);
       const hex = record.hex || labToHex(markerLab || record.lab);
       const displayIndex = (record.displayIndex ?? index) + 1;
-      return `<line class="diagnostics-histogram-marker" style="--marker-color:${hex}" x1="${x.toFixed(2)}" y1="${(padTop + plotH + 3).toFixed(2)}" x2="${x.toFixed(2)}" y2="${(axisY - 2).toFixed(2)}"><title>swatch ${displayIndex} · ${axisLabel} ${formatDistance(value)} · ${colorInfoLabel(hex, markerLab)}</title></line>`;
+      return `<line class="diagnostics-histogram-marker" style="--marker-color:${hex}" x1="${x.toFixed(2)}" y1="${(padTop + plotH + 3).toFixed(2)}" x2="${x.toFixed(2)}" y2="${markerY.toFixed(2)}"><title>swatch ${displayIndex} · ${axisLabel} ${formatDistance(value)} · ${colorInfoLabel(hex, markerLab)}</title></line>`;
     }).join("");
 
-    const axis = histogramAxisValues(histogram, domainMax).map(value => {
+    const axisValues = histogramAxisValues(histogram, domainMax);
+    const axis = axisValues.map(value => {
       const x = xForValue(value);
-      return `<line class="diagnostics-histogram-grid" x1="${x.toFixed(1)}" y1="${padTop}" x2="${x.toFixed(1)}" y2="${padTop + plotH}"></line>
-        <text class="diagnostics-histogram-axis" x="${x.toFixed(1)}" y="${axisY.toFixed(1)}" text-anchor="middle">${histogram.channel === "hue" ? `${Math.round(value)}°` : formatDistance(value)}</text>`;
+      return `<line class="diagnostics-histogram-grid" x1="${x.toFixed(1)}" y1="${padTop}" x2="${x.toFixed(1)}" y2="${padTop + plotH}"></line>`;
+    }).join("");
+    const axisTicks = axisValues.map(value => {
+      const tick = (clamp(Number(value) || 0, 0, domainMax) / domainMax) * 100;
+      const label = histogram.channel === "hue" ? `${Math.round(value)}°` : formatDistance(value);
+      const edgeClass = tick <= 0.01 ? " is-start" : (tick >= 99.99 ? " is-end" : "");
+      return `<span class="diagnostics-histogram-axis-tick${edgeClass}" style="--tick-left:${tick.toFixed(2)}%">${label}</span>`;
     }).join("");
 
     const total = Number(histogram.total ?? 0) || 0;
@@ -457,7 +462,6 @@ export function createDiagnosticsPanel({
     const range = histogram.channel === "hue"
       ? `mode ${formatDistance(stats.mode)}°`
       : (Number.isFinite(Number(stats.p10)) && Number.isFinite(Number(stats.p90)) ? `${formatDistance(stats.p10)}–${formatDistance(stats.p90)}` : "—");
-    const sourceLabel = histogram.scope === "output" ? "output image" : "source image";
     const detailText = histogram.channel === "chroma"
       ? `mean C ${formatDistance(stats.mean)} · median ${formatDistance(stats.median)} · max ${formatDistance(stats.max)} · shadows ${histogramPercent(stats.shadowPercent)} / highlights ${histogramPercent(stats.highlightPercent)}`
       : histogram.channel === "hue"
@@ -465,18 +469,21 @@ export function createDiagnosticsPanel({
         : `mean L ${formatDistance(stats.mean)} · median ${formatDistance(stats.median)} · mode ${formatDistance(stats.mode)} · vivid ${histogramPercent(stats.saturatedPercent)}`;
     const overflow = histogram.overflowCount ? ` · ${histogram.overflowCount.toLocaleString()} above axis` : "";
     const segmentLabel = histogram.channel === "luma" ? "neutral / muted / vivid stacks" : "shadow / mid / highlight stacks";
-    return `<div class="diagnostics-histogram-card"><div class="diagnostics-subhead">${scopeLabel}</div><svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
-      <rect class="diagnostics-histogram-bg" x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="5"/>
-      ${quantileBand}
-      ${axis}
-      ${bars}
-      ${statMarkers}
-      ${paletteMarkers}
-      <text class="diagnostics-histogram-label" x="${padX}" y="11">${sourceLabel} ${channelLabel}</text>
-      <text class="diagnostics-histogram-label" x="${width - padX}" y="11" text-anchor="end">${segmentLabel}</text>
-      <text class="diagnostics-histogram-readout" x="${padX}" y="${readoutY}">${total.toLocaleString()} samples · step ${step}px · ${histogram.channel === "hue" ? "hue " : "p10–p90 "}${range}${overflow}</text>
-      <text class="diagnostics-histogram-readout" x="${padX}" y="${readoutY + 12}">${detailText}</text>
-    </svg></div>`;
+    return `<div class="diagnostics-histogram-card"><div class="diagnostics-subhead">${scopeLabel}</div>
+      <div class="diagnostics-histogram-labels"><span>${segmentLabel}</span></div>
+      <div class="diagnostics-histogram-plot-wrap" style="--histogram-pad-x:${padX}px">
+        <svg class="diagnostics-histogram-plot" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <rect class="diagnostics-histogram-bg" x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="5"/>
+          ${quantileBand}
+          ${axis}
+          ${bars}
+          ${statMarkers}
+          ${paletteMarkers}
+        </svg>
+        <div class="diagnostics-histogram-axis-row" aria-hidden="true">${axisTicks}</div>
+      </div>
+      <div class="diagnostics-histogram-readouts"><div>${total.toLocaleString()} samples · step ${step}px · ${histogram.channel === "hue" ? "hue " : "p10–p90 "}${range}${overflow}</div><div>${detailText}</div></div>
+    </div>`;
   }
 
   function renderHistogramPanel(histogramStats = getState().diagnostics?.histogramStats) {
@@ -581,11 +588,11 @@ export function createDiagnosticsPanel({
   function renderXrayScatter(stats) {
     const records = stats?.records || [];
     const entries = stats?.entries || [];
-    const width = 280;
-    const height = 144;
-    const pad = 18;
+    const width = 360;
+    const height = 220;
+    const pad = 16;
     const plotLeft = pad + 8; // neutral column lives between pad and plotLeft
-    const plotRight = width - pad;
+    const plotRight = width - 10;
 
     // Lightness y-axis: tick lines at 0/25/50/75/100, labelled at 0/50/100.
     const lightnessTicks = [0, 25, 50, 75, 100].map(L => {
@@ -667,7 +674,7 @@ export function createDiagnosticsPanel({
       return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.2"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></circle>`;
     }).join("");
 
-    return `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    return `<svg class="xray-plot xray-scatter" viewBox="0 0 ${width} ${height}" aria-hidden="true">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${neutralBand}
       ${lightnessTicks}
@@ -686,11 +693,11 @@ export function createDiagnosticsPanel({
     // read as the radial extent of each dot. Lightness drops out of the
     // axes, but it survives in the dot fill (which is the swatch's own hex).
     const records = stats?.records || [];
-    const width = 280;
-    const height = 144;
+    const width = 240;
+    const height = 240;
     const cx = width / 2;
     const cy = height / 2;
-    const maxR = Math.min(cx, cy) - 6;
+    const maxR = Math.min(cx, cy) - 14;
 
     // Normalize radius to the larger of the actual palette's max chroma and a
     // floor of 18. Without the floor an all-pastel palette would balloon to
@@ -699,7 +706,8 @@ export function createDiagnosticsPanel({
     // look visibly different.
     let maxChroma = 18;
     for (const record of records) {
-      const [, C] = labToOklch(record.lab);
+      const swatchLab = visibleSwatchLab(record) || record.lab;
+      const [, C] = labToOklch(swatchLab);
       if (C > maxChroma) maxChroma = C;
     }
     const radiusFor = C => (C / maxChroma) * maxR;
@@ -730,7 +738,7 @@ export function createDiagnosticsPanel({
     // positive). 0° lands on the right meridian, matching OKLab convention.
     const polar = (radius, h) => [cx + Math.cos(h) * radius, cy - Math.sin(h) * radius];
     const hueMarks = hueStops.map(stop => {
-      const [tx, ty] = polar(maxR + 4, stop.h);
+      const [tx, ty] = polar(maxR + 7, stop.h);
       const [mx, my] = polar(maxR, stop.h);
       const hueLab = fitLabToSrgb(oklchToLab([62, 26, stop.h]));
       const hex = labToHex(hueLab);
@@ -761,7 +769,8 @@ export function createDiagnosticsPanel({
       const ordered = group.slice().sort((a, b) => (a.variantIndex ?? 0) - (b.variantIndex ?? 0));
       if (ordered.length < 2) continue;
       const pts = ordered.map(record => {
-        const [, C, h] = labToOklch(record.lab);
+        const swatchLab = visibleSwatchLab(record) || record.lab;
+        const [, C, h] = labToOklch(swatchLab);
         const r = radiusFor(C);
         const [px, py] = polar(r, h);
         return `${px.toFixed(1)},${py.toFixed(1)}`;
@@ -769,21 +778,22 @@ export function createDiagnosticsPanel({
       familyLines.push(`<polyline points="${pts}" fill="none" stroke="rgba(184,196,214,.25)" stroke-width="1"/>`);
     }
 
-    // Swatches: filled with their actual color (preserves lightness visually).
-    // Size still encodes chroma, but more subtly than the scatter since
-    // radius already does the heavy lifting.
+    // Swatches are positioned from the visible chip, not the internal matcher
+    // coordinate. Harmony tonal modes can deliberately move/fit the displayed
+    // chip; the wheel should show the color users actually see.
     const points = records.map(record => {
-      const [, C, h] = labToOklch(record.lab);
+      const swatchLab = visibleSwatchLab(record) || record.lab;
+      const [, C, h] = labToOklch(swatchLab);
       const r = radiusFor(C);
       const [px, py] = polar(r, h);
       const dotR = clamp(2.4 + C / 28, 2.6, 5);
       const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.82)";
       const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
-      const hex = record.hex || labToHex(record.lab);
-      return `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.1"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></circle>`;
+      const hex = record.hex || labToHex(swatchLab);
+      return `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.1"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, swatchLab)}</title></circle>`;
     }).join("");
 
-    return `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    return `<svg class="xray-plot xray-square" viewBox="0 0 ${width} ${height}" aria-hidden="true">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${rings.join("")}
       ${neutralRing}
@@ -800,12 +810,12 @@ export function createDiagnosticsPanel({
     // unrelated hues fill the visual space at that L. This view collapses
     // that ambiguity.
     const records = stats?.records || [];
-    const width = 280;
-    const height = 144;
-    const padX = 18;
-    const padY = 24;
-    const trackY = padY + 30;
-    const trackH = 36;
+    const width = 320;
+    const height = 180;
+    const padX = 22;
+    const padY = 30;
+    const trackY = padY + 36;
+    const trackH = 48;
     const xFor = L => padX + clamp(L / 100, 0, 1) * (width - padX * 2);
 
     // Grayscale backdrop: L=0..L=100 gradient under the track makes the
@@ -836,7 +846,7 @@ export function createDiagnosticsPanel({
     }).join("");
 
     if (!records.length) {
-      return `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+      return `<svg class="xray-plot xray-tonal" viewBox="0 0 ${width} ${height}" aria-hidden="true">
         <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
         ${backdrop.join("")}${lightnessTicks}
       </svg>`;
@@ -885,7 +895,7 @@ export function createDiagnosticsPanel({
 
     const axisLabel = `<text x="${padX}" y="${(padY - 4).toFixed(1)}" text-anchor="start" class="xray-axis">Lightness</text>`;
 
-    return `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    return `<svg class="xray-plot xray-tonal" viewBox="0 0 ${width} ${height}" aria-hidden="true">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${backdrop.join("")}
       ${gapHighlight}
@@ -903,16 +913,16 @@ export function createDiagnosticsPanel({
     // closer than the collision threshold; cool/dim cells are well-separated.
     const records = stats?.records || [];
     const config = getConfig();
-    const width = 280;
-    const height = 144;
-    const padTop = 18;
-    const padLeft = 18;
-    const padRight = 8;
-    const padBottom = 8;
+    const width = 240;
+    const height = 240;
+    const padTop = 15;
+    const padLeft = 15;
+    const padRight = 7;
+    const padBottom = 22;
     const n = records.length;
 
     if (n < 2) {
-      return `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+      return `<svg class="xray-plot xray-square" viewBox="0 0 ${width} ${height}" aria-hidden="true">
         <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
         <text x="${(width / 2).toFixed(1)}" y="${(height / 2).toFixed(1)}" text-anchor="middle" class="xray-axis" fill="rgba(184,196,214,.55)">Need at least two swatches</text>
       </svg>`;
@@ -1021,9 +1031,9 @@ export function createDiagnosticsPanel({
       }
     }
 
-    const legendY = height - 4;
+    const legendY = height - 5;
     const legendX = padLeft;
-    const legendW = 80;
+    const legendW = 74;
     const legendStops = 16;
     const legend = [];
     for (let k = 0; k < legendStops; k++) {
@@ -1036,7 +1046,7 @@ export function createDiagnosticsPanel({
       ? `<text x="${(width - padRight).toFixed(1)}" y="${(legendY - 1).toFixed(1)}" text-anchor="end" class="xray-axis" fill="rgba(255,170,150,.85)">closest Δ ${formatDistance(closestPair.distance)}</text>`
       : `<text x="${(width - padRight).toFixed(1)}" y="${(legendY - 1).toFixed(1)}" text-anchor="end" class="xray-axis" fill="rgba(184,196,214,.6)">no collisions</text>`;
 
-    return `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    return `<svg class="xray-plot xray-square" viewBox="0 0 ${width} ${height}" aria-hidden="true">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${chips.join("")}
       ${cells.join("")}
@@ -1281,7 +1291,6 @@ export function createDiagnosticsPanel({
     renderDiagnosticsSummary(stats);
     renderDiagnosticsOverlayControls(stats);
     renderDiagnosticsUsage(stats);
-    renderDiagnosticsXray(stats);
     updateDiagnosticsPixel();
   }
 

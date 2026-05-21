@@ -211,22 +211,44 @@ function cosineChannel(preset, channel, t, phaseOffset = 0) {
   return a + b * Math.cos(TAU * (c * t + d + phaseOffset));
 }
 
+const COSINE_SEED_PERIOD = 500;
+const COSINE_SEED_CYCLES = 1;
+
+function cosineSeedPhase(seed) {
+  const safeSeed = Math.max(1, Math.min(COSINE_SEED_PERIOD, Math.round(Number(seed) || 1)));
+  return ((safeSeed - 1) / COSINE_SEED_PERIOD) * COSINE_SEED_CYCLES;
+}
+
 export function createCosinePalette(config) {
   const preset = cosineVectorConfig(config);
   const familyCount = generatedFamilyCount(config);
-  const phase = positiveFraction(config.seed * 0.0314159);
+  const seedPhase = cosineSeedPhase(config.seed);
   const records = [];
+
   for (let familyIndex = 0; familyIndex < familyCount; familyIndex++) {
     const t = familyCount <= 1 ? 0 : familyIndex / familyCount;
-    const L = clamp(cosineChannel(preset, 0, t, phase * 0.07) * 100, 6, 94);
-    const C = clamp(cosineChannel(preset, 1, t, phase * 0.13) * OKLCH_PROCEDURAL_CHROMA_MAX, 0, OKLCH_PROCEDURAL_CHROMA_MAX);
-    const h = TAU * positiveFraction(cosineChannel(preset, 2, t, phase * 0.19));
+
+    const L = clamp(
+      cosineChannel(preset, 0, t, seedPhase) * 100,
+      6,
+      94
+    );
+    const C = clamp(
+      cosineChannel(preset, 1, t, seedPhase) * OKLCH_PROCEDURAL_CHROMA_MAX,
+      0,
+      OKLCH_PROCEDURAL_CHROMA_MAX
+    );
+    const h = TAU * positiveFraction(
+      cosineChannel(preset, 2, t, seedPhase)
+    );
     const seedLab = fitLabToSrgb(oklchToLab([L, C, h]));
+
     records.push(...buildFamilyRecords(seedLab, familyIndex, config, "cosine", familyIndex, {
       familyId: `cosine-${config.cosinePreset === "custom" ? "custom" : config.cosinePreset}-${familyIndex}`,
       role: "cosine-family-member"
     }));
   }
+
   return sortPaletteRecords(records, config.sortMode);
 }
 

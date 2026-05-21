@@ -7,6 +7,8 @@ import {
   normalizeCosineCustomVectors,
   normalizeCycleManualKeys,
   normalizeManualSwatches,
+  normalizePaletteSwatchScale,
+  nextPaletteSwatchScale,
   sanitizeConfigSnapshot
 } from "../src/state/config.js";
 
@@ -123,6 +125,17 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.pixelBlockSize, 16);
   assert.equal(clean.pixelBlockSampleMode, DEFAULT_CONFIG.pixelBlockSampleMode);
   assert.equal(clean.manualMatchAliases.length, 0);
+});
+
+test("palette swatch scale normalizes and cycles through allowed sizes", () => {
+  assert.equal(normalizePaletteSwatchScale(2), 2);
+  assert.equal(normalizePaletteSwatchScale("3"), 3);
+  assert.equal(normalizePaletteSwatchScale(5), 1);
+  assert.equal(nextPaletteSwatchScale(1), 2);
+  assert.equal(nextPaletteSwatchScale(2), 3);
+  assert.equal(nextPaletteSwatchScale(3), 1);
+  assert.equal(sanitizeConfigSnapshot({paletteSwatchScale: 3}).paletteSwatchScale, 3);
+  assert.equal(sanitizeConfigSnapshot({paletteSwatchScale: 99}).paletteSwatchScale, DEFAULT_CONFIG.paletteSwatchScale);
 });
 
 test("config sanitization preserves representative pixel block sampling", () => {

@@ -1849,42 +1849,145 @@ canvas {
   display: none;
 }
 /* Histogram tab: sampled source/output OKLab luma, chroma, and hue pairs.
-   Luma stacks neutral/muted/vivid pixels; chroma and hue stack shadows/mids/highlights. */
+   Luma stacks neutral/muted/vivid pixels; chroma and hue stack shadows/mids/highlights.
+   These plots are distributions, not photographs: they should gladly stretch
+   into the available rectangle instead of protecting a fake aspect ratio. */
 .diagnostics-histogram {
-  min-height: 168px;
+  min-height: 0;
   padding: 0;
 }
 .diagnostics-histogram-pair {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 7px;
+  align-items: stretch;
+  min-height: 0;
 }
 .diagnostics-histogram-card {
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: var(--panel2);
   overflow: hidden;
 }
 .diagnostics-histogram-card .diagnostics-subhead {
+  flex: 0 0 auto;
   margin: 0;
-  padding: 7px 8px 0;
+  padding: 5px 7px 0;
 }
 .diagnostics-histogram-card.is-empty {
-  min-height: 188px;
+  min-height: 118px;
 }
 .diagnostics-histogram-empty {
-  height: 154px;
+  min-height: 96px;
   display: flex;
   align-items: center;
-  padding: 8px 10px;
+  padding: 7px 9px;
   color: var(--muted);
   font-size: 11px;
 }
-.diagnostics-histogram svg {
+.diagnostics-histogram-labels {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 24px 1px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  opacity: .9;
+}
+.diagnostics-histogram-labels span {
+  min-width: 0;
+  white-space: nowrap;
+}
+.diagnostics-histogram-labels span:last-child {
+  text-align: right;
+}
+.diagnostics-histogram-plot-wrap {
+  --histogram-pad-x: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 9px 2px;
+}
+.diagnostics-histogram-plot {
   display: block;
   width: 100%;
-  height: auto;
+  height: 120px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.diagnostics-histogram-axis-row {
+  position: relative;
+  flex: 0 0 18px;
+  min-height: 18px;
+  margin-inline: var(--histogram-pad-x);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  line-height: 18px;
+}
+.diagnostics-histogram-axis-tick {
+  position: absolute;
+  left: var(--tick-left);
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.diagnostics-histogram-axis-tick.is-start {
+  transform: none;
+}
+.diagnostics-histogram-axis-tick.is-end {
+  transform: translateX(-100%);
+}
+.diagnostics-histogram-readouts {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 5px;
+  padding: 5px 24px 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  line-height: 1.25;
+}
+.pixel-inspector-pane #inspectorPanelHistogram {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pixel-inspector-pane #inspectorPanelHistogram[hidden] {
+  display: none !important;
+}
+.pixel-inspector-pane #inspectorPanelHistogram .diagnostics-tab-panel,
+.pixel-inspector-pane #inspectorPanelHistogram .diagnostics-histogram {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.pixel-inspector-pane #inspectorPanelXray .diagnostics-tab-panel,
+.pixel-inspector-pane #inspectorPanelHistogram .diagnostics-tab-panel {
+  gap: 5px;
+}
+.pixel-inspector-pane #inspectorPanelHistogram .diagnostics-histogram-pair {
+  height: 100%;
+  grid-auto-rows: minmax(0, 1fr);
+}
+.pixel-inspector-pane #inspectorPanelHistogram .diagnostics-histogram-card .diagnostics-histogram-plot {
+  height: clamp(82px, calc(50cqh - 112px), 130px);
+}
+@container pixel-inspector (min-width: 620px) {
+  .pixel-inspector-pane #inspectorPanelHistogram .diagnostics-histogram-card .diagnostics-histogram-plot {
+    height: clamp(112px, calc(100cqh - 166px), 310px);
+  }
 }
 .diagnostics-histogram-bg {
   fill: rgba(255,255,255,.012);
@@ -1946,24 +2049,6 @@ canvas {
   stroke-dasharray: 1 2;
   opacity: .72;
 }
-.diagnostics-histogram-label,
-.diagnostics-histogram-axis,
-.diagnostics-histogram-readout {
-  fill: var(--muted);
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-.diagnostics-histogram-readout {
-  font-size: 7.5px;
-  letter-spacing: .04em;
-  text-transform: none;
-}
-.diagnostics-histogram-label {
-  opacity: .9;
-}
-
 .diagnostics-overlay-controls {
   display: flex;
   flex-wrap: wrap;
@@ -2058,6 +2143,20 @@ canvas {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+
+@container pixel-inspector (min-width: 760px) {
+  .pixel-inspector-pane #inspectorPanelDiagnostics .diagnostics-usage {
+    grid-template-columns: repeat(2, minmax(260px, 1fr));
+    column-gap: 14px;
+    row-gap: 5px;
+  }
+}
+.pixel-inspector-pane.is-expanded #inspectorPanelDiagnostics .diagnostics-usage {
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  column-gap: 14px;
+  row-gap: 5px;
+}
+
 /* Principled load flags: underused = < 10% of the 1/N baseline,
    overused = > 3x the 1/N baseline. Visual treatment is intentionally
    restrained so this stays a glance-level cue, not an alarm. */
@@ -2076,19 +2175,63 @@ canvas {
 /* X-Ray plot: a switcher above the SVG selects between four views over the
    same records (scatter, wheel, ramp, proximity matrix) that each surface a
    different property — geometry, hue/gamut, tonal coverage, and pairwise
-   relationships. The container is empty until a palette exists. */
+   relationships. The square views stay square, but their cap is the inspector
+   height now, not an arbitrary postcard-sized max. */
 .diagnostics-xray {
-  min-height: 144px;
-  padding: 6px;
+  min-height: 0;
+  padding: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--panel2);
+  overflow: hidden;
 }
 .diagnostics-xray svg {
   display: block;
-  width: 100%;
   height: auto;
+  max-width: 100%;
+  min-height: 0;
   overflow: visible;
+}
+.diagnostics-xray .xray-plot {
+  width: 100%;
+}
+.diagnostics-xray .xray-scatter {
+  width: min(100%, 620px);
+  margin-inline: auto;
+}
+.diagnostics-xray .xray-tonal {
+  width: min(100%, 540px);
+  margin-inline: auto;
+}
+.diagnostics-xray .xray-square {
+  width: min(100%, 440px);
+  margin-inline: auto;
+}
+.pixel-inspector-pane #inspectorPanelXray {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pixel-inspector-pane #inspectorPanelXray[hidden] {
+  display: none !important;
+}
+.pixel-inspector-pane #inspectorPanelXray .diagnostics-xray {
+  flex: 1 1 auto;
+}
+.pixel-inspector-pane #inspectorPanelXray .diagnostics-xray svg {
+  flex: 0 1 auto;
+}
+.pixel-inspector-pane #inspectorPanelXray .diagnostics-xray .xray-square {
+  width: min(100%, calc(100cqh - 126px));
+}
+.pixel-inspector-pane #inspectorPanelXray .diagnostics-xray .xray-scatter {
+  width: min(100%, calc(164cqh - 198px));
+}
+.pixel-inspector-pane #inspectorPanelXray .diagnostics-xray .xray-tonal {
+  width: min(100%, calc(178cqh - 274px));
 }
 .diagnostics-xray .xray-axis {
   fill: var(--muted);
@@ -2101,7 +2244,7 @@ canvas {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .diagnostics-xray-modes .mini-control {
   min-height: 20px;
@@ -2111,6 +2254,18 @@ canvas {
   color: var(--text);
   border-color: var(--accent);
   background: rgba(143,180,223,.14);
+}
+
+@container pixel-inspector (min-width: 700px) {
+  .pixel-inspector-pane #inspectorPanelXray .diagnostics-xray .xray-square {
+    width: min(100%, calc(100cqh - 106px));
+  }
+  .pixel-inspector-pane #inspectorPanelXray .diagnostics-xray .xray-scatter {
+    width: min(100%, calc(164cqh - 166px));
+  }
+  .pixel-inspector-pane #inspectorPanelXray .diagnostics-xray .xray-tonal {
+    width: min(100%, calc(178cqh - 235px));
+  }
 }
 
 /* Pixel inspector: header line plus per-match rows with actual mix weights
@@ -2842,8 +2997,16 @@ input[type="range"] {
   right: 18px;
   z-index: 2147483000;
   width: min(410px, calc(100vw - 20px));
+  height: min(560px, calc(100vh - 20px));
+  container: pixel-inspector / size;
+  min-width: min(320px, calc(100vw - 20px));
+  min-height: 220px;
+  max-width: calc(100vw - 20px);
   max-height: calc(100vh - 20px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  resize: both;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   background: rgba(12, 16, 21, .94);
@@ -2900,6 +3063,17 @@ input[type="range"] {
 .pixel-inspector-pane.is-dragging {
   user-select: none;
 }
+.pixel-inspector-pane.is-expanded {
+  top: 10px !important;
+  right: 10px !important;
+  bottom: 10px !important;
+  left: 10px !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none;
+  max-height: none;
+  resize: none;
+}
 .pixel-inspector-titlebar {
   display: flex;
   align-items: center;
@@ -2933,6 +3107,7 @@ input[type="range"] {
   padding: 2px 6px;
 }
 .inspector-tabs {
+  flex: 0 0 auto;
   display: flex;
   gap: 4px;
   padding: 5px;
@@ -2958,8 +3133,9 @@ input[type="range"] {
   background: rgba(143,180,223,.14);
 }
 .inspector-tab-panel {
+  flex: 1 1 auto;
   min-height: 0;
-  max-height: min(560px, calc(100vh - 164px));
+  max-height: none;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -2971,8 +3147,25 @@ input[type="range"] {
 .pixel-inspector-pane .diagnostics-panel {
   padding: 7px;
 }
+.pixel-inspector-pane #inspectorPanelXray .diagnostics-panel,
+.pixel-inspector-pane #inspectorPanelHistogram .diagnostics-panel {
+  padding: 5px;
+}
+.pixel-inspector-pane #inspectorPanelXray .diagnostics-panel > .diagnostics-subhead,
+.pixel-inspector-pane #inspectorPanelHistogram .diagnostics-panel > .diagnostics-subhead {
+  margin-top: 0;
+}
+.pixel-inspector-pane #inspectorPanelPixel {
+  display: flex;
+  flex-direction: column;
+}
+.pixel-inspector-pane #inspectorPanelPixel[hidden] {
+  display: none !important;
+}
 .pixel-inspector-pane .diagnostics-pixel {
-  max-height: min(330px, calc(100vh - 220px));
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow: auto;
   border: 0;
   border-radius: 0;
@@ -3423,5 +3616,30 @@ input.app-color-picker-input {
     max-height: 100%;
     overflow-x: hidden !important;
     overflow-y: auto !important;
+  }
+}
+
+
+/* Palette swatch bar sizing. Kept late in the cascade because earlier density passes resize chips. */
+.palette-preview {
+  --palette-swatch-scale: 1;
+  --palette-chip-base-size: 16px;
+  --palette-chip-size: calc(var(--palette-chip-base-size) * var(--palette-swatch-scale));
+}
+.palette-preview-inline {
+  grid-auto-columns: minmax(var(--palette-chip-size), calc(var(--palette-chip-size) + 2px));
+}
+.palette-preview .chip {
+  min-width: var(--palette-chip-size);
+  min-height: var(--palette-chip-size);
+  height: var(--palette-chip-size);
+}
+.palette-swatch-scale-button {
+  min-width: 34px;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  .palette-preview {
+    --palette-chip-base-size: 14px;
   }
 }

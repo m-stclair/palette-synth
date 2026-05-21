@@ -70,6 +70,7 @@
             <span class="stage-palette-label">Palette</span>
             <span id="paletteHint" class="stage-palette-hint" aria-live="polite"></span>
             <div class="stage-palette-actions">
+              <button id="paletteSwatchScaleToggle" type="button" class="ghost mini-control palette-swatch-scale-button" title="Palette swatch size (Shift+P)" aria-label="Palette swatch size" aria-keyshortcuts="Shift+P">1×</button>
               <button id="clearCycleTags" type="button" class="ghost mini-control" hidden>Clear cycle tags</button>
               <button id="clearPaletteLocks" type="button" class="ghost mini-control" hidden>Clear locks</button>
             </div>
@@ -509,6 +510,7 @@
       <h2 id="pixelInspectorTitle">Inspector</h2>
       <div class="pixel-inspector-window-actions">
         <button id="clearPixelInspector" type="button" class="ghost mini-control" title="Clear inspected pixel (Esc)">Clear</button>
+        <button id="expandPixelInspector" type="button" class="ghost mini-control" aria-pressed="false" aria-label="Expand inspector" title="Expand inspector">Expand</button>
         <button id="closePixelInspector" type="button" class="ghost mini-control" aria-label="Close inspector" title="Close inspector">×</button>
       </div>
     </div>
@@ -516,6 +518,7 @@
       <button id="inspectorTabPixel" type="button" class="inspector-tab is-active" role="tab" aria-selected="true" aria-controls="inspectorPanelPixel" data-inspector-tab="pixel" title="Pixel inspector tab">Pixel</button>
       <button id="inspectorTabSelection" type="button" class="inspector-tab image-palette-only" role="tab" aria-selected="false" aria-controls="inspectorPanelSelection" data-inspector-tab="selection" title="Family selection tab">Families</button>
       <button id="inspectorTabDiagnostics" type="button" class="inspector-tab" role="tab" aria-selected="false" aria-controls="inspectorPanelDiagnostics" data-inspector-tab="diagnostics" title="Palette diagnostics tab">Diagnostics</button>
+      <button id="inspectorTabXray" type="button" class="inspector-tab" role="tab" aria-selected="false" aria-controls="inspectorPanelXray" data-inspector-tab="xray" title="Palette X-Ray tab">X-Ray</button>
       <button id="inspectorTabHistogram" type="button" class="inspector-tab" role="tab" aria-selected="false" aria-controls="inspectorPanelHistogram" data-inspector-tab="histogram" title="Image histogram tab">Histogram</button>
     </div>
     <div id="inspectorPanelPixel" class="inspector-tab-panel" role="tabpanel" aria-labelledby="inspectorTabPixel" data-inspector-tab-panel="pixel">
@@ -541,9 +544,11 @@
         </div>
         <div id="diagnosticsUsageHeading" class="diagnostics-subhead">Assignment contribution</div>
         <div id="diagnosticsUsage" class="diagnostics-usage" aria-label="Assignment contribution bars"></div>
-        <div class="diagnostics-subhead">Palette X-Ray</div>
-        <div id="diagnosticsXray" class="diagnostics-xray" role="img" aria-label="OKLCh hue and lightness scatterplot"></div>
       </div>
+    </section>
+    <section id="inspectorPanelXray" class="inspector-tab-panel diagnostics-panel" role="tabpanel" aria-labelledby="inspectorTabXray" data-inspector-tab-panel="xray" data-panel-key="xray" hidden>
+      <div class="diagnostics-subhead">Palette X-Ray</div>
+      <div id="diagnosticsXray" class="diagnostics-xray" role="img" aria-label="OKLCh hue and lightness scatterplot"></div>
     </section>
     <section id="inspectorPanelHistogram" class="inspector-tab-panel diagnostics-panel" role="tabpanel" aria-labelledby="inspectorTabHistogram" data-inspector-tab-panel="histogram" data-panel-key="histogram" hidden>
       <div id="diagnosticsTabs" class="diagnostics-tabs" role="tablist" aria-label="Histogram views"></div>

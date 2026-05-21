@@ -1,5 +1,6 @@
 import { COSINE_PALETTE_PRESETS, HARMONY_REGION_CONTRASTS, HARMONY_RELATIONSHIPS } from "../constants.js";
 import { DEFAULT_CONFIG } from "../state/config.js";
+import { syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
 import { colorInfoLabel, labToHex, makePaletteRecord } from "../color-utils.js";
 import { syncDynamicUiSkin } from "./dynamic-skin.js";
 
@@ -186,6 +187,7 @@ export function createPalettePreview({
   function renderSwatches() {
     const wrap = els.palettePreview;
     if (!wrap) return;
+    syncPaletteSwatchScaleUi({config, els});
     wrap.innerHTML = "";
     const records = state.paletteRecords.length ? state.paletteRecords : state.palette.map((lab, sourceIndex) => makePaletteRecord({lab, source: "legacy", sourceIndex}));
     const cycleTagMode = manualCycleModeEnabled();
@@ -296,6 +298,7 @@ export function createPalettePreview({
     toggleManualCycleTag,
     clearGeneratedLocks,
     toggleGeneratedFamilyLock,
+    syncPaletteSwatchScaleUi: (options = {}) => syncPaletteSwatchScaleUi({config, els, ...options}),
     renderSwatches
   };
 }

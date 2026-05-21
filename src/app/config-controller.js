@@ -1,6 +1,7 @@
 import { $, SELECT_WEIGHT_CONTROL_IDS } from "../ui/dom.js";
 import { syncCosineCustomVectorControls } from "../ui/controls.js";
 import { syncColorPickerInput } from "../ui/color-picker.js";
+import { syncPaletteSwatchScaleUi } from "../ui/palette-swatch-scale.js";
 import {
   cloneConfigSnapshot as cloneConfigSnapshotFrom,
   sanitizeConfigSnapshot as sanitizeConfigSnapshotBase
@@ -112,6 +113,7 @@ export function createConfigController({
     });
     if (els.canvas) els.canvas.classList.toggle("pixel-perfect", !!config.pixelPerfect);
     if (els.pixelPerfectToggle) els.pixelPerfectToggle.checked = !!config.pixelPerfect;
+    syncPaletteSwatchScaleUi({config, els, root});
     safeSyncCompareControls();
     if (els.showPaletteRegion) els.showPaletteRegion.checked = !!config.showPaletteRegion;
     safeRenderManualSwatches();

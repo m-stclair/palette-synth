@@ -143,6 +143,39 @@ test("diagnostics controller refreshes family selection only while its inspector
   assert.equal(selected, 1);
 });
 
+
+test("diagnostics controller renders X-Ray tab from palette records without image sampling", () => {
+  let xrayRendered = 0;
+  let computed = 0;
+  const pane = makePanel();
+  const xrayPanel = makePanel();
+  const records = [{lab: [45, 10, 0]}];
+  const state = {
+    imageData: null,
+    diagnostics: {stats: null, signature: "old", pixelInspectorOpen: true, inspectorTab: "xray"},
+    paletteRecords: records,
+    paletteDirty: false
+  };
+  const controller = createDiagnosticsController({
+    els: {pixelInspectorPane: pane, inspectorPanelXray: xrayPanel},
+    state,
+    config: {},
+    renderPaletteLabs: () => [[45, 10, 0]],
+    paletteUniformEntries: () => [{renderLab: [45, 10, 0], featureLab: [45, 10, 0]}],
+    computeDiagnostics: () => { computed++; return {signature: "new"}; },
+    renderDiagnosticsXray: value => {
+      xrayRendered++;
+      assert.equal(value.records, records);
+    }
+  });
+
+  controller.updateDiagnostics();
+
+  assert.equal(xrayRendered, 1);
+  assert.equal(computed, 0);
+  assert.equal(state.diagnostics.signature, "");
+});
+
 test("diagnostics controller runs full diagnostics when the palette diagnostics panel is open", () => {
   let computed = 0;
   let rendered = 0;

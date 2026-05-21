@@ -5,7 +5,7 @@ export function panelIsOpen(panel) {
   return !!panel && !panel.hidden && !panel.classList.contains("is-collapsed");
 }
 
-const INSPECTOR_TABS = ["pixel", "selection", "diagnostics", "histogram"];
+const INSPECTOR_TABS = ["pixel", "selection", "diagnostics", "xray", "histogram"];
 
 function histogramChannel(tab) {
   return ["luma", "chroma", "hue"].includes(tab) ? tab : "luma";
@@ -29,17 +29,18 @@ export function createDiagnosticsController({
   els,
   state,
   config,
-  ensurePalette,
-  renderPaletteLabs,
-  paletteUniformEntries,
-  diagnosticsSignature,
-  computeDiagnostics,
+  ensurePalette = () => {},
+  renderPaletteLabs = records => records.map(record => record?.lab).filter(Array.isArray),
+  paletteUniformEntries = (records = []) => records.map(record => ({sourceRecord: record, renderLab: record?.lab, featureLab: record?.lab})),
+  diagnosticsSignature = () => "",
+  computeDiagnostics = () => null,
   sourceHistogramSignature = null,
   outputHistogramSignature = null,
   computeSourceHistogramDiagnostics = null,
   computeOutputHistogramDiagnostics = null,
   diagnosticsActiveTab = () => "contribution",
   renderDiagnosticsPanel,
+  renderDiagnosticsXray = () => {},
   renderHistogramPanel = () => {},
   renderDiagnosticsSelection = () => {},
   updateDiagnosticsPixel = () => {},
@@ -70,6 +71,7 @@ export function createDiagnosticsController({
     if (tab === "pixel") return els.inspectorTabPixel;
     if (tab === "selection") return els.inspectorTabSelection;
     if (tab === "diagnostics") return els.inspectorTabDiagnostics;
+    if (tab === "xray") return els.inspectorTabXray;
     if (tab === "histogram") return els.inspectorTabHistogram;
     return null;
   }
@@ -78,6 +80,7 @@ export function createDiagnosticsController({
     if (tab === "pixel") return els.inspectorPanelPixel || els.diagnosticsPixel?.closest?.("[data-inspector-tab-panel='pixel']");
     if (tab === "selection") return els.inspectorPanelSelection || els.diagnosticsSelection?.closest?.(".selection-diagnostics-panel");
     if (tab === "diagnostics") return els.inspectorPanelDiagnostics || els.diagnosticsSummary?.closest?.(".diagnostics-panel");
+    if (tab === "xray") return els.inspectorPanelXray || els.diagnosticsXray?.closest?.("[data-inspector-tab-panel='xray']");
     if (tab === "histogram") return els.inspectorPanelHistogram || els.diagnosticsHistogram?.closest?.("[data-inspector-tab-panel='histogram']");
     return null;
   }
@@ -115,6 +118,12 @@ export function createDiagnosticsController({
   function histogramPanelIsOpen() {
     const panel = tabPanel("histogram");
     if (inspectorTabsEnabled()) return inspectorPaneIsOpen() && activeInspectorTab() === "histogram" && panelIsOpen(panel);
+    return panelIsOpen(panel);
+  }
+
+  function xrayPanelIsOpen() {
+    const panel = tabPanel("xray");
+    if (inspectorTabsEnabled()) return inspectorPaneIsOpen() && activeInspectorTab() === "xray" && panelIsOpen(panel);
     return panelIsOpen(panel);
   }
 
@@ -309,7 +318,7 @@ export function createDiagnosticsController({
     syncPixelInspectorUi();
     if (focus) tabButton(tab)?.focus?.({preventScroll: true});
     if (inspectorPaneIsOpen() && update) updateDiagnostics();
-    if (announce) setStatus(tab === "pixel" ? "Pixel inspector selected." : tab === "selection" ? "Family selection selected." : tab === "histogram" ? "Histograms selected." : "Palette diagnostics selected.");
+    if (announce) setStatus(tab === "pixel" ? "Pixel inspector selected." : tab === "selection" ? "Family selection selected." : tab === "xray" ? "Palette X-Ray selected." : tab === "histogram" ? "Histograms selected." : "Palette diagnostics selected.");
     return tab;
   }
 
@@ -346,22 +355,15 @@ export function createDiagnosticsController({
 
     const fullDiagnosticsOpen = diagnosticsPanelIsOpen();
     const histogramOpen = histogramPanelIsOpen();
+    const xrayOpen = xrayPanelIsOpen();
     const selectionDiagnosticsOpen = selectionDiagnosticsPanelIsOpen();
     if (selectionDiagnosticsOpen) renderDiagnosticsSelection();
 
     // Full palette diagnostics sample thousands of pixels. Keep that work
     // tied to the palette diagnostics panel only; the pixel inspector has
-    // its own single-pixel path above. Cheap selection diagnostics are
-    // rendered above from the palette trace and do not need image sampling.
-    if (!fullDiagnosticsOpen && !histogramOpen) return;
-    if (!state.imageData) {
-      state.diagnostics.stats = null;
-      state.diagnostics.signature = "";
-      resetHistogramDiagnostics(state.diagnostics);
-      if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
-      if (histogramOpen) renderHistogramPanel(null);
-      return;
-    }
+    // its own single-pixel path above. Cheap selection diagnostics and the
+    // X-Ray are palette-structure views and do not need image sampling.
+    if (!fullDiagnosticsOpen && !histogramOpen && !xrayOpen) return;
     if (state.paletteDirty || !state.paletteRecords.length) ensurePalette();
     if (!state.paletteRecords.length) {
       state.diagnostics.stats = null;
@@ -369,11 +371,24 @@ export function createDiagnosticsController({
       resetHistogramDiagnostics(state.diagnostics);
       if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
       if (histogramOpen) renderHistogramPanel(null);
+      if (xrayOpen) renderDiagnosticsXray(null);
       return;
     }
     const records = state.paletteRecords;
     const renderLabs = renderPaletteLabs(records);
     const entries = paletteUniformEntries(records, renderLabs);
+    const xrayStats = {records, entries, collisions: state.diagnostics.stats?.collisions || null};
+    if (xrayOpen && !fullDiagnosticsOpen) renderDiagnosticsXray(xrayStats);
+
+    if (!state.imageData) {
+      state.diagnostics.stats = null;
+      state.diagnostics.signature = "";
+      resetHistogramDiagnostics(state.diagnostics);
+      if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
+      if (histogramOpen) renderHistogramPanel(null);
+      if (xrayOpen && fullDiagnosticsOpen) renderDiagnosticsXray(xrayStats);
+      return;
+    }
     if (histogramOpen) {
       const channel = histogramChannel(diagnosticsActiveTab?.());
       const histogramSignatures = state.diagnostics.histogramSignatures && typeof state.diagnostics.histogramSignatures === "object"
@@ -397,6 +412,7 @@ export function createDiagnosticsController({
       renderHistogramPanel(histogramStats);
       if (!fullDiagnosticsOpen) return;
     }
+    if (!fullDiagnosticsOpen) return;
 
     const signature = diagnosticsSignature(records, entries);
     if (state.diagnostics.signature !== signature) {
@@ -405,6 +421,7 @@ export function createDiagnosticsController({
       state.diagnostics.signature = stats?.signature || signature;
     }
     renderDiagnosticsPanel(state.diagnostics.stats);
+    if (xrayOpen) renderDiagnosticsXray(state.diagnostics.stats || xrayStats);
   }
 
   function clearQueuedDiagnostics() {
@@ -435,6 +452,7 @@ export function createDiagnosticsController({
   return {
     setInspectorTab,
     diagnosticsPanelIsOpen,
+    xrayPanelIsOpen,
     pixelInspectorPanelIsOpen,
     setPixelInspectorOpen,
     togglePixelInspector,

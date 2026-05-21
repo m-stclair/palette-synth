@@ -198,6 +198,7 @@ test("diagnostics panel renders summary, usage, xray, selection fallback, and pi
   });
 
   panel.renderDiagnosticsPanel(stats);
+  panel.renderDiagnosticsXray(stats);
 
   assert.equal(els.diagnosticsUsageHeading.textContent, "Blend contribution");
   assert.match(els.diagnosticsSummary.innerHTML, /samples/);
@@ -335,6 +336,12 @@ test("histogram inspector tab renders paired source and output charts from its a
   assert.equal(els.diagnosticsHistogramHeading.textContent, "Luma histograms");
   assert.match(els.diagnosticsHistogram.innerHTML, /Source/);
   assert.match(els.diagnosticsHistogram.innerHTML, /Output/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-plot/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /viewBox="0 0 360 112"/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-labels/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-axis-row/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-readouts/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /preserveAspectRatio="none"/);
   assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-bar/);
   assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-marker/);
   assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-mode/);
@@ -371,6 +378,7 @@ test("X-Ray renders four distinct modes and switches between them on click", () 
   assert.match(xray.innerHTML, /data-xray-mode="ramp"/);
   assert.match(xray.innerHTML, /data-xray-mode="proximity"/);
   // Scatter-specific signatures: hue letter labels and the neutral column.
+  assert.match(xray.innerHTML, /class="xray-plot xray-scatter"/);
   assert.match(xray.innerHTML, />neutral</);
   assert.match(xray.innerHTML, />R</);
 
@@ -380,16 +388,19 @@ test("X-Ray renders four distinct modes and switches between them on click", () 
 
   clickMode("wheel");
   assert.match(xray.innerHTML, /data-xray-mode="wheel"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /class="xray-plot xray-square"/);
   // Wheel mode reports max chroma as a label and draws concentric chroma rings.
   assert.match(xray.innerHTML, /C \d+/);
 
   clickMode("ramp");
   assert.match(xray.innerHTML, /data-xray-mode="ramp"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /class="xray-plot xray-tonal"/);
   // Ramp mode labels the lightness axis.
   assert.match(xray.innerHTML, />Lightness</);
 
   clickMode("proximity");
   assert.match(xray.innerHTML, /data-xray-mode="proximity"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /class="xray-plot xray-square"/);
   // Proximity mode shows a closer→farther legend and a collision readout
   // sourced from cpuDistanceBreakdown over every swatch pair.
   assert.match(xray.innerHTML, /closer → farther/);
@@ -397,6 +408,27 @@ test("X-Ray renders four distinct modes and switches between them on click", () 
   clickMode("scatter");
   assert.match(xray.innerHTML, /data-xray-mode="scatter"[^>]*aria-selected="true"/);
 });
+
+test("X-Ray wheel positions and labels visible swatch chips, not stale matcher Lab", () => {
+  const xray = element();
+  const els = {diagnosticsXray: xray};
+  const record = {lab: [55, 26, 0], hex: "#2f6fff", displayIndex: 0, familyId: "harmony-a", variantIndex: 0};
+  const stats = {records: [record], entries: []};
+  const panel = createDiagnosticsPanel({
+    els,
+    getConfig: () => ({}),
+    getState: () => ({diagnostics: {stats}})
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-mode]" ? {dataset: {xrayMode: "wheel"}} : null}});
+
+  assert.match(xray.innerHTML, /data-xray-mode="wheel"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /fill="#2f6fff"/);
+  assert.match(xray.innerHTML, /#2f6fff · LCH /);
+  assert.doesNotMatch(xray.innerHTML, /#2f6fff · LCH 55\.0 26\.0 0°/);
+});
+
 
 test("X-Ray proximity mode degrades gracefully when there are not enough swatches", () => {
   const xray = element();

@@ -1,6 +1,7 @@
 import { $, SELECT_WEIGHT_CONTROL_IDS } from "./dom.js";
 import { COSINE_VECTOR_KEYS, normalizeCosineCustomVectors } from "../state/config.js";
 import { createShortcutDispatcher } from "./shortcuts.js";
+import { cyclePaletteSwatchScale, syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
 
 export function cosineCustomInputId(key, channel) {
@@ -413,6 +414,10 @@ export function bindAppControls({
     if (event.target === event.currentTarget) closeManualPaletteTextDialog();
   });
   $("lutInput")?.addEventListener("change", event => importLut(event.target.files?.[0]));
+  syncPaletteSwatchScaleUi({config, els});
+  $("paletteSwatchScaleToggle")?.addEventListener("click", () => withHistory("Change palette swatch size", () => {
+    cyclePaletteSwatchScale({config, els, setStatus});
+  }));
   $("clearCycleTags")?.addEventListener("click", () => withHistory("Clear cycle tags", () => clearManualCycleTags()));
   $("clearPaletteLocks")?.addEventListener("click", () => withHistory("Clear generated locks", () => clearGeneratedLocks()));
   $("selectPaletteRegion")?.addEventListener("click", togglePaletteRegionSelection);

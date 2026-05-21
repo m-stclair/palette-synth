@@ -8,6 +8,7 @@ const INSPECTOR_TAB_BY_PANEL_KEY = {
   "pixel-inspector": "pixel",
   "selection-diagnostics": "selection",
   diagnostics: "diagnostics",
+  xray: "xray",
   histogram: "histogram"
 };
 
@@ -29,10 +30,11 @@ export function bindFloatingPixelInspector({
   const handle = els.pixelInspectorHandle;
   const toggle = els.togglePixelInspector;
   const close = els.closePixelInspector;
+  const expand = els.expandPixelInspector;
   const clear = els.clearPixelInspector;
   const copySource = els.copyPixelSource;
   const copyFinal = els.copyPixelFinal;
-  const tabButtons = [els.inspectorTabPixel, els.inspectorTabSelection, els.inspectorTabDiagnostics, els.inspectorTabHistogram].filter(Boolean);
+  const tabButtons = [els.inspectorTabPixel, els.inspectorTabSelection, els.inspectorTabDiagnostics, els.inspectorTabXray, els.inspectorTabHistogram].filter(Boolean);
   if (!pane) return {destroy() {}};
 
   const listeners = [];
@@ -56,6 +58,14 @@ export function bindFloatingPixelInspector({
 
   add(toggle, "click", () => togglePixelInspector({announce: true}));
   add(close, "click", () => setPixelInspectorOpen(false, {announce: true}));
+  add(expand, "click", () => {
+    const expanded = !pane.classList.contains("is-expanded");
+    pane.classList.toggle("is-expanded", expanded);
+    expand.setAttribute?.("aria-pressed", String(expanded));
+    expand.textContent = expanded ? "Restore" : "Expand";
+    expand.title = expanded ? "Restore inspector" : "Expand inspector";
+    setStatus(expanded ? "Inspector expanded." : "Inspector restored.");
+  });
   add(clear, "click", () => clearDiagnosticPixel({announce: true}));
   add(copySource, "click", () => copy("source"));
   add(copyFinal, "click", () => copy("final"));
@@ -95,7 +105,7 @@ export function bindFloatingPixelInspector({
 
   if (handle) {
     add(handle, "pointerdown", event => {
-      if (event.button !== 0 || event.target?.closest?.("button")) return;
+      if (event.button !== 0 || event.target?.closest?.("button") || pane.classList.contains("is-expanded")) return;
       event.preventDefault?.();
       const startRect = pane.getBoundingClientRect?.();
       if (!startRect) return;

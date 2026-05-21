@@ -24,6 +24,18 @@ export const DEFAULT_COSINE_CUSTOM_VECTORS = {
 };
 
 export const COSINE_VECTOR_KEYS = ["a", "b", "c", "d"];
+export const PALETTE_SWATCH_SCALES = [1, 2, 3];
+
+export function normalizePaletteSwatchScale(value) {
+  const number = Number(value);
+  return PALETTE_SWATCH_SCALES.includes(number) ? number : 1;
+}
+
+export function nextPaletteSwatchScale(value) {
+  const current = normalizePaletteSwatchScale(value);
+  const index = PALETTE_SWATCH_SCALES.indexOf(current);
+  return PALETTE_SWATCH_SCALES[(index + 1) % PALETTE_SWATCH_SCALES.length];
+}
 
 export const DEFAULT_CONFIG = {
   paletteMode: "generated",
@@ -38,6 +50,7 @@ export const DEFAULT_CONFIG = {
   manualMatchAliases: [],
   paletteRegionRect: null,
   showPaletteRegion: false,
+  paletteSwatchScale: 1,
   paletteSize: 15,
   seedSwatch: "#735747",
   harmonyRelationship: "splitComplement",
@@ -258,6 +271,7 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.manualMatchAliases = [];
   base.paletteRegionRect = normalizePaletteRegionSnapshot(base.paletteRegionRect);
   base.showPaletteRegion = !!base.showPaletteRegion;
+  base.paletteSwatchScale = normalizePaletteSwatchScale(base.paletteSwatchScale);
   base.paletteSize = clamp(Math.round(Number(base.paletteSize) || DEFAULT_CONFIG.paletteSize), 3, 42);
   base.paletteSize = Math.max(3, Math.round(base.paletteSize / 3) * 3);
   base.seedSwatch = normalizeHexColor(base.seedSwatch, DEFAULT_CONFIG.seedSwatch);

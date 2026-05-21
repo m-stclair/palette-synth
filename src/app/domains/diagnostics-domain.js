@@ -87,6 +87,7 @@ export function createDiagnosticsDomain({
     computeOutputHistogramDiagnostics: metrics.computeOutputHistogramDiagnostics,
     diagnosticsActiveTab: panel.activeHistogramTab,
     renderDiagnosticsPanel: panel.renderDiagnosticsPanel,
+    renderDiagnosticsXray: panel.renderDiagnosticsXray,
     renderHistogramPanel: panel.renderHistogramPanel,
     renderDiagnosticsSelection: panel.renderDiagnosticsSelection,
     updateDiagnosticsPixel: panel.updateDiagnosticsPixel,

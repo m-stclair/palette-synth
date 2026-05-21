@@ -1,5 +1,6 @@
 import { cloneDefaultConfig, cloneConfigSnapshot as cloneConfigSnapshotValue } from "../state/config.js";
 import { $ } from "./dom.js";
+import { cyclePaletteSwatchScale, PALETTE_SWATCH_SCALE_HOTKEY } from "./palette-swatch-scale.js";
 
 export const SHORTCUT_BLOCK_SELECTOR = [
   "input",
@@ -44,7 +45,7 @@ for (const item of TOOLBAR_PANEL_SHORTCUTS) {
   for (const panelKey of keys) if (!TOOLBAR_PANEL_SHORTCUT_BY_PANEL.has(panelKey)) TOOLBAR_PANEL_SHORTCUT_BY_PANEL.set(panelKey, item.key);
 }
 
-const INSPECTOR_TABS = ["pixel", "selection", "diagnostics", "histogram"];
+const INSPECTOR_TABS = ["pixel", "selection", "diagnostics", "xray", "histogram"];
 const SNAPSHOT_SLOT_KEYS = ["a", "s", "d", "f"];
 
 export const SHORTCUT_DEFINITIONS = [
@@ -54,6 +55,7 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "Shift+R", label: "Reset settings"},
   {key: "C", label: "Toggle compare"},
   {key: "P", label: "Toggle pixel-perfect preview"},
+  {key: PALETTE_SWATCH_SCALE_HOTKEY, label: "Cycle palette swatch bar size"},
   {key: "I", label: "Toggle floating inspector"},
   {key: "Shift+I", label: "Switch inspector tab"},
   {key: "Shift+E", label: "Rotate assignment mode"},
@@ -394,6 +396,7 @@ function annotateShortcutTargets(root) {
     ["collapseAllPanelsButton", "Shift+-"],
     ["compareToggle", "C"],
     ["pixelPerfectToggle", "P"],
+    ["paletteSwatchScaleToggle", PALETTE_SWATCH_SCALE_HOTKEY],
     ["togglePixelInspector", "I Shift+I"],
     ["assignMode", "Shift+E"],
     ["resetViewButton", "0"],
@@ -559,6 +562,7 @@ export function createShortcutDispatcher({
     if (tab === "pixel") return els.inspectorTabPixel || $("inspectorTabPixel", root);
     if (tab === "selection") return els.inspectorTabSelection || $("inspectorTabSelection", root);
     if (tab === "diagnostics") return els.inspectorTabDiagnostics || $("inspectorTabDiagnostics", root);
+    if (tab === "xray") return els.inspectorTabXray || $("inspectorTabXray", root);
     if (tab === "histogram") return els.inspectorTabHistogram || $("inspectorTabHistogram", root);
     return null;
   }
@@ -698,7 +702,12 @@ export function createShortcutDispatcher({
       return true;
     },
     "p": event => {
-      if (event.shiftKey) return false;
+      if (event.shiftKey) {
+        withHistory("Change palette swatch size", () => {
+          cyclePaletteSwatchScale({config, els, root, setStatus});
+        });
+        return true;
+      }
       togglePixelPerfect();
       return true;
     },
