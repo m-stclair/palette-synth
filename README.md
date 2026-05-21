@@ -20,12 +20,11 @@ browser with WebGL2 support.
 ## Development commands
 
 ```sh
-npm test       # run the Node test suite
-npm run check  # run the JavaScript syntax check
-npm run e2e    # run the Playwright e2e smoke test
+npm run test:all  # run unit test suite, JS syntax check, and, if browser available, E2E smoke test
 ```
 
-There are no runtime dependencies in `package.json`. Unit tests use Node's built-in test runner. E2E tests use Playwright.
+There are no runtime dependencies in `package.json`. The unit tests use Node's built-in test runner.
+E2E smoke tests use playwright.
 
 ## Browser requirements
 
