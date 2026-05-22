@@ -561,17 +561,27 @@ export function createDiagnosticsPanel({
 
   // The X-Ray supports several legitimately different views over the same
   // palette records: a 2D scatter (Hue×L), a polar OKLCh wheel (Hue×Chroma),
-  // a 1D Lightness ramp, and an N×N proximity matrix. Each surfaces a
-  // different property — geometric layout, hue/gamut reach, tonal coverage,
-  // and pairwise relationships respectively — so they complement each other
-  // rather than just restyling the same data.
+  // a 1D Lightness ramp, an N×N proximity matrix, and a rotatable 3D LCH
+  // cylinder. Each surfaces a different property — geometry, hue/gamut reach,
+  // tonal coverage, pairwise relationships, and full L/C/H volume respectively
+  // — so they complement each other rather than just restyling the same data.
   const XRAY_MODES = [
     {id: "scatter",   label: "Scatter",   title: "Hue × Lightness scatter"},
     {id: "wheel",     label: "Wheel",     title: "Polar OKLCh: hue around the rim, chroma as radius"},
     {id: "ramp",      label: "Tonal",     title: "Lightness ramp — surfaces tonal coverage gaps"},
-    {id: "proximity", label: "Proximity", title: "Pairwise weighted distance — surfaces collisions"}
+    {id: "proximity", label: "Proximity", title: "Pairwise weighted distance — surfaces collisions"},
+    {id: "cylinder",  label: "Cylinder",  title: "Rotatable 3D LCH cylinder — drag to orbit hue/chroma around lightness"}
   ];
   let xrayMode = "scatter";
+  const XRAY_CYLINDER_MAX_PITCH = Math.PI / 2;
+  let xrayCylinderYaw = -0.62;
+  let xrayCylinderPitch = 0.28;
+  let xrayCylinderDrag = null;
+
+  function rerenderXrayFromState() {
+    const diagnostic = getState().diagnostics || {};
+    renderDiagnosticsXray(diagnostic.xrayStats || diagnostic.stats);
+  }
 
   function bindXrayModeEvents() {
     const container = els.diagnosticsXray;
@@ -583,8 +593,46 @@ export function createDiagnosticsPanel({
       const next = button.dataset.xrayMode;
       if (!XRAY_MODES.some(mode => mode.id === next) || next === xrayMode) return;
       xrayMode = next;
-      const diagnostic = getState().diagnostics || {};
-      renderDiagnosticsXray(diagnostic.xrayStats || diagnostic.stats);
+      rerenderXrayFromState();
+    });
+    container.addEventListener("pointerdown", event => {
+      const target = event.target?.closest?.("[data-xray-cylinder]");
+      if (!target || xrayMode !== "cylinder") return;
+      event.preventDefault?.();
+      target.setPointerCapture?.(event.pointerId);
+      xrayCylinderDrag = {
+        x: Number(event.clientX) || 0,
+        y: Number(event.clientY) || 0,
+        yaw: xrayCylinderYaw,
+        pitch: xrayCylinderPitch
+      };
+    });
+    container.addEventListener("pointermove", event => {
+      if (!xrayCylinderDrag || xrayMode !== "cylinder") return;
+      const x = Number(event.clientX) || 0;
+      const y = Number(event.clientY) || 0;
+      xrayCylinderYaw = xrayCylinderDrag.yaw + (x - xrayCylinderDrag.x) * 0.012;
+      xrayCylinderPitch = clamp(xrayCylinderDrag.pitch - (y - xrayCylinderDrag.y) * 0.008, -XRAY_CYLINDER_MAX_PITCH, XRAY_CYLINDER_MAX_PITCH);
+      rerenderXrayFromState();
+    });
+    const endCylinderDrag = event => {
+      if (!xrayCylinderDrag) return;
+      event.target?.releasePointerCapture?.(event.pointerId);
+      xrayCylinderDrag = null;
+    };
+    container.addEventListener("pointerup", endCylinderDrag);
+    container.addEventListener("pointercancel", endCylinderDrag);
+    container.addEventListener("keydown", event => {
+      const target = event.target?.closest?.("[data-xray-cylinder]");
+      if (!target || xrayMode !== "cylinder") return;
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home"].includes(event.key)) return;
+      event.preventDefault?.();
+      if (event.key === "ArrowLeft") xrayCylinderYaw -= 0.12;
+      else if (event.key === "ArrowRight") xrayCylinderYaw += 0.12;
+      else if (event.key === "ArrowUp") xrayCylinderPitch = clamp(xrayCylinderPitch + 0.08, -XRAY_CYLINDER_MAX_PITCH, XRAY_CYLINDER_MAX_PITCH);
+      else if (event.key === "ArrowDown") xrayCylinderPitch = clamp(xrayCylinderPitch - 0.08, -XRAY_CYLINDER_MAX_PITCH, XRAY_CYLINDER_MAX_PITCH);
+      else { xrayCylinderYaw = -0.62; xrayCylinderPitch = 0.28; }
+      rerenderXrayFromState();
     });
   }
 
@@ -1068,6 +1116,161 @@ export function createDiagnosticsPanel({
     </svg>`;
   }
 
+  function renderXrayCylinder(stats) {
+    // 3D OKLCh cylinder: Lightness climbs the vertical axis, Chroma moves
+    // outward from the center, and Hue wraps around the circumference. The
+    // SVG is an orthographic projection with a draggable orbit; it is not a
+    // fake wheel with extra shadows. The point coordinates are the actual
+    // L/C/H tuple projected through yaw/pitch, then depth-sorted so the front
+    // of the cylinder reads over the back.
+    const records = stats?.records || [];
+    const width = 320;
+    const height = 286;
+    const cx = width / 2;
+    const cy = height / 2 + 4;
+    const radiusScale = 86;
+    const lightnessScale = 178;
+    const cosYaw = Math.cos(xrayCylinderYaw);
+    const sinYaw = Math.sin(xrayCylinderYaw);
+    const cosPitch = Math.cos(xrayCylinderPitch);
+    const sinPitch = Math.sin(xrayCylinderPitch);
+
+    let maxChroma = 24;
+    for (const record of records) {
+      const swatchLab = visibleSwatchLab(record) || record.lab;
+      const [, C] = labToOklch(swatchLab);
+      if (C > maxChroma) maxChroma = C;
+    }
+    maxChroma = Math.max(1, Math.ceil(maxChroma / 4) * 4);
+
+    const project = (L, C, h) => {
+      const r = clamp(C / maxChroma, 0, 1);
+      const x = Math.cos(h) * r;
+      const z = Math.sin(h) * r;
+      const y = clamp(L / 100, 0, 1) - 0.5;
+      const yawX = x * cosYaw + z * sinYaw;
+      const yawZ = -x * sinYaw + z * cosYaw;
+      // Keep the cylinder readable at the full +/-90° tilt. Lightness uses
+      // the taller vertical scale while chroma/hue use the radial scale, so
+      // a top-down view becomes a clean disk instead of a clipped spear.
+      const pitchY = y * cosPitch * lightnessScale - yawZ * sinPitch * radiusScale;
+      const depth = y * sinPitch + yawZ * cosPitch;
+      return {
+        x: cx + yawX * radiusScale,
+        y: cy - pitchY,
+        depth
+      };
+    };
+
+    const ringPath = (L, C, steps = 72) => {
+      const pts = [];
+      for (let i = 0; i <= steps; i++) {
+        const h = (i / steps) * TAU;
+        const p = project(L, C, h);
+        pts.push(`${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+      }
+      return `${pts.join(" ")} Z`;
+    };
+
+    const rings = [0, 25, 50, 75, 100].map(L => {
+      const major = L === 0 || L === 50 || L === 100;
+      const stroke = major ? "rgba(184,196,214,.30)" : "rgba(184,196,214,.14)";
+      const labelPoint = project(L, maxChroma, TAU * 0.02);
+      const label = major
+        ? `<text x="${(labelPoint.x + 4).toFixed(1)}" y="${(labelPoint.y + 3).toFixed(1)}" class="xray-axis">L${L}</text>`
+        : "";
+      return `<path d="${ringPath(L, maxChroma)}" fill="none" stroke="${stroke}" stroke-width="${major ? 0.75 : 0.5}"/>${label}`;
+    }).join("");
+
+    const chromaDecks = [0.25, 0.5, 0.75].flatMap(frac => {
+      const C = maxChroma * frac;
+      return [0, 100].map(L => `<path d="${ringPath(L, C)}" fill="none" stroke="rgba(184,196,214,.075)" stroke-width="0.45"/>`);
+    }).join("");
+
+    const hueStops = [
+      {h: 0,                 name: "R"},
+      {h: TAU * (60 / 360),  name: "Y"},
+      {h: TAU * (140 / 360), name: "G"},
+      {h: TAU * (190 / 360), name: "C"},
+      {h: TAU * (260 / 360), name: "B"},
+      {h: TAU * (330 / 360), name: "M"}
+    ];
+
+    const ribs = [];
+    for (let i = 0; i < 12; i++) {
+      const h = (i / 12) * TAU;
+      const bottom = project(0, maxChroma, h);
+      const top = project(100, maxChroma, h);
+      const opacity = clamp(0.12 + ((bottom.depth + top.depth) / 2 + 1) * 0.10, 0.08, 0.34);
+      ribs.push(`<line x1="${bottom.x.toFixed(1)}" y1="${bottom.y.toFixed(1)}" x2="${top.x.toFixed(1)}" y2="${top.y.toFixed(1)}" stroke="rgba(184,196,214,${opacity.toFixed(3)})" stroke-width="0.6"/>`);
+    }
+
+    const axisBottom = project(0, 0, 0);
+    const axisTop = project(100, 0, 0);
+    const axisMid = project(50, 0, 0);
+    const cAxis = project(50, maxChroma, 0);
+    const axis = `<line x1="${axisBottom.x.toFixed(1)}" y1="${axisBottom.y.toFixed(1)}" x2="${axisTop.x.toFixed(1)}" y2="${axisTop.y.toFixed(1)}" stroke="rgba(255,255,255,.46)" stroke-width="0.9"/>
+      <line x1="${axisMid.x.toFixed(1)}" y1="${axisMid.y.toFixed(1)}" x2="${cAxis.x.toFixed(1)}" y2="${cAxis.y.toFixed(1)}" stroke="rgba(184,196,214,.24)" stroke-dasharray="2 2"/>
+      <text x="${(axisTop.x + 4).toFixed(1)}" y="${(axisTop.y - 4).toFixed(1)}" class="xray-axis">L axis</text>
+      <text x="${(cAxis.x + 4).toFixed(1)}" y="${(cAxis.y + 3).toFixed(1)}" class="xray-axis">C ${maxChroma.toFixed(0)}</text>`;
+
+    const hueMarks = hueStops.map(stop => {
+      const p = project(104, maxChroma, stop.h);
+      const hueLab = fitLabToSrgb(oklchToLab([62, Math.min(maxChroma * 0.72, 30), stop.h]));
+      const hex = labToHex(hueLab);
+      return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.2" fill="${hex}" stroke="rgba(8,10,13,.62)" stroke-width="0.55"/>
+        <text x="${p.x.toFixed(1)}" y="${(p.y - 4).toFixed(1)}" text-anchor="middle" class="xray-axis">${stop.name}</text>`;
+    }).join("");
+
+    const familyGroups = new Map();
+    records.forEach(record => {
+      if (record.familyId === null || record.familyId === undefined) return;
+      const key = String(record.familyId);
+      if (!familyGroups.has(key)) familyGroups.set(key, []);
+      familyGroups.get(key).push(record);
+    });
+    const familyLines = [];
+    for (const group of familyGroups.values()) {
+      const ordered = group.slice().sort((a, b) => (a.variantIndex ?? 0) - (b.variantIndex ?? 0));
+      if (ordered.length < 2) continue;
+      const pts = ordered.map(record => {
+        const swatchLab = visibleSwatchLab(record) || record.lab;
+        const [L, C, h] = labToOklch(swatchLab);
+        const p = project(L, C, h);
+        return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+      }).join(" ");
+      familyLines.push(`<polyline points="${pts}" fill="none" stroke="rgba(184,196,214,.30)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
+
+    const points = records.map(record => {
+      const swatchLab = visibleSwatchLab(record) || record.lab;
+      const [L, C, h] = labToOklch(swatchLab);
+      const p = project(L, C, h);
+      const hex = record.hex || labToHex(swatchLab);
+      const radius = clamp(2.8 + C / 24, 3.1, 6.8);
+      const opacity = clamp(0.50 + (p.depth + 1) * 0.23, 0.42, 0.98);
+      const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.86)";
+      const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
+      return {depth: p.depth, markup: `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius.toFixed(1)}" fill="${hex}" opacity="${opacity.toFixed(2)}" stroke="${stroke}" stroke-width="1.15"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, swatchLab)}</title></circle>`};
+    }).sort((a, b) => a.depth - b.depth).map(item => item.markup).join("");
+
+    const yawDeg = ((xrayCylinderYaw * 180 / Math.PI) % 360 + 360) % 360;
+    const pitchDeg = xrayCylinderPitch * 180 / Math.PI;
+    const readout = `<text x="${(width - 8).toFixed(1)}" y="${(height - 10).toFixed(1)}" text-anchor="end" class="xray-axis">drag to rotate · yaw ${yawDeg.toFixed(0)}° · tilt ${pitchDeg.toFixed(0)}°</text>`;
+
+    return `<svg class="xray-plot xray-square xray-cylinder" viewBox="0 0 ${width} ${height}" data-xray-cylinder tabindex="0" focusable="true" role="img" aria-label="Rotatable LCH cylinder. Drag to orbit hue and chroma around the lightness axis with tilt from -90 to 90 degrees; use arrow keys to rotate.">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
+      ${chromaDecks}
+      ${rings}
+      ${ribs.join("")}
+      ${axis}
+      ${hueMarks}
+      ${familyLines.join("")}
+      ${points}
+      ${readout}
+    </svg>`;
+  }
+
   function renderDiagnosticsXray(stats) {
     if (!els.diagnosticsXray) return;
     const diagnostic = getState().diagnostics || {};
@@ -1087,6 +1290,7 @@ export function createDiagnosticsPanel({
     if (xrayMode === "wheel") svg = renderXrayWheel(stats);
     else if (xrayMode === "ramp") svg = renderXrayTonalRamp(stats);
     else if (xrayMode === "proximity") svg = renderXrayProximity(stats);
+    else if (xrayMode === "cylinder") svg = renderXrayCylinder(stats);
     else svg = renderXrayScatter(stats);
     els.diagnosticsXray.innerHTML = `${xrayModeBarHtml()}${svg}`;
   }

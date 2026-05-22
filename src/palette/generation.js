@@ -44,7 +44,7 @@ export function imagePaletteUsesTintShadeFamilies(config) {
 }
 
 export function requestedGeneratedImagePaletteSize(config) {
-  const rawSize = Math.max(3, Math.min(42, Math.round(Number(config?.paletteSize) || 3)));
+  const rawSize = Math.max(2, Math.min(42, Math.round(Number(config?.paletteSize) || 3)));
   return imagePaletteUsesTintShadeFamilies(config)
     ? Math.max(3, Math.round(rawSize / 3) * 3)
     : rawSize;

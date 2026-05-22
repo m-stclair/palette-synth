@@ -2225,11 +2225,11 @@ canvas {
   color: var(--accent);
 }
 
-/* X-Ray plot: a switcher above the SVG selects between four views over the
-   same records (scatter, wheel, ramp, proximity matrix) that each surface a
-   different property — geometry, hue/gamut, tonal coverage, and pairwise
-   relationships. The square views stay square, but their cap is the inspector
-   height now, not an arbitrary postcard-sized max. */
+/* X-Ray plot: a switcher above the SVG selects between several views over the
+   same records (scatter, wheel, ramp, proximity matrix, 3D cylinder) that each
+   surface a different property — geometry, hue/gamut, tonal coverage, pairwise
+   relationships, and full L/C/H volume. The square views stay square, but
+   their cap is the inspector height now, not an arbitrary postcard-sized max. */
 .diagnostics-xray {
   min-height: 0;
   padding: 2px;
@@ -2262,6 +2262,18 @@ canvas {
 .diagnostics-xray .xray-square {
   width: min(100%, 440px);
   margin-inline: auto;
+}
+.diagnostics-xray .xray-cylinder {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.diagnostics-xray .xray-cylinder:active {
+  cursor: grabbing;
+}
+.diagnostics-xray .xray-cylinder:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
 }
 .pixel-inspector-pane #inspectorPanelXray {
   display: flex;

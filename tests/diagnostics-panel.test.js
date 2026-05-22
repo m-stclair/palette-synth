@@ -350,7 +350,7 @@ test("histogram inspector tab renders paired source and output charts from its a
 });
 
 
-test("X-Ray renders four distinct modes and switches between them on click", () => {
+test("X-Ray renders five distinct modes and switches between them on click", () => {
   const xray = element();
   const els = {diagnosticsXray: xray};
   const records = [
@@ -377,6 +377,7 @@ test("X-Ray renders four distinct modes and switches between them on click", () 
   assert.match(xray.innerHTML, /data-xray-mode="wheel"/);
   assert.match(xray.innerHTML, /data-xray-mode="ramp"/);
   assert.match(xray.innerHTML, /data-xray-mode="proximity"/);
+  assert.match(xray.innerHTML, /data-xray-mode="cylinder"/);
   // Scatter-specific signatures: hue letter labels and the neutral column.
   assert.match(xray.innerHTML, /class="xray-plot xray-scatter"/);
   assert.match(xray.innerHTML, />neutral</);
@@ -405,8 +406,54 @@ test("X-Ray renders four distinct modes and switches between them on click", () 
   // sourced from cpuDistanceBreakdown over every swatch pair.
   assert.match(xray.innerHTML, /closer → farther/);
 
+  clickMode("cylinder");
+  assert.match(xray.innerHTML, /data-xray-mode="cylinder"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /class="xray-plot xray-square xray-cylinder"/);
+  assert.match(xray.innerHTML, /Rotatable LCH cylinder/);
+  assert.match(xray.innerHTML, /drag to rotate/);
+
   clickMode("scatter");
   assert.match(xray.innerHTML, /data-xray-mode="scatter"[^>]*aria-selected="true"/);
+});
+
+test("X-Ray cylinder rotates with drag and keyboard controls", () => {
+  const xray = element();
+  const records = [
+    {lab: [30, 22, 4], hex: "#634c2f", displayIndex: 0},
+    {lab: [68, -18, -16], hex: "#54a6b0", displayIndex: 1}
+  ];
+  const stats = {records, entries: []};
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getConfig: () => ({}),
+    getState: () => ({diagnostics: {stats}})
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-mode]" ? {dataset: {xrayMode: "cylinder"}} : null}});
+  const before = xray.innerHTML.match(/yaw ([0-9]+)°/)?.[1];
+  assert.match(xray.innerHTML, /data-xray-cylinder/);
+
+  const cylinderTarget = {
+    closest: sel => sel === "[data-xray-cylinder]" ? {setPointerCapture() {}, releasePointerCapture() {}} : null
+  };
+  xray.dispatch("pointerdown", {target: cylinderTarget, pointerId: 1, clientX: 10, clientY: 10, preventDefault() {}});
+  xray.dispatch("pointermove", {target: cylinderTarget, pointerId: 1, clientX: 80, clientY: 25});
+  const afterDrag = xray.innerHTML.match(/yaw ([0-9]+)°/)?.[1];
+  assert.notEqual(afterDrag, before);
+
+  xray.dispatch("keydown", {target: cylinderTarget, key: "ArrowRight", preventDefault() {}});
+  const afterKey = xray.innerHTML.match(/yaw ([0-9]+)°/)?.[1];
+  assert.notEqual(afterKey, afterDrag);
+
+  xray.dispatch("pointerdown", {target: cylinderTarget, pointerId: 2, clientX: 0, clientY: 0, preventDefault() {}});
+  xray.dispatch("pointermove", {target: cylinderTarget, pointerId: 2, clientX: 0, clientY: -500});
+  assert.match(xray.innerHTML, /tilt 90°/);
+  xray.dispatch("pointerup", {target: cylinderTarget, pointerId: 2});
+
+  xray.dispatch("pointerdown", {target: cylinderTarget, pointerId: 3, clientX: 0, clientY: 0, preventDefault() {}});
+  xray.dispatch("pointermove", {target: cylinderTarget, pointerId: 3, clientX: 0, clientY: 500});
+  assert.match(xray.innerHTML, /tilt -90°/);
 });
 
 test("X-Ray wheel positions and labels visible swatch chips, not stale matcher Lab", () => {
