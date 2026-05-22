@@ -1,6 +1,7 @@
 # Palette Synth
 
-Palette Synth is a dependency-free browser synthetic limited-color media instrument / tool for palette extraction and remapping / invented reproduction medium emulator. 
+Palette Synth is a dependency-free browser tool for palette extraction and remapping. You can use it for utilitarian colorist work,
+but it is primarily intended as a synthetic limited-color media instrument, invented reproduction medium emulator, and color toy. 
 It is a standalone extraction of the **Palette Synth** effect from [`vandal`](https://github.com/m-stclair/vandal), packaged as plain HTML, CSS, JavaScript modules, and GLSL shaders.
 
 The app runs entirely in the browser. No build step. No server-side processing. A tiny local server is only necessary
