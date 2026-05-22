@@ -175,6 +175,71 @@ test("manual swatch list renders edits, locks, and removal through callbacks", (
   }
 });
 
+test("manual swatch list reuses pooled row elements across rerenders", () => {
+  const restore = installFakeDocument();
+  try {
+    const els = {manualSwatches: makeElement("div")};
+    const config = {
+      manualPalette: [
+        {id: "swatch-a", hex: "#111111", locked: false},
+        {id: "swatch-b", hex: "#222222", locked: true}
+      ]
+    };
+    const state = {manualEditor: {swatchId: null, sourceIndex: null}};
+    let dirty = 0;
+    let renders = 0;
+    const list = createManualSwatchesList({
+      els,
+      config,
+      state,
+      syncManualSwatches: () => config.manualPalette,
+      manualSwatchIndexForId: id => config.manualPalette.findIndex(swatch => swatch.id === id),
+      removeManualSwatchAt: index => {
+        config.manualPalette.splice(index, 1);
+        return config.manualPalette[index] ?? config.manualPalette[index - 1] ?? null;
+      },
+      beginHistory() {},
+      commitHistory() {},
+      withHistory: (label, fn) => fn(),
+      markPaletteDirty: () => { dirty += 1; },
+      queueRender: () => { renders += 1; }
+    });
+
+    list.renderManualSwatches();
+    const firstRow = els.manualSwatches.children[0];
+    const secondRow = els.manualSwatches.children[1];
+    const firstInput = firstRow.children[0];
+
+    config.manualPalette.reverse();
+    list.renderManualSwatches();
+
+    assert.equal(els.manualSwatches.children[0], firstRow);
+    assert.equal(els.manualSwatches.children[1], secondRow);
+    assert.equal(firstRow.dataset.swatchId, "swatch-b");
+
+    firstInput.value = "#333333";
+    firstInput.dispatchEvent("input");
+
+    assert.equal(config.manualPalette[0].id, "swatch-b");
+    assert.equal(config.manualPalette[0].hex, "#333333");
+    assert.equal(dirty, 1);
+    assert.equal(renders, 1);
+
+    config.manualPalette.pop();
+    list.renderManualSwatches();
+    assert.equal(els.manualSwatches.children.length, 1);
+    assert.equal(els.manualSwatches.children[0], firstRow);
+
+    config.manualPalette.push({id: "swatch-c", hex: "#444444", locked: false});
+    list.renderManualSwatches();
+    assert.equal(els.manualSwatches.children[1], secondRow);
+    assert.equal(secondRow.dataset.swatchId, "swatch-c");
+  } finally {
+    restore();
+  }
+});
+
+
 test("palette preview renders generated locks, manual aliases, and click actions", async () => {
   const restore = installFakeDocument();
   try {

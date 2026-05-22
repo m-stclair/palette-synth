@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attachColorPicker } from "../src/ui/color-picker.js";
+import { attachColorPicker, syncColorPickerInput } from "../src/ui/color-picker.js";
 
 function makeElement(tagName = "div", ownerDocument = null) {
   const listeners = new Map();
@@ -243,6 +243,36 @@ test("color picker skips duplicate wheel redraws during external input sync", ()
     plane.dispatchEvent(pointerEvent("pointerdown", 166.5, 92));
 
     assert.equal(counter.putImageData, 1);
+  } finally {
+    restore();
+  }
+});
+
+test("color picker defers closed popover model sync until reopened", () => {
+  const restore = installDocument();
+  try {
+    const input = makeElement("input", document);
+    input.value = "#000000";
+    document.body.append(input);
+
+    const picker = attachColorPicker(input, {label: "Test color"});
+    picker.open({focus: false});
+    const popover = findByClass(document.body, "app-color-picker-popover");
+    const hexInput = popover.children?.[4]?.children?.[0]?.children?.[1];
+    assert.ok(popover);
+    assert.ok(hexInput);
+    assert.equal(hexInput.value, "#000000");
+
+    picker.close({commit: false});
+    input.value = "#00ff00";
+    syncColorPickerInput(input);
+
+    assert.equal(popover.hidden, true);
+    assert.equal(input.style["--picker-color"], "#00ff00");
+    assert.equal(hexInput.value, "#000000");
+
+    picker.open({focus: false});
+    assert.equal(hexInput.value, "#00ff00");
   } finally {
     restore();
   }

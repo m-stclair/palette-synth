@@ -562,8 +562,10 @@ export function attachColorPicker(input, options = {}) {
   let dragMode = null;
   let dirty = false;
   let open = false;
-  let triangleWeights = triangleWeightsForOklch(oklch);
-  let presentedHex = null;
+  let triangleWeights = null;
+  let pickerModelDirty = true;
+  let modelHex = normalizeHexColor(input.value || options.value || FALLBACK_HEX, FALLBACK_HEX);
+  let syncPopoverSwatch = null;
 
   input.type = "text";
   input.readOnly = true;
@@ -574,14 +576,38 @@ export function attachColorPicker(input, options = {}) {
   input.setAttribute("aria-haspopup", "dialog");
   input.setAttribute("aria-label", label);
   input.setAttribute("aria-expanded", "false");
-  setInputPresentation(input, input.value || options.value || FALLBACK_HEX);
+  setInputPresentation(input, modelHex);
+
+  function normalizedInputHex() {
+    return normalizeHexColor(input.value || FALLBACK_HEX, FALLBACK_HEX);
+  }
+
+  function syncInputPresentation(hex = normalizedInputHex()) {
+    const safe = normalizeHexColor(hex, FALLBACK_HEX);
+    setInputPresentation(input, safe);
+    input.classList.toggle("is-disabled", !!input.disabled);
+    return safe;
+  }
+
+  function syncPickerModelFromHex(hex = normalizedInputHex()) {
+    const safe = normalizeHexColor(hex, FALLBACK_HEX);
+    oklch = oklchFromHex(safe, oklch.h);
+    triangleWeights = triangleWeightsForOklch(oklch);
+    modelHex = safe;
+    pickerModelDirty = false;
+    return safe;
+  }
+
+  function syncPickerModelFromInput() {
+    return syncPickerModelFromHex(normalizedInputHex());
+  }
 
   function renderPicker() {
     const fitted = fitOklchToDisplay(oklch);
     const hex = normalizeHexColor(input.value || fitted.hex, fitted.hex);
     const maxC = Math.max(0.0001, maxChromaFor(fitted.l, fitted.h));
+    if (!triangleWeights) triangleWeights = triangleWeightsForOklch(oklch);
     setInputPresentation(input, hex);
-    presentedHex = hex;
     if (hexInput) {
       hexInput.value = hex;
       hexInput.title = colorInfoLabel(hex);
@@ -594,6 +620,7 @@ export function attachColorPicker(input, options = {}) {
     }
     const hueDegrees = hueRadiansToDegrees(fitted.h);
     if (hueNumberInput) hueNumberInput.value = String(Math.round(hueDegrees));
+    if (fallbackColorInput) fallbackColorInput.value = hex;
     if (planeCursor) {
       const point = trianglePointForWeights(triangleWeights);
       planeCursor.style.left = `${point.x / WHEEL_SIZE * 100}%`;
@@ -613,14 +640,16 @@ export function attachColorPicker(input, options = {}) {
   }
 
   function syncFromInputState() {
-    const safe = normalizeHexColor(input.value || FALLBACK_HEX, FALLBACK_HEX);
-    setInputPresentation(input, safe);
-    if (safe !== presentedHex) {
-      oklch = oklchFromHex(safe, oklch.h);
-      triangleWeights = triangleWeightsForOklch(oklch);
+    const safe = normalizedInputHex();
+    const needsModelSync = pickerModelDirty || safe !== modelHex;
+    syncInputPresentation(safe);
+    if (open && needsModelSync) {
+      syncPickerModelFromHex(safe);
       renderPicker();
+      syncPopoverSwatch?.();
+    } else if (needsModelSync) {
+      pickerModelDirty = true;
     }
-    input.classList.toggle("is-disabled", !!input.disabled);
   }
 
   function refreshAfterPropagation(swatchSync) {
@@ -639,8 +668,7 @@ export function attachColorPicker(input, options = {}) {
   function setHex(hex, {commit = false} = {}) {
     const safe = normalizeHexColor(hex, input.value || FALLBACK_HEX);
     const changed = safe !== input.value;
-    oklch = oklchFromHex(safe, oklch.h);
-    triangleWeights = triangleWeightsForOklch(oklch);
+    syncPickerModelFromHex(safe);
     input.value = safe;
     renderPicker();
     if (changed) {
@@ -725,6 +753,8 @@ export function attachColorPicker(input, options = {}) {
     if (syncTriangle) triangleWeights = triangleWeightsForOklch(oklch);
     const changed = fitted.hex !== input.value;
     input.value = fitted.hex;
+    modelHex = fitted.hex;
+    pickerModelDirty = false;
     renderPicker();
     if (changed) {
       dirty = !commit;
@@ -881,6 +911,7 @@ export function attachColorPicker(input, options = {}) {
       swatch.title = colorInfo;
       if (hexInput) hexInput.title = colorInfo;
     };
+    syncPopoverSwatch = swatchSync;
 
     const canvasPointForEvent = event => {
       const rect = plane.getBoundingClientRect();
@@ -987,9 +1018,6 @@ export function attachColorPicker(input, options = {}) {
         input.focus?.();
       }
     });
-
-    renderPicker();
-    swatchSync();
     return popover;
   }
 
@@ -999,9 +1027,9 @@ export function attachColorPicker(input, options = {}) {
     if (!panel) return;
     open = true;
     input.setAttribute("aria-expanded", "true");
-    oklch = oklchFromHex(input.value, oklch.h);
-    triangleWeights = triangleWeightsForOklch(oklch);
+    syncPickerModelFromInput();
     renderPicker();
+    syncPopoverSwatch?.();
     panel.hidden = false;
     positionPopover(input, panel);
     if (focus) hexInput?.focus?.();
