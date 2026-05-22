@@ -61,7 +61,7 @@ Palette Synth takes an input image and renders a recolored version through a con
 - Assignment modes: nearest, blend, and dither.
 - Output modes: full replace, preserve luma, preserve chroma, hue wash, and shadow/highlight.
 - OKLab perceptual weights for luma, chroma, and hue matching.
-- Source levels: exposure, gamma, shoulder, curve center, and curve amount.
+- Source levels: exposure, gamma, clarity, tone curve shoulder, tone curve center, tone curve amount.
 - Dither patterns: ordered 2×2, ordered 4×4, ordered 8×8, hash noise, etched lines, screenprint dots, crosshatch ink, stipple grain, woven threads, and contour wash.
 - Palette cycling with global, banded, and manually tagged swatches.
 - Pixel-perfect preview, zoom, pan, and before/after compare split.
@@ -339,14 +339,19 @@ inside the composition root.
 
 ### `src/shaders/`
 
-| Path                              | Purpose                                                                                                     |
-|-----------------------------------|-------------------------------------------------------------------------------------------------------------|
-| `src/shaders/index.js`            | Fetches shader source files for the runtime.                                                                |
-| `src/shaders/fullscreen.vert`     | Fullscreen triangle/quad vertex shader.                                                                     |
-| `src/shaders/levels.frag`         | Fragment shader for source exposure/gamma/curve adjustment.                                                 |
-| `src/shaders/palette.frag`        | Main palette remapping shader: matching, output modes, dithering, cycle regions, and palette strip display. |
-| `src/shaders/palette-post.frag`   | Post-palette despeckle (3×3 mode filter). |
-| `src/shaders/view-composite.frag` | Final viewport blit used for post-processing and compare. Applies the view transform and compare-split. |
+| Path                                           | Purpose                                                                                                     |
+|------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| `src/shaders/index.js`                         | Fetches shader source files for the runtime.                                                                |
+| `src/shaders/fullscreen.vert`                  | Fullscreen triangle/quad vertex shader shared by the render passes.                                         |
+| `src/shaders/levels.frag`                      | Source-level adjustment pass for exposure, gamma, shoulder, curve center, and curve amount.                 |
+| `src/shaders/clarity-lightness-blur.frag`      | First clarity prep pass: horizontally blurs OKLab lightness from the source image.                          |
+| `src/shaders/clarity-sharp-pass.frag`          | Builds the clarity sharpness lightness signal from source lightness and the blurred local-lightness map.    |
+| `src/shaders/clarity-sharp-blur.frag`          | Horizontally blurs the sharpness signal used by the final clarity blend.                                    |
+| `src/shaders/clarity.frag`                     | Final clarity pass: blends clarity-adjusted OKLab lightness back into the source image.                     |
+| `src/shaders/block-sample.frag`                | Block sampling pass for center, mean, and representative source sampling modes.                             |
+| `src/shaders/palette.frag`                     | Main palette remapping shader: matching, output modes, dithering, cycle regions, and palette strip display. |
+| `src/shaders/palette-post.frag`                | Post-palette despeckle pass using a 3×3 mode filter.                                                        |
+| `src/shaders/view-composite.frag`              | Final viewport blit for post-processing and compare; applies view transform and compare split.              |
 
 ### `src/diagnostics/`
 
