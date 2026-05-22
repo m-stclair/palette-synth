@@ -1,21 +1,22 @@
 # Palette Synth
 
-Palette Synth is a dependency-free browser tool for palette extraction and remapping. It is a standalone extraction of
-the **Palette Synth** effect from `vandal`, packaged as plain HTML, CSS, JavaScript modules, and GLSL shaders.
+Palette Synth is a dependency-free browser synthetic limited-color media instrument / tool for palette extraction and remapping / invented reproduction medium emulator. 
+It is a standalone extraction of the **Palette Synth** effect from [`vandal`](https://github.com/m-stclair/vandal), packaged as plain HTML, CSS, JavaScript modules, and GLSL shaders.
 
-The app runs entirely in the browser. No build step. No server-side processing. The tiny local server is only there
+The app runs entirely in the browser. No build step. No server-side processing. A tiny local server is only necessary
 because ES modules and shader `fetch()` calls need an HTTP origin; opening `index.html` directly from `file://` will
 usually fail.
 
 ## Quick start
+
+From the project root, serve this directory and open the served URL in a modern browser with WebGL2 support. 
+You can use any static server, but if you have python installed:
 
 ```sh
 python3 -m http.server 8000
 # open http://localhost:8000/
 ```
 
-You can use any static file server. From the project root, serve this directory and open the served URL in a modern
-browser with WebGL2 support.
 
 ## Development commands
 
