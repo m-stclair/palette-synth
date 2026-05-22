@@ -248,6 +248,113 @@ test("manual palette editor renders through callbacks and routes source/alias ed
 });
 
 
+
+test("manual palette editor groups match-anchor actions so they can wrap inside the editor", () => {
+  const restore = installFakeDocument();
+  try {
+    const palettePreview = makeElement("div");
+    const els = {palettePreview};
+    const config = {paletteMode: "manual", generatedAssist: 0, aliasAllSources: false};
+    const state = {manualEditor: {sourceIndex: null, swatchId: null, colorInputActive: false}, paletteRecords: []};
+    const swatch = {id: "swatch-1", hex: "#112233"};
+    const record = {source: "manual", swatchId: "swatch-1", sourceIndex: 0, hex: "#112233", lab: [20, 0, 0]};
+    state.paletteRecords = [record];
+
+    const editor = createManualPaletteEditor({
+      els,
+      getConfig: () => config,
+      getState: () => state,
+      syncManualSwatches: () => [swatch],
+      manualSwatchIndex: identifier => identifier === 0 || identifier === "swatch-1" ? 0 : -1,
+      manualSwatchAt: identifier => identifier === 0 || identifier === "swatch-1" ? swatch : null,
+      manualSwatchIndexForId: id => id === "swatch-1" ? 0 : -1,
+      manualSourceHex: () => swatch.hex,
+      manualMatchAliasHex: () => "#44aa66",
+      setManualMatchAlias: () => {},
+      manualSwatchEditable: candidate => candidate?.source === "manual" && candidate.swatchId === "swatch-1",
+      paletteRecordForManualSwatchId: () => record,
+      copyPaletteHex: () => {}
+    });
+
+    editor.openManualPaletteEditor(record);
+    const actionGroups = els.paletteEditor.querySelectorAll(".palette-editor-alias-actions");
+    assert.equal(actionGroups.length, 1);
+    assert.deepEqual(
+      actionGroups[0].children.map(child => child.textContent),
+      ["Also catch original source", "Recolor source pixels", "Make anchor source", "Pick from source image"]
+    );
+    assert.equal(findButton(els.paletteEditor, "Make anchor source").parentNode, actionGroups[0]);
+  } finally {
+    restore();
+  }
+});
+
+
+test("manual palette editor can promote an extra match anchor to source", () => {
+  const restore = installFakeDocument();
+  try {
+    const palettePreview = makeElement("div");
+    const els = {palettePreview};
+    const config = {paletteMode: "manual", generatedAssist: 0};
+    const state = {
+      manualEditor: {sourceIndex: null, swatchId: null, colorInputActive: false},
+      paletteRecords: []
+    };
+    const swatch = {id: "swatch-1", hex: "#112233"};
+    const record = {source: "manual", swatchId: "swatch-1", sourceIndex: 0, hex: "#112233", lab: [20, 0, 0]};
+    state.paletteRecords = [record];
+    let aliasHex = "#44aa66";
+    const history = [];
+    const sourceChanges = [];
+    const statuses = [];
+
+    const editor = createManualPaletteEditor({
+      els,
+      getConfig: () => config,
+      getState: () => state,
+      syncManualSwatches: () => [swatch],
+      manualSwatchIndex: identifier => identifier === 0 || identifier === "swatch-1" ? 0 : -1,
+      manualSwatchAt: identifier => identifier === 0 || identifier === "swatch-1" ? swatch : null,
+      manualSwatchIndexForId: id => id === "swatch-1" ? 0 : -1,
+      manualSourceHex: () => swatch.hex,
+      manualMatchAliasHex: () => aliasHex,
+      setManualMatchAlias: (id, color) => {
+        assert.equal(id, "swatch-1");
+        aliasHex = color;
+      },
+      manualSwatchEditable: candidate => candidate?.source === "manual" && candidate.swatchId === "swatch-1",
+      paletteRecordForManualSwatchId: () => record,
+      withHistory: (label, fn) => {
+        history.push(label);
+        return fn();
+      },
+      onSourceColorChange: (identifier, color) => {
+        sourceChanges.push({identifier, color});
+        swatch.hex = color;
+        return color;
+      },
+      copyPaletteHex: () => {},
+      setStatus: message => statuses.push(message)
+    });
+
+    editor.openManualPaletteEditor(record);
+    const promoteButton = findButton(els.paletteEditor, "Make anchor source");
+    assert.equal(promoteButton.disabled, false);
+
+    promoteButton.dispatchEvent("click");
+
+    assert.deepEqual(history, ["Make match anchor source"]);
+    assert.deepEqual(sourceChanges, [{identifier: "swatch-1", color: "#44aa66"}]);
+    assert.equal(swatch.hex, "#44aa66");
+    assert.equal(aliasHex, null);
+    assert.match(statuses.at(-1), /source set to former match anchor #44aa66/);
+    assert.equal(findButton(els.paletteEditor, "Make anchor source").disabled, true);
+  } finally {
+    restore();
+  }
+});
+
+
 test("manual palette editor can pick an extra match anchor from the source image", () => {
   const restore = installFakeDocument();
   try {

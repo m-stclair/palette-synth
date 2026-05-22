@@ -1273,7 +1273,7 @@ body.is-resizing * { cursor: var(--resize-cursor, col-resize) !important; }
 .palette-editor-alias {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(148px, auto) 34px minmax(88px, 1fr) auto auto auto;
+  grid-template-columns: minmax(148px, auto) 34px minmax(88px, 160px) minmax(0, 1fr);
   gap: 5px;
   align-items: center;
   padding-top: 6px;
@@ -1312,8 +1312,17 @@ body.is-resizing * { cursor: var(--resize-cursor, col-resize) !important; }
   padding: 0;
 }
 .palette-editor-alias input[type="text"] {
+  min-width: 0;
   min-height: 28px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.palette-editor-alias-actions {
+  grid-column: 4;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: 0;
 }
 .palette-editor-alias button {
   min-height: 28px;
@@ -1329,13 +1338,17 @@ body.is-resizing * { cursor: var(--resize-cursor, col-resize) !important; }
   .palette-editor-alias {
     grid-template-columns: minmax(0, 1fr) 34px minmax(84px, 1fr);
   }
+  .palette-editor-alias-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
   .palette-editor-match-route {
     align-items: flex-start;
     flex-direction: column;
     gap: 2px;
   }
   .palette-editor-alias button {
-    grid-column: 1 / -1;
+    flex: 0 1 auto;
   }
 }
 
@@ -1555,7 +1568,8 @@ input[type="number"] {
 .preset-row,
 .swatch-row,
 .palette-editor-controls,
-.palette-editor-alias {
+.palette-editor-alias,
+.palette-editor-alias-actions {
   gap: 4px;
 }
 .inline-note {
@@ -1977,6 +1991,18 @@ canvas {
   height: 120px;
   min-height: 0;
   flex: 1 1 auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.diagnostics-histogram-plot text,
+.diagnostics-histogram-axis-row,
+.diagnostics-histogram-labels,
+.diagnostics-histogram-readouts {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.diagnostics-histogram-plot text {
+  pointer-events: none;
 }
 .diagnostics-histogram-axis-row {
   position: relative;
@@ -2250,6 +2276,13 @@ canvas {
 }
 .diagnostics-xray .xray-plot {
   width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.diagnostics-xray .xray-plot text {
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
 }
 .diagnostics-xray .xray-scatter {
   width: min(100%, 620px);
@@ -2274,6 +2307,56 @@ canvas {
 .diagnostics-xray .xray-cylinder:focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: 2px;
+}
+.diagnostics-graph-swatch,
+.diagnostics-xray .xray-swatch-marker {
+  cursor: pointer;
+  outline: none;
+}
+.diagnostics-xray .xray-swatch-marker:active {
+  cursor: grabbing;
+}
+.diagnostics-xray .xray-swatch-marker.is-locked .xray-swatch-fill {
+  stroke: rgba(255,255,255,.96);
+  stroke-width: 1.8;
+}
+.diagnostics-xray .xray-swatch-marker.is-cycle-tagged .xray-swatch-fill {
+  stroke-dasharray: 2 1;
+}
+.diagnostics-graph-swatch.is-muted .diagnostics-histogram-marker,
+.diagnostics-xray .xray-swatch-marker.is-muted .xray-swatch-fill {
+  opacity: .48;
+  filter: saturate(.42);
+}
+.diagnostics-graph-swatch.is-selected .diagnostics-histogram-marker,
+.diagnostics-graph-swatch.is-diagnostic-overlay .diagnostics-histogram-marker,
+.diagnostics-xray .xray-swatch-marker.is-selected .xray-swatch-fill,
+.diagnostics-xray .xray-swatch-marker.is-diagnostic-overlay .xray-swatch-fill {
+  filter: drop-shadow(0 0 3px rgba(255, 241, 133, .95)) drop-shadow(0 0 1px rgba(3,5,7,.85));
+  stroke: rgba(255, 241, 133, .96);
+  stroke-width: 2.2;
+}
+.xray-swatch-muted-slash {
+  stroke: rgba(255,255,255,.95);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 0 rgba(3,5,7,.92));
+}
+.diagnostics-xray .xray-match-anchor {
+  pointer-events: none;
+}
+.diagnostics-histogram-muted-slash {
+  stroke-width: 1.5;
+}
+.diagnostics-histogram-hit {
+  stroke: transparent;
+  stroke-width: 8;
+  pointer-events: stroke;
+}
+.diagnostics-graph-swatch:focus-visible .diagnostics-histogram-marker,
+.diagnostics-xray .xray-swatch-marker:focus-visible {
+  filter: drop-shadow(0 0 3px var(--accent));
 }
 .pixel-inspector-pane #inspectorPanelXray {
   display: flex;

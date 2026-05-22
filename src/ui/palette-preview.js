@@ -226,6 +226,37 @@ export function createPalettePreview({
     queueRender();
   }
 
+  async function activatePaletteSwatch(record, swatchPosition = 0, event = {}) {
+    if (!record) return;
+    const hex = record.hex ?? labToHex(record.lab);
+    const swatchIndex = Number.isInteger(record.displayIndex) ? record.displayIndex : swatchPosition;
+    const cycleTagMode = manualCycleModeEnabled();
+    const lockable = !cycleTagMode && generatedSwatchLockable(record);
+    const editable = !cycleTagMode && manualSwatchEditable(record);
+
+    if (event.shiftKey) {
+      toggleDiagnosticOverlayForSwatch(swatchIndex);
+      return;
+    }
+    if (editable && (event.ctrlKey || event.metaKey)) {
+      withHistory("Toggle manual swatch mute", () => toggleManualSwatchMute(record));
+      return;
+    }
+    if (cycleTagMode) {
+      withHistory("Toggle manual cycle tag", () => toggleManualCycleTag(record));
+      return;
+    }
+    if (lockable) {
+      withHistory("Toggle generated lock", () => toggleGeneratedFamilyLock(record));
+      return;
+    }
+    if (editable) {
+      openManualPaletteEditor(record);
+      return;
+    }
+    await copyPaletteHex(hex);
+  }
+
   function renderSwatches() {
     const wrap = els.palettePreview;
     if (!wrap) return;
@@ -313,28 +344,8 @@ export function createPalettePreview({
       }
       else titleParts.push("Click to copy hex", diagnosticActive ? "Shift-click to turn off diagnostic overlay" : "Shift-click to show diagnostic overlay");
       chip.title = titleParts.join(" · ");
-      chip.addEventListener("click", async event => {
-        if (event.shiftKey) {
-          toggleDiagnosticOverlayForSwatch(swatchIndex);
-          return;
-        }
-        if (editable && (event.ctrlKey || event.metaKey)) {
-          withHistory("Toggle manual swatch mute", () => toggleManualSwatchMute(record));
-          return;
-        }
-        if (cycleTagMode) {
-          withHistory("Toggle manual cycle tag", () => toggleManualCycleTag(record));
-          return;
-        }
-        if (lockable) {
-          withHistory("Toggle generated lock", () => toggleGeneratedFamilyLock(record));
-          return;
-        }
-        if (editable) {
-          openManualPaletteEditor(record);
-          return;
-        }
-        await copyPaletteHex(hex);
+      chip.addEventListener("click", event => {
+        void activatePaletteSwatch(record, swatchPosition, event);
       });
       chip.addEventListener("contextmenu", event => {
         if (!editable || !event.ctrlKey) return;
@@ -377,6 +388,7 @@ export function createPalettePreview({
     toggleManualCycleTag,
     clearGeneratedLocks,
     toggleGeneratedFamilyLock,
+    activatePaletteSwatch,
     syncPaletteSwatchScaleUi: (options = {}) => syncPaletteSwatchScaleUi({config, els, ...options}),
     renderSwatches
   };

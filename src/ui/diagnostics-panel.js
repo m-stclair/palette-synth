@@ -203,9 +203,13 @@ export function createDiagnosticsPanel({
   activePaletteImageData = () => null,
   syncGeneratedLocks = () => [],
   setDiagnosticOverlay = () => {},
+  onPaletteSwatchClick = () => {},
+  onGraphSwatchReposition = () => false,
+  onGraphSwatchPromoteAnchor = () => false,
   onDiagnosticsTabChange = () => {}
 } = {}) {
   const overlayBoundElements = new WeakSet();
+  let histogramGraphActivationRecords = [];
   const HISTOGRAM_TABS = [
     {id: "luma", label: "Luma", title: "Compare source and output luma distributions"},
     {id: "chroma", label: "Chroma", title: "Compare source and output chroma distributions"},
@@ -279,6 +283,236 @@ export function createDiagnosticsPanel({
   function requestDiagnosticOverlay(next) {
     setDiagnosticOverlay(next);
     renderDiagnosticsPanel(getState().diagnostics?.stats);
+  }
+
+  function swatchGraphAttrs(index, displayIndex = index) {
+    const label = `Activate swatch ${Number(displayIndex) + 1}`;
+    return `data-palette-graph-swatch-index="${index}" tabindex="0" role="button" aria-label="${label}"`;
+  }
+
+  function diagnosticSwatchIndex(record, fallbackIndex = 0) {
+    return Number.isInteger(record?.displayIndex) ? record.displayIndex : fallbackIndex;
+  }
+
+  function graphSwatchStateClasses(record, index = 0) {
+    const state = getState();
+    const classes = [];
+    if (record?.muted) classes.push("is-muted");
+    if (record?.locked) classes.push("is-locked");
+    if (cycleTagged(record)) classes.push("is-cycle-tagged");
+    if (record?.swatchId && state.manualEditor?.swatchId === record.swatchId) classes.push("is-selected");
+    const overlay = diagnosticsOverlayState();
+    if (overlay.mode === "swatch" && overlay.swatchIndex === diagnosticSwatchIndex(record, index)) {
+      classes.push("is-diagnostic-overlay");
+    }
+    return classes;
+  }
+
+  function graphSwatchClass(record, index = 0, base = "xray-swatch-marker") {
+    const stateClasses = graphSwatchStateClasses(record, index);
+    return `${base}${stateClasses.length ? ` ${stateClasses.join(" ")}` : ""}`;
+  }
+
+  function graphSwatchTitle(record, index, lab = record?.lab) {
+    const display = (record?.displayIndex ?? index) + 1;
+    const hex = record?.hex || (Array.isArray(lab) ? labToHex(lab) : "");
+    const stateParts = [];
+    if (record?.muted) stateParts.push("muted");
+    if (record?.locked) stateParts.push("locked");
+    if (cycleTagged(record)) stateParts.push("cycle-tagged");
+    if (record?.swatchId && getState().manualEditor?.swatchId === record.swatchId) stateParts.push("selected");
+    const overlay = diagnosticsOverlayState();
+    if (overlay.mode === "swatch" && overlay.swatchIndex === diagnosticSwatchIndex(record, index)) stateParts.push("diagnostic overlay");
+    const stateText = stateParts.length ? ` · ${stateParts.join(" · ")}` : "";
+    return `swatch ${display} · ${colorInfoLabel(hex, lab)}${stateText}`;
+  }
+
+  function mutedCircleSlash(cx, cy, radius) {
+    const inset = Math.max(2.2, Number(radius) * 0.72);
+    return `<line class="xray-swatch-muted-slash" x1="${(cx - inset).toFixed(1)}" y1="${(cy + inset).toFixed(1)}" x2="${(cx + inset).toFixed(1)}" y2="${(cy - inset).toFixed(1)}"/>`;
+  }
+
+  function mutedRectSlash(x, y, width, height, inset = 1.2) {
+    return `<line class="xray-swatch-muted-slash" x1="${(x + inset).toFixed(1)}" y1="${(y + height - inset).toFixed(1)}" x2="${(x + width - inset).toFixed(1)}" y2="${(y + inset).toFixed(1)}"/>`;
+  }
+
+  function graphSwatchTarget(event) {
+    const target = event?.target?.closest?.("[data-palette-graph-swatch-index]");
+    if (!target) return null;
+    const index = Number(target.dataset?.paletteGraphSwatchIndex);
+    return Number.isInteger(index) ? {target, index} : null;
+  }
+
+  function graphSwatchPlotMode(target) {
+    const svg = target?.closest?.("svg.xray-plot") || target?.closest?.(".xray-plot");
+    return svg?.dataset?.xrayPlotMode || xrayMode;
+  }
+
+  function graphSwatchDraggable(target) {
+    return ["scatter", "wheel", "ramp"].includes(graphSwatchPlotMode(target));
+  }
+
+  function graphSwatchRecords() {
+    const diagnostic = getState().diagnostics || {};
+    return Array.isArray(diagnostic.xrayStats?.records)
+      ? diagnostic.xrayStats.records
+      : (Array.isArray(diagnostic.stats?.records) ? diagnostic.stats.records : []);
+  }
+
+  function svgViewBox(svg) {
+    const base = svg?.viewBox?.baseVal;
+    if (base && Number.isFinite(base.width) && Number.isFinite(base.height) && base.width > 0 && base.height > 0) {
+      return {x: Number(base.x) || 0, y: Number(base.y) || 0, width: base.width, height: base.height};
+    }
+    const raw = svg?.getAttribute?.("viewBox") || svg?.dataset?.xrayViewBox || "";
+    const parts = String(raw).trim().split(/[\s,]+/).map(Number);
+    if (parts.length >= 4 && parts.every(Number.isFinite) && parts[2] > 0 && parts[3] > 0) {
+      return {x: parts[0], y: parts[1], width: parts[2], height: parts[3]};
+    }
+    return null;
+  }
+
+  function svgPointFromEvent(event, svg) {
+    if (!event || !svg) return null;
+    const clientX = Number(event.clientX) || 0;
+    const clientY = Number(event.clientY) || 0;
+    const box = svgViewBox(svg);
+    const rect = svg.getBoundingClientRect?.();
+    // Prefer the rendered bounding box over getScreenCTM. The X-Ray SVGs are
+    // ordinary viewBox-scaled plots, and in some browser/layout combinations
+    // getScreenCTM can effectively hand back page-space coordinates. That makes
+    // a small drag look like a jump to an axis extreme; the Lab clamp then eats
+    // the swatch into black, white, or a tiny red wedge. Rect + viewBox keeps the
+    // inverse mapping tied to the actual plotted pixels.
+    if (box && rect && Number.isFinite(rect.left) && Number.isFinite(rect.top) && Number.isFinite(rect.width) && Number.isFinite(rect.height) && rect.width > 0 && rect.height > 0) {
+      return {
+        x: box.x + ((clientX - rect.left) / rect.width) * box.width,
+        y: box.y + ((clientY - rect.top) / rect.height) * box.height
+      };
+    }
+    if (typeof svg.createSVGPoint === "function" && typeof svg.getScreenCTM === "function") {
+      const ctm = svg.getScreenCTM();
+      if (ctm && typeof ctm.inverse === "function") {
+        const point = svg.createSVGPoint();
+        point.x = clientX;
+        point.y = clientY;
+        const mapped = point.matrixTransform(ctm.inverse());
+        if (Number.isFinite(mapped.x) && Number.isFinite(mapped.y)) return {x: mapped.x, y: mapped.y};
+      }
+    }
+    return null;
+  }
+
+  function xrayWheelMaxChroma(records = []) {
+    let maxChroma = 18;
+    for (const record of records) {
+      const swatchLab = visibleSwatchLab(record) || record?.lab;
+      if (!Array.isArray(swatchLab)) continue;
+      const [, C] = labToOklch(swatchLab);
+      if (C > maxChroma) maxChroma = C;
+    }
+    return maxChroma;
+  }
+
+  function xrayDragScale(svg) {
+    const box = svgViewBox(svg);
+    const rect = svg?.getBoundingClientRect?.();
+    if (box && rect && Number.isFinite(rect.width) && Number.isFinite(rect.height) && rect.width > 0 && rect.height > 0) {
+      return {x: box.width / rect.width, y: box.height / rect.height};
+    }
+    return {x: 1, y: 1};
+  }
+
+  function xrayDragStartPoint(mode, record, records = []) {
+    if (!record || !Array.isArray(record.lab)) return null;
+    if (mode === "scatter") {
+      const width = 360;
+      const height = 220;
+      const pad = 16;
+      const plotLeft = pad + 8;
+      const plotRight = width - 10;
+      return {
+        x: hueXForPlot(record.lab, plotLeft, plotRight, pad),
+        y: lightnessY(record.lab, height, pad)
+      };
+    }
+    if (mode === "wheel") {
+      const width = 240;
+      const height = 240;
+      const cx = width / 2;
+      const cy = height / 2;
+      const maxR = Math.min(cx, cy) - 14;
+      const swatchLab = visibleSwatchLab(record) || record.lab;
+      const [, C, h] = labToOklch(swatchLab);
+      const r = (C / Math.max(1, xrayWheelMaxChroma(records))) * maxR;
+      return {x: cx + Math.cos(h) * r, y: cy - Math.sin(h) * r};
+    }
+    if (mode === "ramp") {
+      const width = 320;
+      const padX = 22;
+      return {x: padX + clamp(record.lab[0] / 100, 0, 1) * (width - padX * 2), y: 0};
+    }
+    return null;
+  }
+
+  function xrayDragPointFromEvent(event, drag) {
+    if (!event || !drag?.startPoint || !drag?.scale) return svgPointFromEvent(event, drag?.svg);
+    const clientX = Number(event.clientX) || 0;
+    const clientY = Number(event.clientY) || 0;
+    return {
+      x: drag.startPoint.x + (clientX - drag.x) * drag.scale.x,
+      y: drag.startPoint.y + (clientY - drag.y) * drag.scale.y
+    };
+  }
+
+  function labForXrayDrag(mode, point, record, records = []) {
+    if (!point || !record || !Array.isArray(record.lab)) return null;
+    const currentLab = visibleSwatchLab(record) || record.lab;
+    const [currentL, currentC, currentH] = labToOklch(currentLab);
+    if (mode === "scatter") {
+      const width = 360;
+      const height = 220;
+      const pad = 16;
+      const plotLeft = pad + 8;
+      const plotRight = width - 10;
+      const plotWidth = plotRight - plotLeft;
+      const L = clamp((1 - ((point.y - pad) / Math.max(1, height - pad * 2))) * 100, 0, 100);
+      if (point.x < plotLeft) return oklchToLab([L, 0, currentH]);
+      const h = clamp((point.x - plotLeft) / Math.max(1, plotWidth), 0, 1) * TAU;
+      const C = currentC < NEUTRAL_CHROMA_EPSILON ? 12 : currentC;
+      return fitLabToSrgb(oklchToLab([L, C, h]));
+    }
+    if (mode === "wheel") {
+      const width = 240;
+      const height = 240;
+      const cx = width / 2;
+      const cy = height / 2;
+      const maxR = Math.min(cx, cy) - 14;
+      const dx = point.x - cx;
+      const dy = cy - point.y;
+      const distance = Math.hypot(dx, dy);
+      const h = distance < 1e-6 ? currentH : ((Math.atan2(dy, dx) % TAU) + TAU) % TAU;
+      const C = clamp(distance / Math.max(1, maxR), 0, 1) * xrayWheelMaxChroma(records);
+      return fitLabToSrgb(oklchToLab([currentL, C, h]));
+    }
+    if (mode === "ramp") {
+      const width = 320;
+      const padX = 22;
+      const L = clamp((point.x - padX) / Math.max(1, width - padX * 2), 0, 1) * 100;
+      return fitLabToSrgb(oklchToLab([L, currentC, currentH]));
+    }
+    return null;
+  }
+
+  function activateGraphSwatch(event, records = graphSwatchRecords()) {
+    const picked = graphSwatchTarget(event);
+    if (!picked) return false;
+    const record = records[picked.index];
+    if (!record) return false;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    void onPaletteSwatchClick(record, picked.index, event);
+    return true;
   }
 
   function bindDiagnosticsOverlayEvents() {
@@ -453,7 +687,11 @@ export function createDiagnosticsPanel({
       const x = xForValue(value);
       const hex = record.hex || labToHex(markerLab || record.lab);
       const displayIndex = (record.displayIndex ?? index) + 1;
-      return `<line class="diagnostics-histogram-marker" style="--marker-color:${hex}" x1="${x.toFixed(2)}" y1="${(padTop + plotH + 3).toFixed(2)}" x2="${x.toFixed(2)}" y2="${markerY.toFixed(2)}"><title>swatch ${displayIndex} · ${axisLabel} ${formatDistance(value)} · ${colorInfoLabel(hex, markerLab)}</title></line>`;
+      const muted = record.muted
+        ? `<line class="xray-swatch-muted-slash diagnostics-histogram-muted-slash" x1="${(x - 4).toFixed(2)}" y1="${(markerY - 1).toFixed(2)}" x2="${(x + 4).toFixed(2)}" y2="${(padTop + plotH + 4).toFixed(2)}"/>`
+        : "";
+      const mutedText = record.muted ? " · muted" : "";
+      return `<g class="${graphSwatchClass(record, index, "diagnostics-graph-swatch")}" ${swatchGraphAttrs(index, record.displayIndex ?? index)}><title>swatch ${displayIndex} · ${axisLabel} ${formatDistance(value)} · ${colorInfoLabel(hex, markerLab)}${mutedText}</title><line class="diagnostics-histogram-marker" style="--marker-color:${hex}" x1="${x.toFixed(2)}" y1="${(padTop + plotH + 3).toFixed(2)}" x2="${x.toFixed(2)}" y2="${markerY.toFixed(2)}"></line>${muted}<line class="diagnostics-histogram-hit" x1="${x.toFixed(2)}" y1="${(padTop + plotH).toFixed(2)}" x2="${x.toFixed(2)}" y2="${markerY.toFixed(2)}"/></g>`;
     }).join("");
 
     const axisValues = histogramAxisValues(histogram, domainMax);
@@ -483,7 +721,7 @@ export function createDiagnosticsPanel({
     return `<div class="diagnostics-histogram-card"><div class="diagnostics-subhead">${scopeLabel}</div>
       <div class="diagnostics-histogram-labels"><span>${segmentLabel}</span></div>
       <div class="diagnostics-histogram-plot-wrap" style="--histogram-pad-x:${padX}px">
-        <svg class="diagnostics-histogram-plot" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+        <svg class="diagnostics-histogram-plot" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="group" aria-label="${scopeLabel} ${channelLabel} histogram; palette markers are clickable">
           <rect class="diagnostics-histogram-bg" x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="5"/>
           ${quantileBand}
           ${axis}
@@ -497,14 +735,31 @@ export function createDiagnosticsPanel({
     </div>`;
   }
 
+  function bindHistogramGraphEvents() {
+    const container = els.diagnosticsHistogram;
+    if (!container?.addEventListener || overlayBoundElements.has(container)) return;
+    overlayBoundElements.add(container);
+    container.addEventListener("click", event => {
+      activateGraphSwatch(event, histogramGraphActivationRecords);
+    });
+    container.addEventListener("keydown", event => {
+      if (!["Enter", " "].includes(event.key)) return;
+      activateGraphSwatch(event, histogramGraphActivationRecords);
+    });
+  }
+
   function renderHistogramPanel(histogramStats = getState().diagnostics?.histogramStats) {
     renderHistogramTabs();
     if (!els.diagnosticsHistogram) return;
+    bindHistogramGraphEvents();
     const channel = activeHistogramTab();
     const sourceSpec = histogramSpec("source", channel);
     const outputSpec = histogramSpec("output", channel);
     if (els.diagnosticsHistogramHeading) els.diagnosticsHistogramHeading.textContent = `${histogramChannelLabel(channel)} histograms`;
     const stats = histogramStats && typeof histogramStats === "object" ? histogramStats : {};
+    histogramGraphActivationRecords = Array.isArray(stats[sourceSpec.key]?.records)
+      ? stats[sourceSpec.key].records
+      : (Array.isArray(stats[outputSpec.key]?.records) ? stats[outputSpec.key].records : graphSwatchRecords());
     els.diagnosticsHistogram.innerHTML = `<div class="diagnostics-histogram-pair">
       ${renderHistogramChart(stats[sourceSpec.key] || null, sourceSpec)}
       ${renderHistogramChart(stats[outputSpec.key] || null, outputSpec)}
@@ -577,6 +832,9 @@ export function createDiagnosticsPanel({
   let xrayCylinderYaw = -0.62;
   let xrayCylinderPitch = 0.28;
   let xrayCylinderDrag = null;
+  let xrayCylinderSuppressClick = false;
+  let xrayGraphDrag = null;
+  let xrayGraphSuppressClick = false;
 
   function rerenderXrayFromState() {
     const diagnostic = getState().diagnostics || {};
@@ -588,6 +846,25 @@ export function createDiagnosticsPanel({
     if (!container?.addEventListener || overlayBoundElements.has(container)) return;
     overlayBoundElements.add(container);
     container.addEventListener("click", event => {
+      if (xrayGraphSuppressClick) {
+        xrayGraphSuppressClick = false;
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        return;
+      }
+      if (xrayCylinderSuppressClick && event.target?.closest?.("[data-xray-cylinder]")) {
+        xrayCylinderSuppressClick = false;
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        return;
+      }
+      const altShiftGraphSwatch = event.altKey && event.shiftKey ? graphSwatchTarget(event) : null;
+      if (altShiftGraphSwatch && graphSwatchDraggable(altShiftGraphSwatch.target)) {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        return;
+      }
+      if (activateGraphSwatch(event)) return;
       const button = event.target?.closest?.("[data-xray-mode]");
       if (!button) return;
       const next = button.dataset.xrayMode;
@@ -595,7 +872,50 @@ export function createDiagnosticsPanel({
       xrayMode = next;
       rerenderXrayFromState();
     });
+    container.addEventListener("dblclick", event => {
+      if (!event.altKey || !event.shiftKey) return;
+      const picked = graphSwatchTarget(event);
+      if (!picked || !graphSwatchDraggable(picked.target)) return;
+      const record = graphSwatchRecords()[picked.index];
+      if (!record) return;
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      onGraphSwatchPromoteAnchor(record, {event, index: picked.index});
+    });
     container.addEventListener("pointerdown", event => {
+      const swatchTarget = event.altKey ? event.target?.closest?.("[data-palette-graph-swatch-index]") : null;
+      const svg = swatchTarget?.closest?.("svg.xray-plot") || swatchTarget?.closest?.(".xray-plot");
+      const dragMode = svg?.dataset?.xrayPlotMode || xrayMode;
+      if (swatchTarget && ["scatter", "wheel", "ramp"].includes(dragMode)) {
+        const records = graphSwatchRecords();
+        const index = Number(swatchTarget.dataset.paletteGraphSwatchIndex);
+        const record = Number.isInteger(index) ? records[index] : null;
+        const lab = visibleSwatchLab(record) || record.lab;
+        const startPoint = xrayDragStartPoint(dragMode, record, records);
+        if (Array.isArray(lab) && startPoint && onGraphSwatchReposition(record, lab, {phase: "start", mode: dragMode, event, index, dropMatchAnchor: !!event.shiftKey}) !== false) {
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          swatchTarget.setPointerCapture?.(event.pointerId);
+          xrayGraphDrag = {
+            target: swatchTarget,
+            svg,
+            mode: dragMode,
+            record,
+            index,
+            records,
+            moved: false,
+            dropMatchAnchor: !!event.shiftKey,
+            matchAnchorDropped: false,
+            startLab: [...lab],
+            matchAnchorHex: labToHex(lab),
+            x: Number(event.clientX) || 0,
+            y: Number(event.clientY) || 0,
+            startPoint,
+            scale: xrayDragScale(svg)
+          };
+          return;
+        }
+      }
       const target = event.target?.closest?.("[data-xray-cylinder]");
       if (!target || xrayMode !== "cylinder") return;
       event.preventDefault?.();
@@ -604,25 +924,87 @@ export function createDiagnosticsPanel({
         x: Number(event.clientX) || 0,
         y: Number(event.clientY) || 0,
         yaw: xrayCylinderYaw,
-        pitch: xrayCylinderPitch
+        pitch: xrayCylinderPitch,
+        moved: false
       };
     });
     container.addEventListener("pointermove", event => {
+      if (xrayGraphDrag) {
+        const x = Number(event.clientX) || 0;
+        const y = Number(event.clientY) || 0;
+        if (Math.hypot(x - xrayGraphDrag.x, y - xrayGraphDrag.y) <= 3) {
+          event.preventDefault?.();
+          return;
+        }
+        xrayGraphDrag.moved = true;
+        const point = xrayDragPointFromEvent(event, xrayGraphDrag);
+        const lab = labForXrayDrag(xrayGraphDrag.mode, point, xrayGraphDrag.record, xrayGraphDrag.records);
+        if (lab) {
+          event.preventDefault?.();
+          if (xrayGraphDrag.dropMatchAnchor && !xrayGraphDrag.matchAnchorDropped) {
+            onGraphSwatchReposition(xrayGraphDrag.record, xrayGraphDrag.startLab, {
+              phase: "anchor",
+              mode: xrayGraphDrag.mode,
+              event,
+              index: xrayGraphDrag.index,
+              anchorHex: xrayGraphDrag.matchAnchorHex
+            });
+            xrayGraphDrag.matchAnchorDropped = true;
+          }
+          onGraphSwatchReposition(xrayGraphDrag.record, lab, {
+            phase: "move",
+            mode: xrayGraphDrag.mode,
+            event,
+            index: xrayGraphDrag.index,
+            matchAnchorDropped: xrayGraphDrag.matchAnchorDropped
+          });
+        }
+        return;
+      }
       if (!xrayCylinderDrag || xrayMode !== "cylinder") return;
       const x = Number(event.clientX) || 0;
       const y = Number(event.clientY) || 0;
+      if (Math.hypot(x - xrayCylinderDrag.x, y - xrayCylinderDrag.y) > 3) xrayCylinderDrag.moved = true;
       xrayCylinderYaw = xrayCylinderDrag.yaw + (x - xrayCylinderDrag.x) * 0.012;
       xrayCylinderPitch = clamp(xrayCylinderDrag.pitch - (y - xrayCylinderDrag.y) * 0.008, -XRAY_CYLINDER_MAX_PITCH, XRAY_CYLINDER_MAX_PITCH);
       rerenderXrayFromState();
     });
+    const endGraphDrag = (event, phase = "end") => {
+      if (!xrayGraphDrag) return false;
+      const drag = xrayGraphDrag;
+      const finalPhase = drag.moved ? phase : "cancel";
+      const point = xrayDragPointFromEvent(event, drag);
+      const lab = finalPhase === "cancel"
+        ? (visibleSwatchLab(drag.record) || drag.record?.lab)
+        : labForXrayDrag(drag.mode, point, drag.record, drag.records);
+      if (lab) onGraphSwatchReposition(drag.record, lab, {phase: finalPhase, mode: drag.mode, event, index: drag.index, matchAnchorDropped: drag.matchAnchorDropped});
+      xrayGraphSuppressClick = true;
+      if (typeof setTimeout === "function") setTimeout(() => { xrayGraphSuppressClick = false; }, 0);
+      drag.target?.releasePointerCapture?.(event.pointerId);
+      xrayGraphDrag = null;
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      return true;
+    };
     const endCylinderDrag = event => {
       if (!xrayCylinderDrag) return;
+      xrayCylinderSuppressClick = !!xrayCylinderDrag.moved;
+      if (xrayCylinderSuppressClick && typeof setTimeout === "function") {
+        setTimeout(() => { xrayCylinderSuppressClick = false; }, 0);
+      }
       event.target?.releasePointerCapture?.(event.pointerId);
       xrayCylinderDrag = null;
     };
-    container.addEventListener("pointerup", endCylinderDrag);
-    container.addEventListener("pointercancel", endCylinderDrag);
+    container.addEventListener("pointerup", event => {
+      if (endGraphDrag(event)) return;
+      endCylinderDrag(event);
+    });
+    container.addEventListener("pointercancel", event => {
+      if (endGraphDrag(event, "cancel")) return;
+      endCylinderDrag(event);
+    });
     container.addEventListener("keydown", event => {
+      if (["Enter", " "].includes(event.key) && activateGraphSwatch(event)) return;
       const target = event.target?.closest?.("[data-xray-cylinder]");
       if (!target || xrayMode !== "cylinder") return;
       if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home"].includes(event.key)) return;
@@ -723,18 +1105,19 @@ export function createDiagnosticsPanel({
     }).join("");
 
     // Swatches plotted as circles, sized by chroma, ring-styled by lock/cycle state.
-    const points = records.map(record => {
+    const points = records.map((record, index) => {
       const [, C] = labToOklch(record.lab);
       const x = hueXForPlot(record.lab, plotLeft, plotRight, pad);
       const y = lightnessY(record.lab, height, pad);
-      const r = clamp(2.6 + C / 18, 3, 7);
+      const r = clamp(4.0 + C / 14, 4.4, 9.5);
       const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.82)";
       const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
       const hex = record.hex || labToHex(record.lab);
-      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.2"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></circle>`;
+      const slash = record.muted ? mutedCircleSlash(x, y, r) : "";
+      return `<g class="${graphSwatchClass(record, index)}" ${swatchGraphAttrs(index, record.displayIndex ?? index)}><title>${graphSwatchTitle(record, index, record.lab)}</title><circle class="xray-swatch-fill" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.2"${dash}></circle>${slash}</g>`;
     }).join("");
 
-    return `<svg class="xray-plot xray-scatter" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    return `<svg class="xray-plot xray-scatter" viewBox="0 0 ${width} ${height}" data-xray-plot-mode="scatter" data-xray-view-box="0 0 ${width} ${height}" role="group" aria-label="Hue by lightness scatter with clickable palette swatches">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${neutralBand}
       ${lightnessTicks}
@@ -770,6 +1153,11 @@ export function createDiagnosticsPanel({
       const [, C] = labToOklch(swatchLab);
       if (C > maxChroma) maxChroma = C;
     }
+    const aliasEntries = (stats?.entries || []).filter(entry => entry?.alias && Array.isArray(entry.featureLab) && entry.sourceRecord);
+    for (const entry of aliasEntries) {
+      const [, C] = labToOklch(entry.featureLab);
+      if (C > maxChroma) maxChroma = C;
+    }
     const radiusFor = C => (C / maxChroma) * maxR;
 
     // Concentric chroma rings at quarter-fractions of max, plus an outer rim.
@@ -782,7 +1170,10 @@ export function createDiagnosticsPanel({
       const opacity = major ? 0.22 : 0.10;
       rings.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="none" stroke="rgba(184,196,214,${opacity})"/>`);
     }
-    const chromaLabel = `<text x="${(cx + maxR + 2).toFixed(1)}" y="${(cy - 2).toFixed(1)}" text-anchor="start" class="xray-axis">C ${maxChroma.toFixed(0)}</text>`;
+    const chromaLabelAngle = TAU / 8;
+    const chromaLabelX = cx + Math.cos(chromaLabelAngle) * (maxR + 9);
+    const chromaLabelY = cy - Math.sin(chromaLabelAngle) * (maxR + 9);
+    const chromaLabel = `<text x="${chromaLabelX.toFixed(1)}" y="${(chromaLabelY - 2).toFixed(1)}" text-anchor="middle" class="xray-axis">max C ${maxChroma.toFixed(0)}</text>`;
 
     // Cardinal hue stops around the rim with their actual OKLCh colors —
     // same six anchors the scatter uses, just laid out polar.
@@ -802,9 +1193,14 @@ export function createDiagnosticsPanel({
       const [mx, my] = polar(maxR, stop.h);
       const hueLab = fitLabToSrgb(oklchToLab([62, 26, stop.h]));
       const hex = labToHex(hueLab);
+      const labelOffset = stop.name === "R"
+        ? {dx: -8, dy: -8, anchor: "end"}
+        : (stop.name === "C"
+          ? {dx: 9, dy: 11, anchor: "start"}
+          : {dx: 0, dy: Math.sin(stop.h) > 0.3 ? -5 : (Math.sin(stop.h) < -0.3 ? 9 : 3), anchor: "middle"});
       return `<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${mx.toFixed(1)}" y2="${my.toFixed(1)}" stroke="rgba(184,196,214,.06)"/>
         <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="2" fill="${hex}" stroke="rgba(8,10,13,.6)" stroke-width="0.5"/>
-        <text x="${tx.toFixed(1)}" y="${(ty + (Math.sin(stop.h) > 0.3 ? -4 : (Math.sin(stop.h) < -0.3 ? 8 : 2))).toFixed(1)}" text-anchor="middle" class="xray-axis">${stop.name}</text>`;
+        <text x="${(tx + labelOffset.dx).toFixed(1)}" y="${(ty + labelOffset.dy).toFixed(1)}" text-anchor="${labelOffset.anchor}" class="xray-axis">${stop.name}</text>`;
     }).join("");
 
     // Neutral cluster lives inside the NEUTRAL_CHROMA_EPSILON ring. Shading
@@ -838,28 +1234,45 @@ export function createDiagnosticsPanel({
       familyLines.push(`<polyline points="${pts}" fill="none" stroke="rgba(184,196,214,.25)" stroke-width="1"/>`);
     }
 
+    // Manual matcher aliases: draw the extra matching coordinate on the same
+    // polar scale as the visible swatch chips. Anchors can be more saturated
+    // than the rendered chip, so maxChroma above includes these alias labs;
+    // otherwise a perfectly valid anchor can get shoved beyond the rim.
+    const aliasMarks = aliasEntries.map(entry => {
+      const record = entry.sourceRecord;
+      const swatchLab = visibleSwatchLab(record) || record.lab;
+      const [, sourceC, sourceH] = labToOklch(swatchLab);
+      const [, aliasC, aliasH] = labToOklch(entry.featureLab);
+      const [x1, y1] = polar(radiusFor(sourceC), sourceH);
+      const [x2, y2] = polar(radiusFor(aliasC), aliasH);
+      const hex = labToHex(entry.featureLab);
+      const display = (record?.displayIndex ?? records.indexOf(record)) + 1;
+      return `<g class="xray-match-anchor" aria-hidden="true"><title>match anchor for swatch ${display} · ${colorInfoLabel(hex, entry.featureLab)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect x="${(x2-3.2).toFixed(1)}" y="${(y2-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
+    }).join("");
+
     // Swatches are positioned from the visible chip, not the internal matcher
     // coordinate. Harmony tonal modes can deliberately move/fit the displayed
     // chip; the wheel should show the color users actually see.
-    const points = records.map(record => {
+    const points = records.map((record, index) => {
       const swatchLab = visibleSwatchLab(record) || record.lab;
       const [, C, h] = labToOklch(swatchLab);
       const r = radiusFor(C);
       const [px, py] = polar(r, h);
-      const dotR = clamp(2.4 + C / 28, 2.6, 5);
+      const dotR = clamp(3.8 + C / 22, 4.2, 7.2);
       const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.82)";
       const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
       const hex = record.hex || labToHex(swatchLab);
-      return `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.1"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, swatchLab)}</title></circle>`;
+      const slash = record.muted ? mutedCircleSlash(px, py, dotR) : "";
+      return `<g class="${graphSwatchClass(record, index)}" ${swatchGraphAttrs(index, record.displayIndex ?? index)}><title>${graphSwatchTitle(record, index, swatchLab)}</title><circle class="xray-swatch-fill" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.1"${dash}></circle>${slash}</g>`;
     }).join("");
 
-    return `<svg class="xray-plot xray-square" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    return `<svg class="xray-plot xray-square" viewBox="0 0 ${width} ${height}" data-xray-plot-mode="wheel" data-xray-view-box="0 0 ${width} ${height}" role="group" aria-label="Hue wheel with clickable palette swatches">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${rings.join("")}
       ${neutralRing}
       ${hueMarks}
       ${chromaLabel}
-      ${familyLines.join("")}${points}
+      ${familyLines.join("")}${aliasMarks}${points}
     </svg>`;
   }
 
@@ -917,8 +1330,8 @@ export function createDiagnosticsPanel({
     // "no swatch near white" is just as meaningful a gap as a hole in the
     // middle. Highlighting the biggest gap directly is a real piece of
     // information you cannot read off the scatter at a glance.
-    const sorted = records.slice().sort((a, b) => a.lab[0] - b.lab[0]);
-    const Ls = sorted.map(r => r.lab[0]);
+    const sorted = records.map((record, index) => ({record, index})).sort((a, b) => a.record.lab[0] - b.record.lab[0]);
+    const Ls = sorted.map(item => item.record.lab[0]);
     let biggestGap = {start: 0, end: 0, size: 0};
     const considerGap = (start, end) => {
       const size = end - start;
@@ -940,7 +1353,7 @@ export function createDiagnosticsPanel({
     // swatch's actual color. Bars instead of dots so adjacent-L swatches
     // remain distinguishable even when they pile up. Stems extend below the
     // strip into a lollipop ring whose stroke encodes lock/cycle state.
-    const markers = sorted.map(record => {
+    const markers = sorted.map(({record, index}) => {
       const x = xFor(record.lab[0]);
       const hex = record.hex || labToHex(record.lab);
       const [, C] = labToOklch(record.lab);
@@ -948,14 +1361,15 @@ export function createDiagnosticsPanel({
       const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.82)";
       const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
       const lollipopY = trackY + trackH + 14;
-      return `<rect x="${(x - 1.2).toFixed(1)}" y="${trackY.toFixed(1)}" width="2.4" height="${trackH}" fill="${hex}" stroke="rgba(3,5,7,.55)" stroke-width="0.5"/>
+      const slash = record.muted ? mutedCircleSlash(x, lollipopY, dotR) : "";
+      return `<g class="${graphSwatchClass(record, index)}" ${swatchGraphAttrs(index, record.displayIndex ?? index)}><title>${graphSwatchTitle(record, index, record.lab)}</title><rect class="xray-swatch-fill" x="${(x - 2.2).toFixed(1)}" y="${trackY.toFixed(1)}" width="4.4" height="${trackH}" fill="${hex}" stroke="rgba(3,5,7,.55)" stroke-width="0.5"/>
         <line x1="${x.toFixed(1)}" y1="${(trackY + trackH).toFixed(1)}" x2="${x.toFixed(1)}" y2="${lollipopY.toFixed(1)}" stroke="rgba(184,196,214,.35)" stroke-width="0.6"/>
-        <circle cx="${x.toFixed(1)}" cy="${lollipopY.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></circle>`;
+        <circle class="xray-swatch-fill" cx="${x.toFixed(1)}" cy="${lollipopY.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1"${dash}></circle>${slash}</g>`;
     }).join("");
 
     const axisLabel = `<text x="${padX}" y="${(padY - 4).toFixed(1)}" text-anchor="start" class="xray-axis">Lightness</text>`;
 
-    return `<svg class="xray-plot xray-tonal" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    return `<svg class="xray-plot xray-tonal" viewBox="0 0 ${width} ${height}" data-xray-plot-mode="ramp" data-xray-view-box="0 0 ${width} ${height}" role="group" aria-label="Lightness ramp with clickable palette swatches">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${backdrop.join("")}
       ${gapHighlight}
@@ -1060,10 +1474,14 @@ export function createDiagnosticsPanel({
       const hex = record.hex || labToHex(record.lab);
       const cellMid = startX + (i + 0.5) * cell;
       const rowMid = startY + (i + 0.5) * cell;
+      const chipMarkup = (x, y) => {
+        const slash = record.muted ? mutedRectSlash(x, y, chipSize, chipSize, Math.min(1.3, chipSize * 0.24)) : "";
+        return `<g class="${graphSwatchClass(record, i)}" ${swatchGraphAttrs(i, record.displayIndex ?? i)}><title>${graphSwatchTitle(record, i, record.lab)}</title><rect class="xray-swatch-fill" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${chipSize}" height="${chipSize}" rx="0.8" fill="${hex}" stroke="rgba(8,10,13,.55)" stroke-width="0.4"/>${slash}</g>`;
+      };
       // Top header
-      chips.push(`<rect x="${(cellMid - chipSize / 2).toFixed(1)}" y="${(startY - chipSize - 1).toFixed(1)}" width="${chipSize}" height="${chipSize}" rx="0.8" fill="${hex}" stroke="rgba(8,10,13,.55)" stroke-width="0.4"><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></rect>`);
+      chips.push(chipMarkup(cellMid - chipSize / 2, startY - chipSize - 1));
       // Left header
-      chips.push(`<rect x="${(startX - chipSize - 1).toFixed(1)}" y="${(rowMid - chipSize / 2).toFixed(1)}" width="${chipSize}" height="${chipSize}" rx="0.8" fill="${hex}" stroke="rgba(8,10,13,.55)" stroke-width="0.4"><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, record.lab)}</title></rect>`);
+      chips.push(chipMarkup(startX - chipSize - 1, rowMid - chipSize / 2));
     }
 
     // Cells. Diagonal stays muted (a swatch's distance to itself is zero by
@@ -1106,7 +1524,7 @@ export function createDiagnosticsPanel({
       ? `<text x="${(width - padRight).toFixed(1)}" y="${(legendY - 1).toFixed(1)}" text-anchor="end" class="xray-axis" fill="rgba(255,170,150,.85)">closest Δ ${formatDistance(closestPair.distance)}</text>`
       : `<text x="${(width - padRight).toFixed(1)}" y="${(legendY - 1).toFixed(1)}" text-anchor="end" class="xray-axis" fill="rgba(184,196,214,.6)">no collisions</text>`;
 
-    return `<svg class="xray-plot xray-square" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    return `<svg class="xray-plot xray-square" viewBox="0 0 ${width} ${height}" data-xray-plot-mode="proximity" data-xray-view-box="0 0 ${width} ${height}" role="group" aria-label="Swatch proximity matrix with clickable palette headers">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${chips.join("")}
       ${cells.join("")}
@@ -1172,19 +1590,16 @@ export function createDiagnosticsPanel({
       return `${pts.join(" ")} Z`;
     };
 
-    const rings = [0, 25, 50, 75, 100].map(L => {
-      const major = L === 0 || L === 50 || L === 100;
-      const stroke = major ? "rgba(184,196,214,.30)" : "rgba(184,196,214,.14)";
+    const rings = [0, 50, 100].map(L => {
+      const stroke = L === 50 ? "rgba(184,196,214,.18)" : "rgba(184,196,214,.26)";
       const labelPoint = project(L, maxChroma, TAU * 0.02);
-      const label = major
-        ? `<text x="${(labelPoint.x + 4).toFixed(1)}" y="${(labelPoint.y + 3).toFixed(1)}" class="xray-axis">L${L}</text>`
-        : "";
-      return `<path d="${ringPath(L, maxChroma)}" fill="none" stroke="${stroke}" stroke-width="${major ? 0.75 : 0.5}"/>${label}`;
+      const label = `<text x="${(labelPoint.x + 4).toFixed(1)}" y="${(labelPoint.y + 3).toFixed(1)}" class="xray-axis">L${L}</text>`;
+      return `<path d="${ringPath(L, maxChroma, 56)}" fill="none" stroke="${stroke}" stroke-width="0.65"/>${label}`;
     }).join("");
 
-    const chromaDecks = [0.25, 0.5, 0.75].flatMap(frac => {
+    const chromaDecks = [0.5].flatMap(frac => {
       const C = maxChroma * frac;
-      return [0, 100].map(L => `<path d="${ringPath(L, C)}" fill="none" stroke="rgba(184,196,214,.075)" stroke-width="0.45"/>`);
+      return [0, 100].map(L => `<path d="${ringPath(L, C, 56)}" fill="none" stroke="rgba(184,196,214,.045)" stroke-width="0.4"/>`);
     }).join("");
 
     const hueStops = [
@@ -1197,21 +1612,21 @@ export function createDiagnosticsPanel({
     ];
 
     const ribs = [];
-    for (let i = 0; i < 12; i++) {
-      const h = (i / 12) * TAU;
+    for (let i = 0; i < 6; i++) {
+      const h = (i / 6) * TAU;
       const bottom = project(0, maxChroma, h);
       const top = project(100, maxChroma, h);
-      const opacity = clamp(0.12 + ((bottom.depth + top.depth) / 2 + 1) * 0.10, 0.08, 0.34);
-      ribs.push(`<line x1="${bottom.x.toFixed(1)}" y1="${bottom.y.toFixed(1)}" x2="${top.x.toFixed(1)}" y2="${top.y.toFixed(1)}" stroke="rgba(184,196,214,${opacity.toFixed(3)})" stroke-width="0.6"/>`);
+      const opacity = clamp(0.08 + ((bottom.depth + top.depth) / 2 + 1) * 0.07, 0.05, 0.22);
+      ribs.push(`<line x1="${bottom.x.toFixed(1)}" y1="${bottom.y.toFixed(1)}" x2="${top.x.toFixed(1)}" y2="${top.y.toFixed(1)}" stroke="rgba(184,196,214,${opacity.toFixed(3)})" stroke-width="0.5"/>`);
     }
 
     const axisBottom = project(0, 0, 0);
     const axisTop = project(100, 0, 0);
     const axisMid = project(50, 0, 0);
     const cAxis = project(50, maxChroma, 0);
-    const axis = `<line x1="${axisBottom.x.toFixed(1)}" y1="${axisBottom.y.toFixed(1)}" x2="${axisTop.x.toFixed(1)}" y2="${axisTop.y.toFixed(1)}" stroke="rgba(255,255,255,.46)" stroke-width="0.9"/>
-      <line x1="${axisMid.x.toFixed(1)}" y1="${axisMid.y.toFixed(1)}" x2="${cAxis.x.toFixed(1)}" y2="${cAxis.y.toFixed(1)}" stroke="rgba(184,196,214,.24)" stroke-dasharray="2 2"/>
-      <text x="${(axisTop.x + 4).toFixed(1)}" y="${(axisTop.y - 4).toFixed(1)}" class="xray-axis">L axis</text>
+    const axis = `<line x1="${axisBottom.x.toFixed(1)}" y1="${axisBottom.y.toFixed(1)}" x2="${axisTop.x.toFixed(1)}" y2="${axisTop.y.toFixed(1)}" stroke="rgba(255,255,255,.38)" stroke-width="0.85"/>
+      <line x1="${axisMid.x.toFixed(1)}" y1="${axisMid.y.toFixed(1)}" x2="${cAxis.x.toFixed(1)}" y2="${cAxis.y.toFixed(1)}" stroke="rgba(184,196,214,.16)" stroke-dasharray="2 3"/>
+      <text x="${(axisTop.x + 4).toFixed(1)}" y="${(axisTop.y - 4).toFixed(1)}" class="xray-axis">L</text>
       <text x="${(cAxis.x + 4).toFixed(1)}" y="${(cAxis.y + 3).toFixed(1)}" class="xray-axis">C ${maxChroma.toFixed(0)}</text>`;
 
     const hueMarks = hueStops.map(stop => {
@@ -1239,26 +1654,27 @@ export function createDiagnosticsPanel({
         const p = project(L, C, h);
         return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
       }).join(" ");
-      familyLines.push(`<polyline points="${pts}" fill="none" stroke="rgba(184,196,214,.30)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`);
+      familyLines.push(`<polyline points="${pts}" fill="none" stroke="rgba(184,196,214,.18)" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
-    const points = records.map(record => {
+    const points = records.map((record, index) => {
       const swatchLab = visibleSwatchLab(record) || record.lab;
       const [L, C, h] = labToOklch(swatchLab);
       const p = project(L, C, h);
       const hex = record.hex || labToHex(swatchLab);
-      const radius = clamp(2.8 + C / 24, 3.1, 6.8);
+      const radius = clamp(4.0 + C / 20, 4.4, 8.8);
       const opacity = clamp(0.50 + (p.depth + 1) * 0.23, 0.42, 0.98);
       const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.86)";
       const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
-      return {depth: p.depth, markup: `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius.toFixed(1)}" fill="${hex}" opacity="${opacity.toFixed(2)}" stroke="${stroke}" stroke-width="1.15"${dash}><title>swatch ${(record.displayIndex ?? 0) + 1} · ${colorInfoLabel(hex, swatchLab)}</title></circle>`};
+      const slash = record.muted ? mutedCircleSlash(p.x, p.y, radius) : "";
+      return {depth: p.depth, markup: `<g class="${graphSwatchClass(record, index)}" ${swatchGraphAttrs(index, record.displayIndex ?? index)}><title>${graphSwatchTitle(record, index, swatchLab)}</title><circle class="xray-swatch-fill" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius.toFixed(1)}" fill="${hex}" opacity="${opacity.toFixed(2)}" stroke="${stroke}" stroke-width="1.15"${dash}></circle>${slash}</g>`};
     }).sort((a, b) => a.depth - b.depth).map(item => item.markup).join("");
 
     const yawDeg = ((xrayCylinderYaw * 180 / Math.PI) % 360 + 360) % 360;
     const pitchDeg = xrayCylinderPitch * 180 / Math.PI;
     const readout = `<text x="${(width - 8).toFixed(1)}" y="${(height - 10).toFixed(1)}" text-anchor="end" class="xray-axis">drag to rotate · yaw ${yawDeg.toFixed(0)}° · tilt ${pitchDeg.toFixed(0)}°</text>`;
 
-    return `<svg class="xray-plot xray-square xray-cylinder" viewBox="0 0 ${width} ${height}" data-xray-cylinder tabindex="0" focusable="true" role="img" aria-label="Rotatable LCH cylinder. Drag to orbit hue and chroma around the lightness axis with tilt from -90 to 90 degrees; use arrow keys to rotate.">
+    return `<svg class="xray-plot xray-square xray-cylinder" viewBox="0 0 ${width} ${height}" data-xray-plot-mode="cylinder" data-xray-view-box="0 0 ${width} ${height}" data-xray-cylinder tabindex="0" focusable="true" role="img" aria-label="Rotatable LCH cylinder. Drag to orbit hue and chroma around the lightness axis with tilt from -90 to 90 degrees; use arrow keys to rotate.">
       <rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>
       ${chromaDecks}
       ${rings}

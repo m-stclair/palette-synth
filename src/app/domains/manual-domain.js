@@ -62,7 +62,38 @@ export function createManualDomain({
   });
   const {renderManualSwatches} = manualSwatchesList;
 
-  const manualPaletteEditor = createManualPaletteEditor({
+  function setManualSourceColor(identifier, color) {
+    const index = manualSwatchIndex(identifier);
+    if (index < 0) return null;
+    const safe = normalizeHexColor(color, manualSourceHex(index));
+    const {lab, colorSpace, ...swatch} = config.manualPalette[index];
+    config.manualPalette[index] = {...swatch, hex: safe};
+    renderManualSwatches();
+    markPaletteDirty();
+    queueRender();
+    return safe;
+  }
+
+  let manualPaletteEditor = null;
+
+  function makeManualMatchAnchorSource(identifier, {announce = true} = {}) {
+    const index = manualSwatchIndex(identifier);
+    if (index < 0) return null;
+    const swatch = config.manualPalette[index];
+    const anchorHex = manualMatchAliasHex(swatch.id ?? index);
+    if (!anchorHex) {
+      if (announce) setStatus?.(`Swatch ${index + 1} has no extra match anchor to make into its source.`);
+      return null;
+    }
+    const nextSourceHex = setManualSourceColor(swatch.id ?? index, anchorHex);
+    if (!nextSourceHex) return null;
+    setManualMatchAlias(swatch.id ?? index, null);
+    manualPaletteEditor?.syncManualPaletteEditor?.(state.paletteRecords);
+    if (announce) setStatus?.(`Swatch ${index + 1} source set to former match anchor ${nextSourceHex}.`);
+    return config.manualPalette[index];
+  }
+
+  manualPaletteEditor = createManualPaletteEditor({
     els,
     getConfig: () => config,
     getState: () => state,
@@ -78,17 +109,7 @@ export function createManualDomain({
     beginHistory,
     commitHistory,
     withHistory,
-    onSourceColorChange: (identifier, color) => {
-      const index = manualSwatchIndex(identifier);
-      if (index < 0) return null;
-      const safe = normalizeHexColor(color, manualSourceHex(index));
-      const {lab, colorSpace, ...swatch} = config.manualPalette[index];
-      config.manualPalette[index] = {...swatch, hex: safe};
-      renderManualSwatches();
-      markPaletteDirty();
-      queueRender();
-      return safe;
-    },
+    onSourceColorChange: setManualSourceColor,
     onDuplicateSwatch: ({index, sourceHex, aliasHex}) => {
       const copy = insertManualSwatchAfter(index, sourceHex, aliasHex, "copy");
       if (!copy) return null;
@@ -113,6 +134,7 @@ export function createManualDomain({
     swatches: manualSwatches,
     list: manualSwatchesList,
     editor: manualPaletteEditor,
+    makeManualMatchAnchorSource,
     ...manualSwatches,
     ...manualSwatchesList,
     ...manualPaletteEditor

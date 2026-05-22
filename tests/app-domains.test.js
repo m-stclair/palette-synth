@@ -270,6 +270,98 @@ test("manual domain exposes list rendering through the same runtime surface", ()
   }
 });
 
+test("manual domain can make a match anchor into the source color", () => {
+  const calls = [];
+  const config = {
+    paletteMode: "manual",
+    manualPalette: [{id: "swatch-a", hex: "#111111", aliasHex: "#334455", locked: false, lab: [10, 1, 1], colorSpace: "oklab-scaled"}],
+    manualMatchAliases: []
+  };
+  const state = {paletteRecords: [], manualEditor: {}};
+  const domain = createManualDomain({
+    els: {},
+    state,
+    config,
+    history: {},
+    render: {
+      markPaletteDirty: () => calls.push("markPaletteDirty"),
+      queueRender: () => calls.push("queueRender")
+    },
+    setStatus: message => calls.push(["status", message])
+  });
+
+  const next = domain.makeManualMatchAnchorSource("swatch-a");
+
+  assert.equal(next.hex, "#334455");
+  assert.equal(next.aliasHex, null);
+  assert.equal("lab" in next, false);
+  assert.equal("colorSpace" in next, false);
+  assert.equal(config.manualPalette[0].hex, "#334455");
+  assert.equal(config.manualPalette[0].aliasHex, null);
+  assert.ok(calls.includes("markPaletteDirty"));
+  assert.ok(calls.includes("queueRender"));
+  assert.match(calls.find(call => Array.isArray(call))?.[1] || "", /source set to former match anchor #334455/);
+});
+
+test("palette domain drops graph-drag anchors and promotes them through one action", () => {
+  const calls = [];
+  const swatches = [{id: "swatch-a", hex: "#111111", aliasHex: null, locked: false}];
+  const record = {source: "manual", swatchId: "swatch-a", sourceIndex: 0, lab: [50, 1, 1], hex: "#111111"};
+  const manual = {
+    syncManualSwatches: () => swatches,
+    manualSwatchLab: () => [50, 1, 1],
+    manualSwatchIndex: () => 0,
+    manualSwatchEditable: () => true,
+    manualMatchAliasHex: () => swatches[0].aliasHex,
+    manualSourceHex: () => swatches[0].hex,
+    manualSwatchMuted: () => false,
+    toggleManualSwatchMuted: () => swatches[0],
+    activeManualMatchAliasCount: () => 0,
+    setManualMatchAlias: (id, color) => {
+      calls.push(["alias", id, color]);
+      swatches[0].aliasHex = color;
+      return swatches[0];
+    },
+    makeManualMatchAnchorSource: () => {
+      swatches[0].hex = swatches[0].aliasHex;
+      swatches[0].aliasHex = null;
+      calls.push("makeAnchorSource");
+      return swatches[0];
+    },
+    syncManualPaletteEditor: () => calls.push("syncManualPaletteEditor"),
+    openManualPaletteEditor: () => calls.push("openManualPaletteEditor")
+  };
+  const domain = createPaletteDomain({
+    els: {},
+    state: {paletteRecords: [record], palette: [], manualEditor: {}},
+    config: {paletteMode: "manual", manualPalette: swatches, manualMatchAliases: [], generatedLocks: []},
+    manual,
+    history: {
+      beginHistory: label => calls.push(["begin", label]),
+      commitHistory: label => calls.push(["commit", label]),
+      withHistory: (label, fn) => {
+        calls.push(["history", label]);
+        return fn();
+      }
+    },
+    render: {
+      markPaletteDirty: () => calls.push("markPaletteDirty"),
+      queueRender: () => calls.push("queueRender")
+    },
+    setStatus: message => calls.push(["status", message])
+  });
+
+  assert.equal(domain.repositionManualGraphSwatch(record, record.lab, {phase: "start"}), true);
+  assert.equal(domain.repositionManualGraphSwatch(record, record.lab, {phase: "anchor", anchorHex: "#111111"}), true);
+  assert.equal(swatches[0].aliasHex, "#111111");
+  assert.equal(domain.makeGraphSwatchAnchorSource(record), true);
+
+  assert.deepEqual(calls.filter(call => Array.isArray(call) && call[0] === "alias")[0], ["alias", "swatch-a", "#111111"]);
+  assert.ok(calls.some(call => Array.isArray(call) && call[0] === "history" && call[1] === "Make match anchor source"));
+  assert.equal(swatches[0].hex, "#111111");
+  assert.equal(swatches[0].aliasHex, null);
+});
+
 
 test("palette domain groups cycle, runtime, and preview capabilities", () => {
   const calls = [];

@@ -321,6 +321,11 @@ export function createManualPaletteEditor({
     recolorButton.textContent = "Recolor source pixels";
     recolorButton.title = "Add the source color as an extra match anchor, then open the swatch color picker. The swatch still also catches its current color.";
 
+    const promoteAliasButton = document.createElement("button");
+    promoteAliasButton.type = "button";
+    promoteAliasButton.textContent = "Make anchor source";
+    promoteAliasButton.title = "Set this swatch's source color to its extra match anchor, then clear that anchor.";
+
     const pickSourceImageButton = document.createElement("button");
     pickSourceImageButton.type = "button";
     pickSourceImageButton.textContent = "Pick from source image";
@@ -328,6 +333,10 @@ export function createManualPaletteEditor({
     pickSourceImageButton.title = pickSourceImageButton.disabled
       ? "Open a source image first"
       : "Click the source image to add that pixel color as an extra match anchor.";
+
+    const aliasActions = document.createElement("div");
+    aliasActions.className = "palette-editor-alias-actions";
+    aliasActions.append(sourceLockButton, recolorButton, promoteAliasButton, pickSourceImageButton);
 
     const routeLabelFor = current => {
       const anchors = [`current ${effectiveHex}`];
@@ -349,6 +358,7 @@ export function createManualPaletteEditor({
       aliasToggle.checked = !!current;
       aliasColorInput.disabled = !aliasToggle.checked;
       aliasTextInput.disabled = !aliasToggle.checked;
+      promoteAliasButton.disabled = !current;
       aliasColorInput.value = current || sourceHex;
       syncColorPickerInput(aliasColorInput);
       aliasTextInput.value = current || "";
@@ -473,10 +483,32 @@ export function createManualPaletteEditor({
       colorInput.focus?.();
     }));
 
+    promoteAliasButton.addEventListener("click", () => {
+      const current = manualMatchAliasHex(swatch.id);
+      if (!current) {
+        updateAliasControls();
+        setStatus?.(`Swatch ${index + 1} has no extra match anchor to make into its source.`);
+        return;
+      }
+      withHistory?.("Make match anchor source", () => {
+        const nextSourceHex = normalizeHexColor(current, sourceHex);
+        setManualSourceColor(swatch.id, nextSourceHex);
+        setManualMatchAlias(swatch.id, null);
+        setStatus?.(`Swatch ${index + 1} source set to former match anchor ${nextSourceHex}.`);
+        renderManualPaletteEditor({
+          source: "manual",
+          sourceIndex: index,
+          swatchId: swatch.id,
+          hex: nextSourceHex,
+          lab: hexToLab(nextSourceHex)
+        });
+      });
+    });
+
     pickSourceImageButton.addEventListener("click", beginSourceImageAliasPick);
 
     updateAliasControls();
-    aliasSection.append(routeLine, aliasLabel, aliasColorInput, aliasTextInput, sourceLockButton, recolorButton, pickSourceImageButton);
+    aliasSection.append(routeLine, aliasLabel, aliasColorInput, aliasTextInput, aliasActions);
     editor.append(summary, controls, aliasSection);
   }
 

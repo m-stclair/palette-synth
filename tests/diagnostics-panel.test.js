@@ -5,6 +5,7 @@ import {
   formatDistance,
   formatUsagePercent
 } from "../src/ui/diagnostics-panel.js";
+import { labToHex, oklchToLab } from "../src/color-utils.js";
 
 function fakeElement() {
   return {
@@ -416,6 +417,261 @@ test("X-Ray renders five distinct modes and switches between them on click", () 
   assert.match(xray.innerHTML, /data-xray-mode="scatter"[^>]*aria-selected="true"/);
 });
 
+test("graph swatch markers show muted state with slash indicators", () => {
+  const xray = element();
+  const histogramEl = element();
+  const tabs = element();
+  const records = [
+    {lab: [25, 12, 4], hex: "#4a3328", displayIndex: 0, muted: true},
+    {lab: [72, -18, -14], hex: "#62aeb8", displayIndex: 1}
+  ];
+  const stats = {records, entries: [], collisions: {threshold: 10}};
+  const histogram = {
+    channel: "luma",
+    axisLabel: "L",
+    bins: [1, 2, 1],
+    segments: {neutral: [1, 1, 0], muted: [0, 1, 0], vivid: [0, 0, 1]},
+    segmentNames: ["neutral", "muted", "vivid"],
+    max: 2,
+    total: 4,
+    step: 1,
+    domain: {min: 0, max: 100},
+    stats: {p10: 10, median: 40, p90: 80, mean: 45, mode: 30, max: 90, saturatedPercent: 0}
+  };
+  const state = {
+    imageData: {width: 1, height: 1},
+    diagnostics: {
+      stats,
+      histogramTab: "luma",
+      histogramStats: {
+        "source-luma": {records, histogram},
+        "output-luma": {records, histogram: {...histogram}}
+      }
+    }
+  };
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray, diagnosticsHistogram: histogramEl, diagnosticsTabs: tabs},
+    getConfig: () => ({assignMode: "nearest", lumaWeight: 1, chromaWeight: 1, hueWeight: 1}),
+    getState: () => state
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  assert.match(xray.innerHTML, /class="xray-swatch-marker is-muted"/);
+  assert.match(xray.innerHTML, /xray-swatch-muted-slash/);
+  assert.match(xray.innerHTML, /#4a3328 · LCH .* · muted/);
+
+  for (const mode of ["wheel", "ramp", "proximity", "cylinder"]) {
+    xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-mode]" ? {dataset: {xrayMode: mode}} : null}});
+    assert.match(xray.innerHTML, /class="xray-swatch-marker is-muted"/);
+    assert.match(xray.innerHTML, /xray-swatch-muted-slash/);
+  }
+
+  panel.renderHistogramPanel(state.diagnostics.histogramStats);
+  assert.match(histogramEl.innerHTML, /class="diagnostics-graph-swatch is-muted"/);
+  assert.match(histogramEl.innerHTML, /diagnostics-histogram-muted-slash/);
+  assert.match(histogramEl.innerHTML, /swatch 1 · L .* · #4a3328 · LCH .* · muted/);
+});
+
+test("X-Ray swatch markers delegate clicks to the palette swatch action", () => {
+  const xray = element();
+  const records = [
+    {lab: [25, 12, 4], hex: "#4a3328", displayIndex: 0},
+    {lab: [72, -18, -14], hex: "#62aeb8", displayIndex: 1}
+  ];
+  const stats = {records, entries: []};
+  const calls = [];
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getConfig: () => ({}),
+    getState: () => ({diagnostics: {stats}}),
+    onPaletteSwatchClick: (record, index, event) => {
+      calls.push({record, index, shiftKey: !!event.shiftKey});
+    }
+  });
+
+  panel.renderDiagnosticsXray(stats);
+
+  assert.match(xray.innerHTML, /data-palette-graph-swatch-index="1"/);
+  const target = {
+    dataset: {paletteGraphSwatchIndex: "1"},
+    closest(selector) {
+      return selector === "[data-palette-graph-swatch-index]" ? this : null;
+    }
+  };
+  let prevented = false;
+  let stopped = false;
+  xray.dispatch("click", {
+    target,
+    shiftKey: true,
+    preventDefault() { prevented = true; },
+    stopPropagation() { stopped = true; }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].record, records[1]);
+  assert.equal(calls[0].index, 1);
+  assert.equal(calls[0].shiftKey, true);
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+});
+
+
+test("X-Ray marks selected swatches and alt-drags editable graph swatches", () => {
+  const xray = element();
+  const records = [
+    {lab: [50, 12, 0], hex: "#8b756b", displayIndex: 0, source: "manual", swatchId: "manual-a"},
+    {lab: [72, -18, -14], hex: "#62aeb8", displayIndex: 1, source: "manual", swatchId: "manual-b"}
+  ];
+  const stats = {records, entries: []};
+  const calls = [];
+  const state = {manualEditor: {swatchId: "manual-b"}, diagnostics: {stats}};
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getConfig: () => ({paletteMode: "manual"}),
+    getState: () => state,
+    onGraphSwatchReposition: (record, lab, meta) => {
+      calls.push({record, index: meta.index, lab, phase: meta.phase, mode: meta.mode});
+      return true;
+    }
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  assert.match(xray.innerHTML, /class="xray-swatch-marker is-selected"/);
+  assert.match(xray.innerHTML, /selected/);
+
+  const svg = {
+    dataset: {xrayPlotMode: "scatter", xrayViewBox: "0 0 360 220"},
+    getAttribute(name) { return name === "viewBox" ? "0 0 360 220" : null; },
+    getBoundingClientRect() { return {left: 100, top: 50, width: 720, height: 440}; },
+    createSVGPoint() {
+      return {x: 0, y: 0, matrixTransform() { return {x: this.x, y: this.y}; }};
+    },
+    getScreenCTM() { return {inverse() { return {}; }}; }
+  };
+  let captured = false;
+  let released = false;
+  const target = {
+    dataset: {paletteGraphSwatchIndex: "0"},
+    closest(selector) {
+      if (selector === "[data-palette-graph-swatch-index]") return this;
+      if (selector === "svg.xray-plot" || selector === ".xray-plot") return svg;
+      return null;
+    },
+    setPointerCapture() { captured = true; },
+    releasePointerCapture() { released = true; }
+  };
+  let prevented = false;
+  let stopped = false;
+  const baseEvent = {
+    target,
+    altKey: true,
+    pointerId: 9,
+    // ViewBox point 24,110 mapped through the rendered rect. If drag mapping
+    // accidentally uses page/client coordinates, this would immediately clamp
+    // the swatch toward an axis extreme instead of staying near mid-lightness.
+    clientX: 148,
+    clientY: 270,
+    preventDefault() { prevented = true; },
+    stopPropagation() { stopped = true; }
+  };
+  const movedEvent = {...baseEvent, clientX: 474, clientY: 270}; // ViewBox point 187,110.
+
+  xray.dispatch("pointerdown", baseEvent);
+  xray.dispatch("pointermove", movedEvent);
+  xray.dispatch("pointerup", movedEvent);
+
+  assert.equal(captured, true);
+  assert.equal(released, true);
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+  assert.deepEqual(calls.map(call => call.phase), ["start", "move", "end"]);
+  assert.equal(calls[0].record, records[0]);
+  assert.equal(calls[0].index, 0);
+  assert.equal(calls[0].mode, "scatter");
+  assert.equal(Array.isArray(calls[0].lab), true);
+  assert.notEqual(typeof calls[0].lab, "number");
+  assert.ok(calls[1].lab[0] > 45 && calls[1].lab[0] < 55);
+  assert.ok(calls.at(-1).lab[0] > 45 && calls.at(-1).lab[0] < 55);
+});
+
+test("X-Ray alt-shift drag drops a match anchor before moving", () => {
+  const xray = element();
+  const records = [
+    {lab: [50, 12, 0], hex: "#8b756b", displayIndex: 0, source: "manual", swatchId: "manual-a"}
+  ];
+  const stats = {records, entries: []};
+  const calls = [];
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getState: () => ({diagnostics: {stats}}),
+    onGraphSwatchReposition: (record, lab, meta) => {
+      calls.push({record, lab, phase: meta.phase, anchorHex: meta.anchorHex, matchAnchorDropped: meta.matchAnchorDropped});
+      return true;
+    }
+  });
+
+  panel.renderDiagnosticsXray(stats);
+
+  const svg = {
+    dataset: {xrayPlotMode: "scatter", xrayViewBox: "0 0 360 220"},
+    getAttribute(name) { return name === "viewBox" ? "0 0 360 220" : null; },
+    getBoundingClientRect() { return {left: 0, top: 0, width: 360, height: 220}; }
+  };
+  const target = {
+    dataset: {paletteGraphSwatchIndex: "0"},
+    closest(selector) {
+      if (selector === "[data-palette-graph-swatch-index]") return this;
+      if (selector === "svg.xray-plot" || selector === ".xray-plot") return svg;
+      return null;
+    },
+    setPointerCapture() {},
+    releasePointerCapture() {}
+  };
+  const baseEvent = {target, altKey: true, shiftKey: true, pointerId: 7, clientX: 24, clientY: 110, preventDefault() {}, stopPropagation() {}};
+  const movedEvent = {...baseEvent, clientX: 90, clientY: 110};
+
+  xray.dispatch("pointerdown", baseEvent);
+  xray.dispatch("pointermove", movedEvent);
+  xray.dispatch("pointerup", movedEvent);
+
+  assert.deepEqual(calls.map(call => call.phase), ["start", "anchor", "move", "end"]);
+  assert.equal(calls[1].anchorHex, "#8b756b");
+  assert.equal(Array.isArray(calls[1].lab), true);
+  assert.equal(calls.at(-1).matchAnchorDropped, true);
+});
+
+test("X-Ray alt-shift double-click promotes a graph swatch match anchor", () => {
+  const xray = element();
+  const records = [{lab: [50, 12, 0], hex: "#8b756b", displayIndex: 0, source: "manual", swatchId: "manual-a"}];
+  const stats = {records, entries: []};
+  const clicks = [];
+  const promotions = [];
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getState: () => ({diagnostics: {stats}}),
+    onPaletteSwatchClick: (record, index, event) => clicks.push({record, index, shiftKey: event.shiftKey}),
+    onGraphSwatchPromoteAnchor: (record, meta) => {
+      promotions.push({record, index: meta.index});
+      return true;
+    }
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  const target = {
+    dataset: {paletteGraphSwatchIndex: "0"},
+    closest(selector) { return selector === "[data-palette-graph-swatch-index]" ? this : null; }
+  };
+  let clickPrevented = false;
+  xray.dispatch("click", {target, altKey: true, shiftKey: true, preventDefault() { clickPrevented = true; }, stopPropagation() {}});
+  xray.dispatch("dblclick", {target, altKey: true, shiftKey: true, preventDefault() {}, stopPropagation() {}});
+
+  assert.equal(clickPrevented, true);
+  assert.deepEqual(clicks, []);
+  assert.equal(promotions.length, 1);
+  assert.equal(promotions[0].record, records[0]);
+  assert.equal(promotions[0].index, 0);
+});
+
 test("X-Ray cylinder rotates with drag and keyboard controls", () => {
   const xray = element();
   const records = [
@@ -474,6 +730,31 @@ test("X-Ray wheel positions and labels visible swatch chips, not stale matcher L
   assert.match(xray.innerHTML, /fill="#2f6fff"/);
   assert.match(xray.innerHTML, /#2f6fff · LCH /);
   assert.doesNotMatch(xray.innerHTML, /#2f6fff · LCH 55\.0 26\.0 0°/);
+});
+
+test("X-Ray wheel displays match anchor aliases", () => {
+  const xray = element();
+  const swatchLab = oklchToLab([58, 4, 0]);
+  const anchorLab = oklchToLab([62, 42, Math.PI * 0.72]);
+  const record = {lab: swatchLab, hex: labToHex(swatchLab), displayIndex: 0, swatchId: "anchor-test"};
+  const anchorHex = labToHex(anchorLab);
+  const stats = {
+    records: [record],
+    entries: [{alias: true, sourceRecord: record, featureLab: anchorLab, renderLab: swatchLab}]
+  };
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getConfig: () => ({}),
+    getState: () => ({diagnostics: {stats}})
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-mode]" ? {dataset: {xrayMode: "wheel"}} : null}});
+
+  assert.match(xray.innerHTML, /class="xray-match-anchor"/);
+  assert.match(xray.innerHTML, /match anchor for swatch 1/);
+  assert.match(xray.innerHTML, new RegExp(`fill="${anchorHex}"`));
+  assert.match(xray.innerHTML, /max C 42/);
 });
 
 test("X-Ray mode switches keep the freshest X-Ray-only stats instead of old full diagnostics", () => {
