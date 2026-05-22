@@ -66,6 +66,7 @@ export const DEFAULT_CONFIG = {
   lumaWeight: 1,
   chromaWeight: 1,
   hueWeight: 1,
+  monotoneBlendDither: false,
   maxDistanceEnabled: false,
   maxDistance: 30,
   selectWeights: [0.1, 0, 0],
@@ -313,6 +314,7 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.lumaWeight = clamp(Number(base.lumaWeight) || 0, 0, 3);
   base.chromaWeight = clamp(Number(base.chromaWeight) || 0, 0, 3);
   base.hueWeight = clamp(Number(base.hueWeight) || 0, 0, 3);
+  base.monotoneBlendDither = !!base.monotoneBlendDither;
   base.maxDistanceEnabled = !!base.maxDistanceEnabled;
   {
     const maxDistance = Number(base.maxDistance);

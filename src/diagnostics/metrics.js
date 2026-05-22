@@ -167,6 +167,7 @@ export function diagnosticsSignature({imageData, records = [], entries = [], con
     config.paletteMode,
     config.assignMode,
     config.outputMode,
+    config.monotoneBlendDither ? 1 : 0,
     config.blendK,
     config.softness,
     config.ditherLumaAmount,
@@ -199,6 +200,76 @@ export function ditherSecondShare(best, second, labL, config = {}) {
   return chooseSecond >= DIAGNOSTIC.ditherMinShare ? chooseSecond : 0;
 }
 
+const MONOTONE_GUARD_EPSILON = 1e-4;
+
+function renderLabForMatch(match) {
+  if (Array.isArray(match?.renderLab)) return match.renderLab;
+  if (Array.isArray(match?.featureLab)) return match.featureLab;
+  if (Array.isArray(match?.record?.lab)) return match.record.lab;
+  return [0, 0, 0];
+}
+
+function assignmentDistanceBetweenLabs(sourceLab, candidateLab, config = {}) {
+  const source = labDistanceComponents(sourceLab);
+  const candidate = labDistanceComponents(candidateLab);
+  return cpuDistanceBreakdown(
+    source.lightness,
+    source.chroma,
+    source.scaledHue,
+    candidate.lightness,
+    candidate.chroma,
+    candidate.scaledHue,
+    config
+  ).total;
+}
+
+function guardedOutputDistance(sourceLab, candidateLab, config = {}) {
+  return assignmentDistanceBetweenLabs(sourceLab, applyOutputModeCpu(sourceLab, candidateLab, config), config);
+}
+
+function monotoneOutputGuardRejects(sourceLab, candidateOutputLab, nearestOutputLab, config = {}) {
+  return assignmentDistanceBetweenLabs(sourceLab, candidateOutputLab, config) > assignmentDistanceBetweenLabs(sourceLab, nearestOutputLab, config) + MONOTONE_GUARD_EPSILON;
+}
+
+function monotoneGuardRejects(sourceLab, candidateLab, nearestLab, config = {}) {
+  return guardedOutputDistance(sourceLab, candidateLab, config) > guardedOutputDistance(sourceLab, nearestLab, config) + MONOTONE_GUARD_EPSILON;
+}
+
+function mixLabs(a, b, amount) {
+  const t = clamp01(amount);
+  return [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+    a[2] + (b[2] - a[2]) * t
+  ];
+}
+
+function monotoneGuardEnabled(config = {}) {
+  return !!config.monotoneBlendDither && (config.assignMode === "blend" || config.assignMode === "dither");
+}
+
+function nearestOnlyWeights(length) {
+  const weights = Array.from({length}, () => 0);
+  if (length > 0) weights[0] = 1;
+  return weights;
+}
+
+function weightedMappedLab(matches, weights) {
+  const mappedLab = [0, 0, 0];
+  let totalWeight = 0;
+  for (let i = 0; i < matches.length; i++) {
+    const weight = weights[i];
+    if (!(weight > 0)) continue;
+    const lab = renderLabForMatch(matches[i]);
+    totalWeight += weight;
+    mappedLab[0] += lab[0] * weight;
+    mappedLab[1] += lab[1] * weight;
+    mappedLab[2] += lab[2] * weight;
+  }
+  if (totalWeight <= 0) return null;
+  return mappedLab.map(channel => channel / totalWeight);
+}
+
 // Single source of truth for how the current assign mode distributes a
 // pixel across its top palette matches. Returns one weight per entry in
 // `matches`, summing to ~1, in the same order as `matches`.
@@ -212,6 +283,7 @@ export function ditherSecondShare(best, second, labL, config = {}) {
 // consistent with each other and with the actual shader behavior.
 export function assignmentWeights(matches, lab, config = {}) {
   const safeMatches = Array.isArray(matches) ? matches : [];
+  const sourceLab = Array.isArray(lab) ? lab : [0, 0, 0];
   const weights = safeMatches.map(() => 0);
   if (!safeMatches.length) return weights;
   if (maxDistanceRejectsMatch(safeMatches[0], config)) return weights;
@@ -226,11 +298,30 @@ export function assignmentWeights(matches, lab, config = {}) {
       total += raw[i];
     }
     for (let i = 0; i < k; i++) weights[i] = raw[i] / Math.max(total, 1e-5);
+
+    if (monotoneGuardEnabled(config)) {
+      const mappedLab = weightedMappedLab(safeMatches, weights);
+      const nearestLab = renderLabForMatch(safeMatches[0]);
+      if (mappedLab && monotoneGuardRejects(sourceLab, mappedLab, nearestLab, config)) {
+        return nearestOnlyWeights(safeMatches.length);
+      }
+    }
+
     return weights;
   }
 
   if (config.assignMode === "dither") {
-    const share = ditherSecondShare(safeMatches[0], safeMatches[1] || null, lab[0], config);
+    let share = ditherSecondShare(safeMatches[0], safeMatches[1] || null, sourceLab[0], config);
+    if (share > 0 && monotoneGuardEnabled(config)) {
+      const nearestLab = renderLabForMatch(safeMatches[0]);
+      const secondLab = renderLabForMatch(safeMatches[1]);
+      const nearestOutputLab = applyOutputModeCpu(sourceLab, nearestLab, config);
+      const secondOutputLab = applyOutputModeCpu(sourceLab, secondLab, config);
+      const averageOutputLab = mixLabs(nearestOutputLab, secondOutputLab, share);
+      if (monotoneOutputGuardRejects(sourceLab, averageOutputLab, nearestOutputLab, config)) {
+        share = 0;
+      }
+    }
     weights[0] = 1 - share;
     if (safeMatches.length > 1) weights[1] = share;
     return weights;

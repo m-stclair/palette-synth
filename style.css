@@ -870,6 +870,7 @@ body[data-palette-mode="generated"][data-generated-tint-shade-families="false"] 
 body[data-palette-mode="generatedReference"][data-generated-tint-shade-families="false"] .family-palette-only,
 body[data-assign-mode="nearest"] .blend-only,
 body[data-assign-mode="nearest"] .dither-only,
+body[data-assign-mode="nearest"] .non-nearest-only,
 body[data-assign-mode="blend"] .dither-only,
 body[data-assign-mode="dither"] .blend-only,
 body[data-output-mode]:not([data-output-mode="shadowHighlight"]) .shadow-only,

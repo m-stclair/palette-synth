@@ -76,6 +76,7 @@ export const SIMPLE_CONTROL_KEYS = [
   "lumaWeight",
   "chromaWeight",
   "hueWeight",
+  "monotoneBlendDither",
   "maxDistanceEnabled",
   "maxDistance",
   "hueSpread",

@@ -9,7 +9,8 @@ export function shaderDefineLinesForConfig(config, {
     `#define ASSIGNMODE ${ASSIGN_MODE[config?.assignMode] ?? 1}`,
     `#define OUTPUT_MODE ${OUTPUT_MODE[config?.outputMode] ?? 0}`,
     `#define CYCLE_MODE ${manualCycleModeEnabled() ? 0 : (Number(config?.CYCLE_MODE) || 0)}`,
-    `#define DITHER_PATTERN ${DITHER_PATTERN[config?.ditherPattern] ?? 1}`
+    `#define DITHER_PATTERN ${DITHER_PATTERN[config?.ditherPattern] ?? 1}`,
+    `#define FIDELITY_GUARD ${config?.monotoneBlendDither && config?.assignMode !== "nearest" ? 1 : 0}`
   ];
 }
 

@@ -16,7 +16,8 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define ASSIGNMODE 0",
     "#define OUTPUT_MODE 3",
     "#define CYCLE_MODE 3",
-    "#define DITHER_PATTERN 2"
+    "#define DITHER_PATTERN 2",
+    "#define FIDELITY_GUARD 0"
   ]);
 
   assert.deepEqual(shaderDefineLinesForConfig(config, {
@@ -26,8 +27,27 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define ASSIGNMODE 0",
     "#define OUTPUT_MODE 3",
     "#define CYCLE_MODE 0",
-    "#define DITHER_PATTERN 2"
+    "#define DITHER_PATTERN 2",
+    "#define FIDELITY_GUARD 0"
   ]);
+});
+
+test("shaderDefineLinesForConfig maps monotone blend/dither to a compile-time guard", () => {
+  assert.ok(shaderDefineLinesForConfig({
+    assignMode: "blend",
+    outputMode: "fullReplace",
+    CYCLE_MODE: 0,
+    ditherPattern: "ordered4",
+    monotoneBlendDither: true
+  }).includes("#define FIDELITY_GUARD 1"));
+
+  assert.ok(shaderDefineLinesForConfig({
+    assignMode: "nearest",
+    outputMode: "fullReplace",
+    CYCLE_MODE: 0,
+    ditherPattern: "ordered4",
+    monotoneBlendDither: true
+  }).includes("#define FIDELITY_GUARD 0"));
 });
 
 test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
@@ -40,7 +60,8 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define ASSIGNMODE 2",
     "#define OUTPUT_MODE 0",
     "#define CYCLE_MODE 0",
-    "#define DITHER_PATTERN 6"
+    "#define DITHER_PATTERN 6",
+    "#define FIDELITY_GUARD 0"
   ]);
 
   assert.deepEqual(shaderDefineLinesForConfig({
@@ -52,7 +73,8 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define ASSIGNMODE 2",
     "#define OUTPUT_MODE 0",
     "#define CYCLE_MODE 0",
-    "#define DITHER_PATTERN 9"
+    "#define DITHER_PATTERN 9",
+    "#define FIDELITY_GUARD 0"
   ]);
 });
 
@@ -87,7 +109,8 @@ test("shader program controller builds cached programs with injected defines", (
       "#define ASSIGNMODE 1",
       "#define OUTPUT_MODE 0",
       "#define CYCLE_MODE 2",
-      "#define DITHER_PATTERN 1"
+      "#define DITHER_PATTERN 1",
+      "#define FIDELITY_GUARD 0"
     ],
     linkErrorMessage: "unknown program link error"
   });

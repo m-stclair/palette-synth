@@ -145,6 +145,10 @@ vec3 blendWithColorSpace(vec3 baseRGB, vec3 fxRGB, float blendAmount) {
 #define DITHER_PATTERN DITHER_ORDERED_4
 #endif
 
+#ifndef FIDELITY_GUARD
+#define FIDELITY_GUARD 0
+#endif
+
 bool is_finite(float x) {
     return abs(x) < 1e20;
 }
@@ -297,6 +301,63 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
     return paletteSourceIndices[entryIndex] == selectedSwatch;
 }
 
+vec2 safeHueUnit(vec2 ab, vec2 fallback) {
+    float c = length(ab);
+    return c > 1e-6 ? ab / c : fallback;
+}
+
+vec3 applyOutputMode(vec3 sourceLab, vec3 paletteLab) {
+#if OUTPUT_MODE == OUTPUT_PRESERVE_LUMA
+    return vec3(sourceLab.x, paletteLab.yz);
+#elif OUTPUT_MODE == OUTPUT_PRESERVE_CHROMA
+    float sourceChroma = length(sourceLab.yz);
+    vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
+    vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
+    return vec3(paletteLab.x, paletteHue * sourceChroma);
+#elif OUTPUT_MODE == OUTPUT_HUE_WASH
+    float sourceChroma = length(sourceLab.yz);
+    vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
+    vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
+    return vec3(sourceLab.x, paletteHue * sourceChroma);
+#elif OUTPUT_MODE == OUTPUT_SHADOW_HIGHLIGHT
+    float lo = min(u_shadowCutoff, u_highlightCutoff);
+    float hi = max(u_shadowCutoff, u_highlightCutoff);
+    float inBand = max(step(sourceLab.x, lo), step(hi, sourceLab.x));
+    return mix(sourceLab, paletteLab, inBand);
+#else
+    return paletteLab;
+#endif
+}
+
+float assignmentDistanceBetweenLabs(vec3 sourceLab, vec3 candidateLab) {
+    float sourceC = length(sourceLab.yz);
+    vec2 sourceHue = (sourceC > 1e-6) ? sourceLab.yz / sourceC : vec2(1.0, 0.0);
+    float candidateC = length(candidateLab.yz);
+    vec2 candidateHue = (candidateC > 1e-6) ? candidateLab.yz / candidateC : vec2(1.0, 0.0);
+    return deltaE_bias_fast(
+        sourceLab.x,
+        sourceC,
+        sourceHue,
+        vec4(candidateLab.x, candidateC, candidateHue)
+    );
+}
+
+#if FIDELITY_GUARD
+const float FIDELITY_GUARD_EPSILON = 1e-4;
+
+float guardedOutputDistance(vec3 sourceLab, vec3 candidateLab) {
+    return assignmentDistanceBetweenLabs(sourceLab, applyOutputMode(sourceLab, candidateLab));
+}
+
+bool monotoneOutputGuardRejects(vec3 sourceLab, vec3 candidateOutputLab, vec3 nearestOutputLab) {
+    return assignmentDistanceBetweenLabs(sourceLab, candidateOutputLab) > assignmentDistanceBetweenLabs(sourceLab, nearestOutputLab) + FIDELITY_GUARD_EPSILON;
+}
+
+bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
+    return guardedOutputDistance(sourceLab, candidateLab) > guardedOutputDistance(sourceLab, nearestLab) + FIDELITY_GUARD_EPSILON;
+}
+#endif
+
 #if ASSIGNMODE == ASSIGN_BLEND
 
     void insertTop5(
@@ -422,7 +483,14 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
             totalWeight += w;
         }
 
-        return result / max(totalWeight, 1e-5);
+        vec3 mapped = result / max(totalWeight, 1e-5);
+#if FIDELITY_GUARD
+        vec3 nearest = paletteOutputColor(i0, cycleOffset, cycleMuted);
+        if (monotoneGuardRejects(labColor, mapped, nearest)) {
+            return nearest;
+        }
+#endif
+        return mapped;
     }
 
     float selectedBlendWeight(vec3 labColor, int selectedSwatch) {
@@ -470,37 +538,61 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
         int k = min(min(max(u_blendK, 1), u_paletteSize), 5);
         float totalWeight = 0.0;
         float selectedWeight = 0.0;
+#if FIDELITY_GUARD
+        vec3 mapped = vec3(0.0);
+#endif
 
         if (k >= 1) {
             float w = 1.0 / pow(d0 + 1e-5, u_softness);
             totalWeight += w;
+#if FIDELITY_GUARD
+            mapped += w * paletteColors[i0].rgb;
+#endif
             if (paletteEntryMatchesDiagnosticSwatch(i0, selectedSwatch)) selectedWeight += w;
         }
 
         if (k >= 2) {
             float w = 1.0 / pow(d1 + 1e-5, u_softness);
             totalWeight += w;
+#if FIDELITY_GUARD
+            mapped += w * paletteColors[i1].rgb;
+#endif
             if (paletteEntryMatchesDiagnosticSwatch(i1, selectedSwatch)) selectedWeight += w;
         }
 
         if (k >= 3) {
             float w = 1.0 / pow(d2 + 1e-5, u_softness);
             totalWeight += w;
+#if FIDELITY_GUARD
+            mapped += w * paletteColors[i2].rgb;
+#endif
             if (paletteEntryMatchesDiagnosticSwatch(i2, selectedSwatch)) selectedWeight += w;
         }
 
         if (k >= 4) {
             float w = 1.0 / pow(d3 + 1e-5, u_softness);
             totalWeight += w;
+#if FIDELITY_GUARD
+            mapped += w * paletteColors[i3].rgb;
+#endif
             if (paletteEntryMatchesDiagnosticSwatch(i3, selectedSwatch)) selectedWeight += w;
         }
 
         if (k >= 5) {
             float w = 1.0 / pow(d4 + 1e-5, u_softness);
             totalWeight += w;
+#if FIDELITY_GUARD
+            mapped += w * paletteColors[i4].rgb;
+#endif
             if (paletteEntryMatchesDiagnosticSwatch(i4, selectedSwatch)) selectedWeight += w;
         }
 
+#if FIDELITY_GUARD
+        mapped /= max(totalWeight, 1e-5);
+        if (monotoneGuardRejects(labColor, mapped, paletteColors[i0].rgb)) {
+            return paletteEntryMatchesDiagnosticSwatch(i0, selectedSwatch) ? 1.0 : 0.0;
+        }
+#endif
         return selectedWeight / max(totalWeight, 1e-5);
     }
 #endif
@@ -807,6 +899,19 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
         float chooseSecond = secondWeight / max(bestWeight + secondWeight, 1e-5);
         chooseSecond = applyLumaDitherFalloff(chooseSecond, lab.x);
 
+#if FIDELITY_GUARD
+        if (chooseSecond >= 0.0625) {
+            vec3 nearest = paletteOutputColor(bestIndex, cycleOffset, cycleMuted);
+            vec3 second = paletteOutputColor(secondIndex, cycleOffset, cycleMuted);
+            vec3 nearestOutput = applyOutputMode(lab, nearest);
+            vec3 secondOutput = applyOutputMode(lab, second);
+            vec3 averageOutput = mix(nearestOutput, secondOutput, chooseSecond);
+            if (monotoneOutputGuardRejects(lab, averageOutput, nearestOutput)) {
+                chooseSecond = 0.0;
+            }
+        }
+#endif
+
         float threshold = ditherThreshold(fragCoord, u_ditherScale);
 
         int chosenIndex = bestIndex;
@@ -866,6 +971,17 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
             float chooseSecond = secondWeight / max(bestWeight + secondWeight, 1e-5);
             chooseSecond = applyLumaDitherFalloff(chooseSecond, lab.x);
 
+#if FIDELITY_GUARD
+            if (chooseSecond >= 0.0625) {
+                vec3 nearestOutput = applyOutputMode(lab, paletteColors[bestIndex].rgb);
+                vec3 secondOutput = applyOutputMode(lab, paletteColors[secondIndex].rgb);
+                vec3 averageOutput = mix(nearestOutput, secondOutput, chooseSecond);
+                if (monotoneOutputGuardRejects(lab, averageOutput, nearestOutput)) {
+                    chooseSecond = 0.0;
+                }
+            }
+#endif
+
             float threshold = ditherThreshold(fragCoord, u_ditherScale);
             if (chooseSecond >= 0.0625 && threshold < chooseSecond) {
                 chosenIndex = secondIndex;
@@ -875,11 +991,6 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
         return paletteEntryMatchesDiagnosticSwatch(chosenIndex, selectedSwatch) ? 1.0 : 0.0;
     }
 #endif
-
-vec2 safeHueUnit(vec2 ab, vec2 fallback) {
-    float c = length(ab);
-    return c > 1e-6 ? ab / c : fallback;
-}
 
 struct SourceSample {
     vec2 uv;
@@ -915,29 +1026,6 @@ SourceSample sourceSampleForUv(vec2 uv) {
     vec2 blockOrigin = blockCoord * blockSize;
     vec2 centerPixel = min(blockOrigin + floor(blockSize * 0.5), sourceSize - vec2(1.0));
     return SourceSample((centerPixel + vec2(0.5)) / sourceSize, blockCoord);
-}
-
-vec3 applyOutputMode(vec3 sourceLab, vec3 paletteLab) {
-#if OUTPUT_MODE == OUTPUT_PRESERVE_LUMA
-    return vec3(sourceLab.x, paletteLab.yz);
-#elif OUTPUT_MODE == OUTPUT_PRESERVE_CHROMA
-    float sourceChroma = length(sourceLab.yz);
-    vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
-    vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
-    return vec3(paletteLab.x, paletteHue * sourceChroma);
-#elif OUTPUT_MODE == OUTPUT_HUE_WASH
-    float sourceChroma = length(sourceLab.yz);
-    vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
-    vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
-    return vec3(sourceLab.x, paletteHue * sourceChroma);
-#elif OUTPUT_MODE == OUTPUT_SHADOW_HIGHLIGHT
-    float lo = min(u_shadowCutoff, u_highlightCutoff);
-    float hi = max(u_shadowCutoff, u_highlightCutoff);
-    float inBand = max(step(sourceLab.x, lo), step(hi, sourceLab.x));
-    return mix(sourceLab, paletteLab, inBand);
-#else
-    return paletteLab;
-#endif
 }
 
 void main() {

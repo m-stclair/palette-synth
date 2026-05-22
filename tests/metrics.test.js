@@ -25,6 +25,7 @@ const baseConfig = {
   softness: 1,
   ditherLumaAmount: 0,
   blendAmount: 1,
+  monotoneBlendDither: false,
   maxDistanceEnabled: false,
   maxDistance: 30,
   minDistance: 18,
@@ -105,6 +106,98 @@ test("assignmentWeights follows nearest, blend, and dither contribution rules", 
   assertApproximatelyEqual(dither[1], 0.5, 1e-4);
 });
 
+
+test("monotone blend/dither collapses same-side assignments that worsen fidelity", () => {
+  const matches = [
+    {distance: 10, displayIndex: 0, renderLab: [90, 0, 0]},
+    {distance: 20, displayIndex: 1, renderLab: [80, 0, 0]}
+  ];
+
+  const unguardedBlend = assignmentWeights(matches, [100, 0, 0], {...baseConfig, assignMode: "blend", blendK: 2});
+  assert.ok(unguardedBlend[0] > 0);
+  assert.ok(unguardedBlend[1] > 0);
+
+  assert.deepEqual(assignmentWeights(matches, [100, 0, 0], {
+    ...baseConfig,
+    assignMode: "blend",
+    blendK: 2,
+    monotoneBlendDither: true
+  }), [1, 0]);
+
+  assert.deepEqual(assignmentWeights(matches, [100, 0, 0], {
+    ...baseConfig,
+    assignMode: "dither",
+    blendK: 2,
+    monotoneBlendDither: true
+  }), [1, 0]);
+});
+
+
+
+test("monotone dither checks the implied average instead of each chosen pixel", () => {
+  const matches = [
+    {distance: 1, displayIndex: 0, renderLab: [49, 0, 0]},
+    {distance: 10, displayIndex: 1, renderLab: [60, 0, 0]}
+  ];
+
+  const guardedDither = assignmentWeights(matches, [50, 0, 0], {
+    ...baseConfig,
+    assignMode: "dither",
+    blendK: 2,
+    monotoneBlendDither: true
+  });
+
+  assert.ok(guardedDither[1] > 0.08);
+  assert.ok(guardedDither[1] < 0.10);
+});
+
+test("monotone blend/dither keeps assignments that do not worsen fidelity", () => {
+  const blendMatches = [
+    {distance: 10, displayIndex: 0, renderLab: [40, 0, 0]},
+    {distance: 10, displayIndex: 1, renderLab: [60, 0, 0]}
+  ];
+
+  const guardedBlend = assignmentWeights(blendMatches, [50, 0, 0], {
+    ...baseConfig,
+    assignMode: "blend",
+    blendK: 2,
+    monotoneBlendDither: true
+  });
+  assertApproximatelyEqual(guardedBlend[0], 0.5, 1e-4);
+  assertApproximatelyEqual(guardedBlend[1], 0.5, 1e-4);
+
+  const ditherMatches = [
+    {distance: 1, displayIndex: 0, renderLab: [49, 0, 0]},
+    {distance: 1, displayIndex: 1, renderLab: [51, 0, 0]}
+  ];
+
+  const guardedDither = assignmentWeights(ditherMatches, [50, 0, 0], {
+    ...baseConfig,
+    assignMode: "dither",
+    blendK: 2,
+    monotoneBlendDither: true
+  });
+  assertApproximatelyEqual(guardedDither[0], 0.5, 1e-4);
+  assertApproximatelyEqual(guardedDither[1], 0.5, 1e-4);
+});
+
+test("monotone blend/dither compares after output mode", () => {
+  const matches = [
+    {distance: 10, displayIndex: 0, renderLab: [90, 0, 0]},
+    {distance: 20, displayIndex: 1, renderLab: [80, 0, 0]}
+  ];
+
+  const guardedBlend = assignmentWeights(matches, [100, 0, 0], {
+    ...baseConfig,
+    assignMode: "blend",
+    outputMode: "preserveLuma",
+    blendK: 2,
+    monotoneBlendDither: true
+  });
+
+  assert.ok(guardedBlend[0] > 0);
+  assert.ok(guardedBlend[1] > 0);
+});
 
 test("near-neutral source colors do not invent hue pressure", () => {
   const source = [95, 1e-8, 3.5e-6];
