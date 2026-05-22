@@ -41,7 +41,7 @@ test("auto source levels writes exposure and gamma without touching curve or cla
   assert.deepEqual(calls, [
     ["dirty", "levelsExposure"],
     "render",
-    ["status", "Auto levels: protected shadows, lifted p90 to 92%."]
+    ["status", "Auto levels: lifted p90 to 92%."]
   ]);
 });
 

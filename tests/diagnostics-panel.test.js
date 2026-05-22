@@ -429,6 +429,24 @@ test("X-Ray wheel positions and labels visible swatch chips, not stale matcher L
   assert.doesNotMatch(xray.innerHTML, /#2f6fff · LCH 55\.0 26\.0 0°/);
 });
 
+test("X-Ray mode switches keep the freshest X-Ray-only stats instead of old full diagnostics", () => {
+  const xray = element();
+  const oldRecord = {lab: [20, 0, 0], hex: "#111111", displayIndex: 0};
+  const freshRecord = {lab: [80, 0, 0], hex: "#eeeeee", displayIndex: 0};
+  const state = {diagnostics: {stats: {records: [oldRecord], entries: []}}};
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getConfig: () => ({}),
+    getState: () => state
+  });
+
+  panel.renderDiagnosticsXray({records: [freshRecord], entries: []});
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-mode]" ? {dataset: {xrayMode: "wheel"}} : null}});
+
+  assert.match(xray.innerHTML, /fill="#eeeeee"/);
+  assert.doesNotMatch(xray.innerHTML, /fill="#111111"/);
+});
+
 
 test("X-Ray proximity mode degrades gracefully when there are not enough swatches", () => {
   const xray = element();

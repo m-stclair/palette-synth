@@ -311,6 +311,43 @@ test("diagnostics controller skips queued same-frame work after an immediate ren
   assert.equal(rendered, 1);
 });
 
+test("diagnostics controller lets the post-render refresh win when a queued pass ran first in the same frame", () => {
+  const frames = [];
+  let computed = 0;
+  let rendered = 0;
+  let signature = "stale";
+  const diagnosticsPanel = makePanel();
+  const state = {
+    imageData: {width: 1, height: 1, data: new Uint8ClampedArray([0, 0, 0, 255])},
+    diagnostics: {stats: null, signature: "old"},
+    paletteRecords: [{lab: [0, 0, 0]}],
+    paletteDirty: false
+  };
+  const controller = createDiagnosticsController({
+    els: {diagnosticsSummary: elementIn(diagnosticsPanel)},
+    state,
+    config: {},
+    renderPaletteLabs: () => [[0, 0, 0]],
+    paletteUniformEntries: () => [{renderLab: [0, 0, 0]}],
+    diagnosticsSignature: () => signature,
+    computeDiagnostics: () => { computed++; return {signature}; },
+    renderDiagnosticsPanel: () => { rendered++; },
+    requestFrame: callback => {
+      frames.push(callback);
+      return frames.length;
+    }
+  });
+
+  controller.updateDiagnostics();
+  frames[0](300);
+  signature = "fresh";
+  controller.updateDiagnostics({immediate: true, frameTime: 300});
+
+  assert.equal(computed, 2);
+  assert.equal(rendered, 2);
+  assert.equal(state.diagnostics.signature, "fresh");
+});
+
 test("diagnostics controller inspects a client point and refreshes pixel UI", () => {
   let refreshed = 0;
   const state = {

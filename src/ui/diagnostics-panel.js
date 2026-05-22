@@ -583,7 +583,8 @@ export function createDiagnosticsPanel({
       const next = button.dataset.xrayMode;
       if (!XRAY_MODES.some(mode => mode.id === next) || next === xrayMode) return;
       xrayMode = next;
-      renderDiagnosticsXray(getState().diagnostics?.stats);
+      const diagnostic = getState().diagnostics || {};
+      renderDiagnosticsXray(diagnostic.xrayStats || diagnostic.stats);
     });
   }
 
@@ -1069,6 +1070,9 @@ export function createDiagnosticsPanel({
 
   function renderDiagnosticsXray(stats) {
     if (!els.diagnosticsXray) return;
+    const diagnostic = getState().diagnostics || {};
+    if (stats) diagnostic.xrayStats = stats;
+    else if (Object.prototype.hasOwnProperty.call(diagnostic, "xrayStats")) diagnostic.xrayStats = null;
     bindXrayModeEvents();
     const records = stats?.records || [];
     if (!records.length) {

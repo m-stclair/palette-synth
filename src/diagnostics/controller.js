@@ -334,16 +334,17 @@ export function createDiagnosticsController({
   const cancelScheduledFrame = typeof cancelFrame === "function" ? cancelFrame : null;
   let diagnosticsQueued = false;
   let diagnosticsFrameId = null;
-  let lastDiagnosticsFrameTime = null;
+  let lastImmediateDiagnosticsFrameTime = null;
 
   function frameTimeKnown(frameTime) {
     return frameTime !== undefined && frameTime !== null;
   }
 
-  function runDiagnosticsNow({frameTime} = {}) {
+  function runDiagnosticsNow(options = {}) {
+    const {frameTime} = options;
     if (frameTimeKnown(frameTime)) {
-      if (lastDiagnosticsFrameTime === frameTime) return;
-      lastDiagnosticsFrameTime = frameTime;
+      if (frameTime === lastImmediateDiagnosticsFrameTime && !options.immediate) return;
+      if (options.immediate) lastImmediateDiagnosticsFrameTime = frameTime;
     }
 
     const inspectorOpen = pixelInspectorPanelIsOpen();
@@ -372,6 +373,7 @@ export function createDiagnosticsController({
     if (state.paletteDirty || !state.paletteRecords.length) ensurePalette();
     if (!state.paletteRecords.length) {
       state.diagnostics.stats = null;
+      state.diagnostics.xrayStats = null;
       state.diagnostics.signature = "";
       resetHistogramDiagnostics(state.diagnostics);
       if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
@@ -383,10 +385,12 @@ export function createDiagnosticsController({
     const renderLabs = renderPaletteLabs(records);
     const entries = paletteUniformEntries(records, renderLabs);
     const xrayStats = {records, entries, collisions: state.diagnostics.stats?.collisions || null};
+    state.diagnostics.xrayStats = xrayStats;
     if (xrayOpen && !fullDiagnosticsOpen) renderDiagnosticsXray(xrayStats);
 
     if (!state.imageData) {
       state.diagnostics.stats = null;
+      state.diagnostics.xrayStats = xrayStats;
       state.diagnostics.signature = "";
       resetHistogramDiagnostics(state.diagnostics);
       if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
@@ -426,7 +430,8 @@ export function createDiagnosticsController({
       state.diagnostics.signature = stats?.signature || signature;
     }
     renderDiagnosticsPanel(state.diagnostics.stats);
-    if (xrayOpen) renderDiagnosticsXray(state.diagnostics.stats || xrayStats);
+    if (state.diagnostics.stats) state.diagnostics.xrayStats = state.diagnostics.stats;
+    if (xrayOpen) renderDiagnosticsXray(state.diagnostics.xrayStats || xrayStats);
   }
 
   function clearQueuedDiagnostics() {
@@ -440,7 +445,7 @@ export function createDiagnosticsController({
   function updateDiagnostics(options = {}) {
     if (!scheduleFrame || options.immediate) {
       clearQueuedDiagnostics();
-      runDiagnosticsNow({frameTime: options.frameTime});
+      runDiagnosticsNow({frameTime: options.frameTime, immediate: !!options.immediate});
       return;
     }
     if (diagnosticsQueued) return;
