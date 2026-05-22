@@ -127,6 +127,7 @@ export function syncGeneratedPaletteSizeControl(config, {root = document, setOut
   if (!el || !config) return false;
   const usesFamilies = config.generatedTintShadeFamilies !== false;
   el.step = usesFamilies ? "3" : "1";
+  el.min = usesFamilies ? "3" : "2";
 
   let sizeChanged = false;
   if (usesFamilies && snapToFamilies) {
