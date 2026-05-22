@@ -730,7 +730,7 @@ test("render domain exposes level invalidation through the render session", () =
   domain.markLevelsDirty();
 
   assert.equal(state.sourceLevelsDirty, true);
-  assert.equal(state.referenceLevelsDirty, true);
+  assert.equal(state.referenceLevelsDirty, false);
   assert.equal(state.textureDirty, true);
   assert.equal(state.paletteDirty, true);
   assert.equal(state.swatchesDirty, true);
@@ -861,8 +861,13 @@ function makeImageDomainCanvas(name) {
     getContext(type, options) {
       calls.push(["getContext", type, options]);
       return {
+        canvas: this,
         clearRect: (...args) => calls.push(["clearRect", ...args]),
-        drawImage: (...args) => calls.push(["drawImage", ...args])
+        drawImage: (...args) => calls.push(["drawImage", ...args]),
+        getImageData: (x, y, width, height) => {
+          calls.push(["getImageData", x, y, width, height]);
+          return {width, height, data: new Uint8ClampedArray(width * height * 4)};
+        }
       };
     }
   };
@@ -973,12 +978,14 @@ test("image domain routes reference loads through palette and panel invalidation
   assert.equal(state.referenceCanvas.height, 25);
   assert.equal(state.referenceImageName, "ref.jpg");
   assert.equal(state.referenceOriginalSourceVersion, 1);
-  assert.deepEqual(state.referenceImageData, {width: 50, height: 25});
+  assert.equal(state.referenceImageData.width, 50);
+  assert.equal(state.referenceImageData.height, 25);
+  assert.equal(state.referenceImageData.materialized, false);
+  assert.equal(state.referenceLevelsDirty, false);
   assert.equal(config.paletteMode, "generatedReference");
   assert.equal(paletteMode.value, "generatedReference");
   assert.equal(referenceStatus.textContent, "ref.jpg: 50×25");
   assert.deepEqual(calls, [
-    "levels",
     "markPaletteDirty",
     "updateConditionalPanels",
     ["status", "Reference ref.jpg: 50×25"],

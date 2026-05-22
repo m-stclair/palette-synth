@@ -79,6 +79,7 @@ export const UI_ELEMENT_IDS = [
   "cosineCustomD2",
   "referenceImageInput",
   "referenceImageStatus",
+  "autoSourceLevels",
   "selectPaletteRegion",
   "clearPaletteRegion",
   "showPaletteRegion",

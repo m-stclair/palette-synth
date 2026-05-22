@@ -47,15 +47,6 @@ export function createLevelSourceController({
       state.sourceLevelsDirty = false;
       state.textureDirty = true;
     }
-    if (state.referenceLevelsDirty && state.referenceOriginalCanvas.width && state.referenceCtx) {
-      state.referenceImageData = applyLevelsToCanvas(
-        state.referenceOriginalCanvas,
-        state.referenceCanvas,
-        state.referenceCtx,
-        state.referenceOriginalSourceVersion
-      );
-      state.referenceLevelsDirty = false;
-    }
   }
 
   return {

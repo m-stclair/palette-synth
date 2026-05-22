@@ -121,7 +121,6 @@ export function createRenderSession({
 
   function markLevelsDirty() {
     state.sourceLevelsDirty = true;
-    state.referenceLevelsDirty = true;
     markTextureDirty();
     markPaletteDirty();
   }

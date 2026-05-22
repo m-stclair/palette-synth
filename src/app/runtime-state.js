@@ -42,7 +42,7 @@ export function createRuntimeState({document: doc = globalThis.document, maxImag
     referenceCtx: null,
     referenceImageData: null,
     referenceImageName: "",
-    referenceLevelsDirty: true,
+    referenceLevelsDirty: false,
     levels: {
       canvas: doc.createElement("canvas"),
       gl: null,

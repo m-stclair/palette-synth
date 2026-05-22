@@ -45,7 +45,7 @@ test("level source controller forwards shader/settings dependencies to the rende
   });
 });
 
-test("level source controller refreshes only dirty available sources", () => {
+test("level source controller refreshes only dirty primary sources", () => {
   const state = {
     levels: {},
     originalCanvas: {width: 10, name: "sourceOriginal"},
@@ -72,13 +72,13 @@ test("level source controller refreshes only dirty available sources", () => {
 
   controller.ensureLevelAdjustedSources();
 
-  assert.deepEqual(calls, [["sourceOriginal", 7], ["referenceOriginal", 11]]);
+  assert.deepEqual(calls, [["sourceOriginal", 7]]);
   assert.deepEqual(state.imageData, {name: "sourceOriginalImageData"});
-  assert.deepEqual(state.referenceImageData, {name: "referenceOriginalImageData"});
+  assert.equal(state.referenceImageData, undefined);
   assert.equal(state.sourceLevelsDirty, false);
-  assert.equal(state.referenceLevelsDirty, false);
+  assert.equal(state.referenceLevelsDirty, true);
   assert.equal(state.textureDirty, true);
 
   controller.ensureLevelAdjustedSources();
-  assert.deepEqual(calls, [["sourceOriginal", 7], ["referenceOriginal", 11]]);
+  assert.deepEqual(calls, [["sourceOriginal", 7]]);
 });

@@ -4,6 +4,7 @@ import { createShortcutDispatcher } from "./shortcuts.js";
 import { cyclePaletteSwatchScale, syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
 import { DEFAULT_DEMO_IMAGE_ID, demoImages } from "../demo-image.js";
+import { calculateAutoSourceLevelsFromCanvas } from "../runtime/source-auto-levels.js";
 
 export function cosineCustomInputId(key, channel) {
   return `cosineCustom${key.toUpperCase()}${channel}`;
@@ -357,6 +358,45 @@ export function populateDemoImageSelect(select, demos = demoImages, documentRef 
   select.value = demos.some(demo => demo.id === DEFAULT_DEMO_IMAGE_ID) ? DEFAULT_DEMO_IMAGE_ID : demos[0]?.id || "";
 }
 
+
+function syncControlValue(root, config, setOutputText, key) {
+  const el = $(key, root);
+  if (!el) return;
+  el.value = config[key];
+  setOutputText?.(key, $(`${key}Value`, root), config[key]);
+}
+
+export function applyAutoSourceLevels({
+  state,
+  config,
+  root = document,
+  setOutputText,
+  handleControlDirty,
+  queueRender,
+  setStatus,
+  calculator = calculateAutoSourceLevelsFromCanvas
+} = {}) {
+  const result = calculator(state?.originalCanvas, state?.originalCtx);
+  if (!result) {
+    setStatus?.("Could not auto-level this source image.");
+    return false;
+  }
+
+  const exposureChanged = !Object.is(config.levelsExposure, result.levelsExposure);
+  const gammaChanged = !Object.is(config.levelsGamma, result.levelsGamma);
+  config.levelsExposure = Number(result.levelsExposure.toFixed(2));
+  config.levelsGamma = Number(result.levelsGamma.toFixed(2));
+  syncControlValue(root, config, setOutputText, "levelsExposure");
+  syncControlValue(root, config, setOutputText, "levelsGamma");
+
+  if (exposureChanged || gammaChanged) {
+    handleControlDirty?.("levelsExposure");
+    queueRender?.();
+  }
+  setStatus?.(`Auto levels: lifted p${Math.round(result.highPercentile * 100)} to ${Math.round(result.highTarget * 100)}%.`);
+  return true;
+}
+
 export function bindAppControls({
   els,
   config,
@@ -442,6 +482,14 @@ export function bindAppControls({
   }
   $("imageInput")?.addEventListener("change", event => loadFile(event.target.files?.[0]));
   $("referenceImageInput")?.addEventListener("change", event => loadReferenceFile(event.target.files?.[0]));
+  $("autoSourceLevels")?.addEventListener("click", () => withHistory("Auto source levels", () => applyAutoSourceLevels({
+    state,
+    config,
+    setOutputText,
+    handleControlDirty,
+    queueRender,
+    setStatus
+  })));
   $("downloadImage")?.addEventListener("click", downloadCanvas);
   $("downloadFullImage")?.addEventListener("click", downloadFullImage);
   $("exportPalette")?.addEventListener("click", exportPalette);

@@ -1,4 +1,5 @@
 import { DEFAULT_DEMO_IMAGE_ID, getDemoImage } from "../demo-image.js";
+import { createLazyCanvasImageData } from "./lazy-image-data.js";
 
 function sourceSize(source) {
   const width = source?.width || source?.naturalWidth || 0;
@@ -103,8 +104,13 @@ export function createImageController({
     state.referenceCanvas.width = width;
     state.referenceCanvas.height = height;
     state.referenceCtx = state.referenceCanvas.getContext("2d", {willReadFrequently: true});
-    state.referenceLevelsDirty = true;
-    ensureLevelAdjustedSources();
+    state.referenceCtx.clearRect(0, 0, width, height);
+    state.referenceCtx.drawImage(source, 0, 0, width, height);
+    state.referenceLevelsDirty = false;
+    state.referenceImageData = createLazyCanvasImageData(state.referenceCtx, width, height, {
+      canvas: state.referenceCanvas,
+      version: state.referenceOriginalSourceVersion
+    });
 
     state.referenceImageName = name;
     config.paletteMode = "generatedReference";

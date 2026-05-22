@@ -178,7 +178,7 @@ test("render session dirty flags invalidate only the right cached pieces", () =>
   state.postProcess.pipeline.dirty = false;
   session.markLevelsDirty();
   assert.equal(state.sourceLevelsDirty, true);
-  assert.equal(state.referenceLevelsDirty, true);
+  assert.equal(state.referenceLevelsDirty, false);
   assert.equal(state.textureDirty, true);
   assert.equal(state.paletteDirty, true);
   assert.equal(state.postProcess.offscreen.dirty, true);

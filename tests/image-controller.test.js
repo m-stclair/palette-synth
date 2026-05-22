@@ -13,8 +13,13 @@ function makeCanvas(name) {
     getContext(type, options) {
       calls.push(["getContext", type, options]);
       return {
+        canvas: this,
         clearRect: (...args) => calls.push(["clearRect", ...args]),
-        drawImage: (...args) => calls.push(["drawImage", ...args])
+        drawImage: (...args) => calls.push(["drawImage", ...args]),
+        getImageData: (x, y, width, height) => {
+          calls.push(["getImageData", x, y, width, height]);
+          return {width, height, data: new Uint8ClampedArray(width * height * 4)};
+        }
       };
     }
   };
@@ -53,7 +58,6 @@ function makeController(overrides = {}) {
     ensureLevelAdjustedSources: () => {
       calls.push("levels");
       if (state.sourceLevelsDirty) state.imageData = {width: state.sourceCanvas.width, height: state.sourceCanvas.height};
-      if (state.referenceLevelsDirty) state.referenceImageData = {width: state.referenceCanvas.width, height: state.referenceCanvas.height};
     },
     resetPaletteRegion: (...args) => calls.push(["resetPaletteRegion", ...args]),
     resetView: (...args) => calls.push(["resetView", ...args]),
@@ -107,12 +111,14 @@ test("image controller loads reference bitmaps, switches palette mode, and updat
   assert.equal(state.referenceCanvas.height, 25);
   assert.equal(state.referenceImageName, "ref.jpg");
   assert.equal(state.referenceOriginalSourceVersion, 1);
-  assert.deepEqual(state.referenceImageData, {width: 50, height: 25});
+  assert.equal(state.referenceImageData.width, 50);
+  assert.equal(state.referenceImageData.height, 25);
+  assert.equal(state.referenceImageData.materialized, false);
+  assert.equal(state.referenceLevelsDirty, false);
   assert.equal(config.paletteMode, "generatedReference");
   assert.equal(paletteMode.value, "generatedReference");
   assert.equal(referenceStatus.textContent, "ref.jpg: 50×25");
   assert.deepEqual(calls, [
-    "levels",
     "markPaletteDirty",
     "updateConditionalPanels",
     ["status", "Reference ref.jpg: 50×25"],
