@@ -1,4 +1,5 @@
 import { configureTexture } from "./textures.js";
+import { uniformLocation } from "./uniforms.js";
 
 export const BLOCK_SAMPLE_MODE = Object.freeze({
   center: 0,
@@ -75,10 +76,10 @@ export function renderBlockSamplePass(gl, program, {
     gl.viewport(0, 0, width, height);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-    gl.uniform1i(gl.getUniformLocation(program, "u_image"), 0);
-    gl.uniform2i(gl.getUniformLocation(program, "u_sourceSize"), sourceWidth, sourceHeight);
-    gl.uniform1i(gl.getUniformLocation(program, "u_blockSize"), safeBlockSize);
-    gl.uniform1i(gl.getUniformLocation(program, "u_sampleMode"), blockSampleModeCode(sampleMode));
+    gl.uniform1i(uniformLocation(gl, program, "u_image"), 0);
+    gl.uniform2i(uniformLocation(gl, program, "u_sourceSize"), sourceWidth, sourceHeight);
+    gl.uniform1i(uniformLocation(gl, program, "u_blockSize"), safeBlockSize);
+    gl.uniform1i(uniformLocation(gl, program, "u_sampleMode"), blockSampleModeCode(sampleMode));
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     return targetTexture;

@@ -1,4 +1,5 @@
 import { buildStaticProgram } from "./programs.js";
+import { uniformLocation } from "./uniforms.js";
 
 // Final viewport pass used for post-processing and before/after compare.
 // The composite program samples a source-resolution paletted texture, applies
@@ -28,18 +29,18 @@ export function renderViewComposite(gl, program, {
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, processedTexture);
-  gl.uniform1i(gl.getUniformLocation(program, "u_image"), 0);
+  gl.uniform1i(uniformLocation(gl, program, "u_image"), 0);
 
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, sourceTexture || processedTexture);
-  gl.uniform1i(gl.getUniformLocation(program, "u_source"), 1);
+  gl.uniform1i(uniformLocation(gl, program, "u_source"), 1);
 
-  gl.uniform2f(gl.getUniformLocation(program, "u_resolution"), resolution[0], resolution[1]);
-  gl.uniform2f(gl.getUniformLocation(program, "u_viewportOrigin"), viewportOrigin[0], viewportOrigin[1]);
-  gl.uniform2f(gl.getUniformLocation(program, "u_viewCenter"), viewCenter[0], viewCenter[1]);
-  gl.uniform2f(gl.getUniformLocation(program, "u_viewSpan"), viewSpan[0], viewSpan[1]);
-  gl.uniform1f(gl.getUniformLocation(program, "u_compareSplit"), Number.isFinite(compareSplit) ? compareSplit : -1);
-  gl.uniform1i(gl.getUniformLocation(program, "u_compareEnabled"), compareEnabled ? 1 : 0);
+  gl.uniform2f(uniformLocation(gl, program, "u_resolution"), resolution[0], resolution[1]);
+  gl.uniform2f(uniformLocation(gl, program, "u_viewportOrigin"), viewportOrigin[0], viewportOrigin[1]);
+  gl.uniform2f(uniformLocation(gl, program, "u_viewCenter"), viewCenter[0], viewCenter[1]);
+  gl.uniform2f(uniformLocation(gl, program, "u_viewSpan"), viewSpan[0], viewSpan[1]);
+  gl.uniform1f(uniformLocation(gl, program, "u_compareSplit"), Number.isFinite(compareSplit) ? compareSplit : -1);
+  gl.uniform1i(uniformLocation(gl, program, "u_compareEnabled"), compareEnabled ? 1 : 0);
 
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 

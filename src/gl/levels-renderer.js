@@ -2,6 +2,7 @@ import { createWebgl2Context, resizeDrawingBuffer } from "./context.js";
 import { buildStaticProgram } from "./programs.js";
 import { createLazyCanvasImageData } from "../runtime/lazy-image-data.js";
 import { configureTexture, createTexture, uploadCanvasTexture } from "./textures.js";
+import { uniformArrayLocation, uniformLocation } from "./uniforms.js";
 
 function clamp01(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
@@ -172,21 +173,21 @@ function bindTargetFramebuffer(gl, framebuffer, texture, label) {
 
 
 function setKernelUniform(gl, program, name, weights) {
-  const location = gl.getUniformLocation(program, name) ?? gl.getUniformLocation(program, `${name}[0]`);
+  const location = uniformArrayLocation(gl, program, name);
   if (location) gl.uniform1fv(location, weights);
 }
 
 function setLevelsUniforms(gl, program, width, height, settings, defaults) {
-  gl.uniform1i(gl.getUniformLocation(program, "u_image"), 0);
-  gl.uniform2f(gl.getUniformLocation(program, "u_resolution"), width, height);
-  gl.uniform1f(gl.getUniformLocation(program, "u_levelsExposure"), Number(settings.levelsExposure) || 0);
-  gl.uniform1f(gl.getUniformLocation(program, "u_levelsGamma"), Math.max(0.0001, Number(settings.levelsGamma) || 1));
-  gl.uniform1f(gl.getUniformLocation(program, "u_levelsShoulder"), Math.max(0.0001, Number(settings.levelsShoulder) || defaults.levelsShoulder || 6));
+  gl.uniform1i(uniformLocation(gl, program, "u_image"), 0);
+  gl.uniform2f(uniformLocation(gl, program, "u_resolution"), width, height);
+  gl.uniform1f(uniformLocation(gl, program, "u_levelsExposure"), Number(settings.levelsExposure) || 0);
+  gl.uniform1f(uniformLocation(gl, program, "u_levelsGamma"), Math.max(0.0001, Number(settings.levelsGamma) || 1));
+  gl.uniform1f(uniformLocation(gl, program, "u_levelsShoulder"), Math.max(0.0001, Number(settings.levelsShoulder) || defaults.levelsShoulder || 6));
 
   const center = Number(settings.levelsCenter);
   const fallbackCenter = Number.isFinite(Number(defaults.levelsCenter)) ? Number(defaults.levelsCenter) : -1;
-  gl.uniform1f(gl.getUniformLocation(program, "u_levelsCenter"), Number.isFinite(center) ? center : fallbackCenter);
-  gl.uniform1f(gl.getUniformLocation(program, "u_levelsCurveAmount"), clamp01(Number(settings.levelsCurveAmount) || 0));
+  gl.uniform1f(uniformLocation(gl, program, "u_levelsCenter"), Number.isFinite(center) ? center : fallbackCenter);
+  gl.uniform1f(uniformLocation(gl, program, "u_levelsCurveAmount"), clamp01(Number(settings.levelsCurveAmount) || 0));
 }
 
 export function applyLevelsToCanvas(levelsState, {
@@ -271,8 +272,8 @@ export function applyLevelsToCanvas(levelsState, {
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, baseTexture);
   gl.useProgram(lightnessBlurProgram);
-  gl.uniform1i(gl.getUniformLocation(lightnessBlurProgram, "u_image"), 0);
-  gl.uniform2f(gl.getUniformLocation(lightnessBlurProgram, "u_resolution"), width, height);
+  gl.uniform1i(uniformLocation(gl, lightnessBlurProgram, "u_image"), 0);
+  gl.uniform2f(uniformLocation(gl, lightnessBlurProgram, "u_resolution"), width, height);
   setKernelUniform(gl, lightnessBlurProgram, "u_kernelWeights", CLARITY_LIGHTNESS_KERNEL);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
@@ -292,12 +293,12 @@ export function applyLevelsToCanvas(levelsState, {
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, lightnessBlurTexture);
   gl.useProgram(sharpProgram);
-  gl.uniform1i(gl.getUniformLocation(sharpProgram, "u_image"), 0);
-  gl.uniform1i(gl.getUniformLocation(sharpProgram, "u_lightnessBlur"), 1);
-  gl.uniform2f(gl.getUniformLocation(sharpProgram, "u_resolution"), width, height);
-  gl.uniform1f(gl.getUniformLocation(sharpProgram, "u_threshold"), CLARITY_SHARP_THRESHOLD);
-  gl.uniform1f(gl.getUniformLocation(sharpProgram, "u_strength"), CLARITY_SHARP_STRENGTH);
-  gl.uniform1f(gl.getUniformLocation(sharpProgram, "u_knee"), CLARITY_SHARP_KNEE);
+  gl.uniform1i(uniformLocation(gl, sharpProgram, "u_image"), 0);
+  gl.uniform1i(uniformLocation(gl, sharpProgram, "u_lightnessBlur"), 1);
+  gl.uniform2f(uniformLocation(gl, sharpProgram, "u_resolution"), width, height);
+  gl.uniform1f(uniformLocation(gl, sharpProgram, "u_threshold"), CLARITY_SHARP_THRESHOLD);
+  gl.uniform1f(uniformLocation(gl, sharpProgram, "u_strength"), CLARITY_SHARP_STRENGTH);
+  gl.uniform1f(uniformLocation(gl, sharpProgram, "u_knee"), CLARITY_SHARP_KNEE);
   setKernelUniform(gl, sharpProgram, "u_kernelWeights", CLARITY_LIGHTNESS_KERNEL);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
@@ -315,8 +316,8 @@ export function applyLevelsToCanvas(levelsState, {
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, sharpTexture);
   gl.useProgram(sharpBlurProgram);
-  gl.uniform1i(gl.getUniformLocation(sharpBlurProgram, "u_sharpPass"), 0);
-  gl.uniform2f(gl.getUniformLocation(sharpBlurProgram, "u_resolution"), width, height);
+  gl.uniform1i(uniformLocation(gl, sharpBlurProgram, "u_sharpPass"), 0);
+  gl.uniform2f(uniformLocation(gl, sharpBlurProgram, "u_resolution"), width, height);
   setKernelUniform(gl, sharpBlurProgram, "u_kernelWeights", CLARITY_SHARP_KERNEL);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
@@ -334,16 +335,16 @@ export function applyLevelsToCanvas(levelsState, {
   gl.useProgram(clarityProgram);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, baseTexture);
-  gl.uniform1i(gl.getUniformLocation(clarityProgram, "u_image"), 0);
+  gl.uniform1i(uniformLocation(gl, clarityProgram, "u_image"), 0);
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, sharpTexture);
-  gl.uniform1i(gl.getUniformLocation(clarityProgram, "u_sharpPass"), 1);
+  gl.uniform1i(uniformLocation(gl, clarityProgram, "u_sharpPass"), 1);
   gl.activeTexture(gl.TEXTURE2);
   gl.bindTexture(gl.TEXTURE_2D, sharpBlurTexture);
-  gl.uniform1i(gl.getUniformLocation(clarityProgram, "u_sharpBlur"), 2);
-  gl.uniform2f(gl.getUniformLocation(clarityProgram, "u_resolution"), width, height);
-  gl.uniform1f(gl.getUniformLocation(clarityProgram, "u_intensity"), clarityAmount * CLARITY_EFFECTIVE_MAX);
-  gl.uniform1f(gl.getUniformLocation(clarityProgram, "u_preserveTones"), CLARITY_PRESERVE_TONES);
+  gl.uniform1i(uniformLocation(gl, clarityProgram, "u_sharpBlur"), 2);
+  gl.uniform2f(uniformLocation(gl, clarityProgram, "u_resolution"), width, height);
+  gl.uniform1f(uniformLocation(gl, clarityProgram, "u_intensity"), clarityAmount * CLARITY_EFFECTIVE_MAX);
+  gl.uniform1f(uniformLocation(gl, clarityProgram, "u_preserveTones"), CLARITY_PRESERVE_TONES);
   setKernelUniform(gl, clarityProgram, "u_kernelWeights", CLARITY_SHARP_KERNEL);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.finish();

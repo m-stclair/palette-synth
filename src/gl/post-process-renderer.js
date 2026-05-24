@@ -1,5 +1,6 @@
 import { linkProgram } from "./programs.js";
 import { configureTexture, createTexture } from "./textures.js";
+import { uniformLocation } from "./uniforms.js";
 
 // Default tolerance for "colors equal" comparisons in the despeckle shader.
 // The tolerance is expressed in linear 0..1 RGB units. 0.02 is roughly
@@ -59,10 +60,10 @@ function runDespecklePass(gl, program, {
   gl.viewport(0, 0, width, height);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-  gl.uniform1i(gl.getUniformLocation(program, "u_image"), 0);
-  gl.uniform2f(gl.getUniformLocation(program, "u_texelSize"), texelSize[0], texelSize[1]);
-  gl.uniform1f(gl.getUniformLocation(program, "u_step"), step);
-  gl.uniform1f(gl.getUniformLocation(program, "u_tolerance"), tolerance);
+  gl.uniform1i(uniformLocation(gl, program, "u_image"), 0);
+  gl.uniform2f(uniformLocation(gl, program, "u_texelSize"), texelSize[0], texelSize[1]);
+  gl.uniform1f(uniformLocation(gl, program, "u_step"), step);
+  gl.uniform1f(uniformLocation(gl, program, "u_tolerance"), tolerance);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
