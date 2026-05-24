@@ -17,14 +17,14 @@ import {
   renderViewComposite
 } from "../gl/view-composite-renderer.js";
 
-/** @typedef {import("../types.js").AppConfig} AppConfig */
-/** @typedef {import("../types.js").ImageDataSource} ImageDataSource */
-/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
-/** @typedef {import("../types.js").PaletteRenderPassOptions} PaletteRenderPassOptions */
-/** @typedef {import("../types.js").PaletteUniformEntry} PaletteUniformEntry */
-/** @typedef {import("../types.js").RenderActions} RenderActions */
-/** @typedef {import("../types.js").RenderSettings} RenderSettings */
-/** @typedef {import("../types.js").RuntimeState} RuntimeState */
+/** @typedef {import("../types.d.ts").AppConfig} AppConfig */
+/** @typedef {import("../types.d.ts").ImageDataSource} ImageDataSource */
+/** @typedef {import("../types.d.ts").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.d.ts").PaletteRenderPassOptions} PaletteRenderPassOptions */
+/** @typedef {import("../types.d.ts").PaletteUniformEntry} PaletteUniformEntry */
+/** @typedef {import("../types.d.ts").RenderActions} RenderActions */
+/** @typedef {import("../types.d.ts").RenderSettings} RenderSettings */
+/** @typedef {import("../types.d.ts").RuntimeState} RuntimeState */
 
 function fallbackPaletteSourceIndices(entries = []) {
   const out = new Int32Array(MAX_PALETTE_SIZE);
@@ -63,7 +63,7 @@ export function renderSettingsFromConfig(config) {
 
 /**
  * @param {Object} deps
- * @param {import("../types.js").UiElements} deps.els
+ * @param {import("../types.d.ts").UiElements} deps.els
  * @param {RuntimeState} deps.state
  * @param {AppConfig} deps.config
  * @returns {RenderActions}

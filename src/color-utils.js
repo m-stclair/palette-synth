@@ -6,10 +6,10 @@ import {
 } from "./constants.js";
 import { manualCycleKeyForId, sanitizeManualSwatchId } from "./manual/ids.js";
 
-/** @typedef {import("./types.js").Lab} Lab */
-/** @typedef {import("./types.js").PaletteRecord} PaletteRecord */
-/** @typedef {import("./types.js").PaletteSource} PaletteSource */
-/** @typedef {import("./types.js").PaletteVariant} PaletteVariant */
+/** @typedef {import("./types.d.ts").Lab} Lab */
+/** @typedef {import("./types.d.ts").PaletteRecord} PaletteRecord */
+/** @typedef {import("./types.d.ts").PaletteSource} PaletteSource */
+/** @typedef {import("./types.d.ts").PaletteVariant} PaletteVariant */
 
 export { manualCycleKeyForId, sanitizeManualSwatchId };
 

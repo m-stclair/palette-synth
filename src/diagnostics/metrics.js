@@ -10,14 +10,14 @@ import {
 } from "../color-utils.js";
 import { applyOutputModeCpu, finalOutputLabForLab } from "./output-color.js";
 
-/** @typedef {import("../types.js").AppConfig} AppConfig */
-/** @typedef {import("../types.js").DistanceBreakdown} DistanceBreakdown */
-/** @typedef {import("../types.js").ImageDataSource} ImageDataSource */
-/** @typedef {import("../types.js").Lab} Lab */
-/** @typedef {import("../types.js").PaletteDiagnostics} PaletteDiagnostics */
-/** @typedef {import("../types.js").PaletteMatch} PaletteMatch */
-/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
-/** @typedef {import("../types.js").PaletteUniformEntry} PaletteUniformEntry */
+/** @typedef {import("../types.d.ts").AppConfig} AppConfig */
+/** @typedef {import("../types.d.ts").DistanceBreakdown} DistanceBreakdown */
+/** @typedef {import("../types.d.ts").ImageDataSource} ImageDataSource */
+/** @typedef {import("../types.d.ts").Lab} Lab */
+/** @typedef {import("../types.d.ts").PaletteDiagnostics} PaletteDiagnostics */
+/** @typedef {import("../types.d.ts").PaletteMatch} PaletteMatch */
+/** @typedef {import("../types.d.ts").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.d.ts").PaletteUniformEntry} PaletteUniformEntry */
 
 // All tunable diagnostic thresholds live here so the sampler, renderers, and
 // pixel inspector agree on what counts as underused, overused, ambiguous,
@@ -72,10 +72,10 @@ function recordDistanceComponents(record) {
 /**
  * @param {number} labLightness
  * @param {number} labChroma
- * @param {import("../types.js").ScaledHue} labHue
+ * @param {import("../types.d.ts").ScaledHue} labHue
  * @param {number} featureLightness
  * @param {number} featureChroma
- * @param {import("../types.js").ScaledHue} featureHue
+ * @param {import("../types.d.ts").ScaledHue} featureHue
  * @param {AppConfig|Object} [config]
  * @returns {DistanceBreakdown}
  */

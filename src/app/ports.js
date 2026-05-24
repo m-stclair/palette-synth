@@ -1,5 +1,5 @@
-/** @typedef {import("../types.js").DeferredPort} DeferredPort */
-/** @typedef {import("../types.js").AppPorts} AppPorts */
+/** @typedef {import("../types.d.ts").DeferredPort} DeferredPort */
+/** @typedef {import("../types.d.ts").AppPorts} AppPorts */
 
 /**
  * @param {string} name

@@ -9,11 +9,11 @@ import {
 import { normalizeCycleManualKeys, normalizeManualSwatches } from "../state/config.js";
 import { createManualSwatchId, manualCycleKeyForId } from "./ids.js";
 
-/** @typedef {import("../types.js").AppConfig} AppConfig */
-/** @typedef {import("../types.js").HexColor} HexColor */
-/** @typedef {import("../types.js").Lab} Lab */
-/** @typedef {import("../types.js").ManualSwatch} ManualSwatch */
-/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.d.ts").AppConfig} AppConfig */
+/** @typedef {import("../types.d.ts").HexColor} HexColor */
+/** @typedef {import("../types.d.ts").Lab} Lab */
+/** @typedef {import("../types.d.ts").ManualSwatch} ManualSwatch */
+/** @typedef {import("../types.d.ts").PaletteRecord} PaletteRecord */
 
 const MAX_MANUAL_SWATCHES = 42;
 

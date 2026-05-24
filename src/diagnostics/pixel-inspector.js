@@ -9,10 +9,10 @@ import {
 import { cpuDistanceBreakdown, DIAGNOSTIC } from "./metrics.js";
 import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabForLab, outputLabToHex } from "./output-color.js";
 
-/** @typedef {import("../types.js").AppConfig} AppConfig */
-/** @typedef {import("../types.js").ImageDataSource} ImageDataSource */
-/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
-/** @typedef {import("../types.js").PixelInspection} PixelInspection */
+/** @typedef {import("../types.d.ts").AppConfig} AppConfig */
+/** @typedef {import("../types.d.ts").ImageDataSource} ImageDataSource */
+/** @typedef {import("../types.d.ts").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.d.ts").PixelInspection} PixelInspection */
 
 export { applyOutputModeCpu, blendHexes };
 

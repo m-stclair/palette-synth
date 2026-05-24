@@ -23,13 +23,13 @@ import {
 } from "./generation.js";
 import { normalizeSampleRegion } from "./sampling.js";
 
-/** @typedef {import("../types.js").AppConfig} AppConfig */
-/** @typedef {import("../types.js").Lab} Lab */
-/** @typedef {import("../types.js").ManualSwatch} ManualSwatch */
-/** @typedef {import("../types.js").PalettePreprocessResult} PalettePreprocessResult */
-/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
-/** @typedef {import("../types.js").PaletteUniformEntry} PaletteUniformEntry */
-/** @typedef {import("../types.js").RuntimeState} RuntimeState */
+/** @typedef {import("../types.d.ts").AppConfig} AppConfig */
+/** @typedef {import("../types.d.ts").Lab} Lab */
+/** @typedef {import("../types.d.ts").ManualSwatch} ManualSwatch */
+/** @typedef {import("../types.d.ts").PalettePreprocessResult} PalettePreprocessResult */
+/** @typedef {import("../types.d.ts").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.d.ts").PaletteUniformEntry} PaletteUniformEntry */
+/** @typedef {import("../types.d.ts").RuntimeState} RuntimeState */
 
 const MANUAL_PRESET_PREFIX = "manualPreset:";
 
@@ -43,7 +43,7 @@ export function manualPresetIdFromName(name) {
 }
 
 /**
- * @param {{config: AppConfig, state: RuntimeState, syncManualSwatches: () => ManualSwatch[], manualSwatchLab: (swatch: ManualSwatch) => Lab, manualSwatchEditable: (record: PaletteRecord) => boolean, manualMatchAliasHex: (identifier: string|number|null) => (import("../types.js").HexColor|null)}} deps
+ * @param {{config: AppConfig, state: RuntimeState, syncManualSwatches: () => ManualSwatch[], manualSwatchLab: (swatch: ManualSwatch) => Lab, manualSwatchEditable: (record: PaletteRecord) => boolean, manualMatchAliasHex: (identifier: string|number|null) => (import("../types.d.ts").HexColor|null)}} deps
  */
 export function createPaletteRuntime({
   config,

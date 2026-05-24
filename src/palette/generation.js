@@ -24,15 +24,15 @@ import { DEFAULT_COSINE_CUSTOM_VECTORS, normalizeCosineCustomVectors } from "../
 import { buildPatchOrigins, paletteSampleCacheKey, samplePaletteLabs } from "./sampling.js";
 import { selectTopNScoredSwatches } from "./selection.js";
 
-/** @typedef {import("../types.js").AppConfig} AppConfig */
-/** @typedef {import("../types.js").GeneratedLock} GeneratedLock */
-/** @typedef {import("../types.js").HexColor} HexColor */
-/** @typedef {import("../types.js").ImageDataSource} ImageDataSource */
-/** @typedef {import("../types.js").Lab} Lab */
-/** @typedef {import("../types.js").ManualSwatch} ManualSwatch */
-/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
-/** @typedef {import("../types.js").PaletteMode} PaletteMode */
-/** @typedef {import("../types.js").PaletteSelectionTrace} PaletteSelectionTrace */
+/** @typedef {import("../types.d.ts").AppConfig} AppConfig */
+/** @typedef {import("../types.d.ts").GeneratedLock} GeneratedLock */
+/** @typedef {import("../types.d.ts").HexColor} HexColor */
+/** @typedef {import("../types.d.ts").ImageDataSource} ImageDataSource */
+/** @typedef {import("../types.d.ts").Lab} Lab */
+/** @typedef {import("../types.d.ts").ManualSwatch} ManualSwatch */
+/** @typedef {import("../types.d.ts").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.d.ts").PaletteMode} PaletteMode */
+/** @typedef {import("../types.d.ts").PaletteSelectionTrace} PaletteSelectionTrace */
 
 const DEFAULT_HARMONY_RELATIONSHIP = "monochrome";
 const DEFAULT_HARMONY_REGION_CONTRAST = "triadicRegions";
@@ -316,7 +316,7 @@ function fallbackManualRecords(swatches, sortMode) {
  * @param {AppConfig} options.config
  * @param {PaletteMode} options.mode
  * @param {ImageDataSource|null} options.imageData
- * @param {import("../types.js").Rect|null} [options.sampleRegion]
+ * @param {import("../types.d.ts").Rect|null} [options.sampleRegion]
  * @param {string} [options.sourceKey]
  * @param {string} [options.sourceLabel]
  * @param {ManualSwatch[]} [options.fallbackSwatches]

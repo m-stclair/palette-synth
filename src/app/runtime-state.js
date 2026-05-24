@@ -1,4 +1,4 @@
-/** @typedef {import("../types.js").RuntimeState} RuntimeState */
+/** @typedef {import("../types.d.ts").RuntimeState} RuntimeState */
 
 /**
  * @param {{document?: Document, maxImageSide?: number}} [options]
