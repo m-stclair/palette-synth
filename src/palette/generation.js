@@ -24,6 +24,16 @@ import { DEFAULT_COSINE_CUSTOM_VECTORS, normalizeCosineCustomVectors } from "../
 import { buildPatchOrigins, paletteSampleCacheKey, samplePaletteLabs } from "./sampling.js";
 import { selectTopNScoredSwatches } from "./selection.js";
 
+/** @typedef {import("../types.js").AppConfig} AppConfig */
+/** @typedef {import("../types.js").GeneratedLock} GeneratedLock */
+/** @typedef {import("../types.js").HexColor} HexColor */
+/** @typedef {import("../types.js").ImageDataSource} ImageDataSource */
+/** @typedef {import("../types.js").Lab} Lab */
+/** @typedef {import("../types.js").ManualSwatch} ManualSwatch */
+/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.js").PaletteMode} PaletteMode */
+/** @typedef {import("../types.js").PaletteSelectionTrace} PaletteSelectionTrace */
+
 const DEFAULT_HARMONY_RELATIONSHIP = "monochrome";
 const DEFAULT_HARMONY_REGION_CONTRAST = "triadicRegions";
 const DEFAULT_COSINE_PRESET = "sinebow";
@@ -57,6 +67,11 @@ export function generatedImageSelectionCount(config) {
     : requestedSize;
 }
 
+/**
+ * @param {GeneratedLock|HexColor|string|null|undefined} entry
+ * @param {number} [index]
+ * @returns {GeneratedLock|null}
+ */
 export function normalizeGeneratedLockEntry(entry, index = 0) {
   if (!entry) return null;
   if (typeof entry === "string") {
@@ -296,6 +311,18 @@ function fallbackManualRecords(swatches, sortMode) {
   })), sortMode);
 }
 
+/**
+ * @param {Object} options
+ * @param {AppConfig} options.config
+ * @param {PaletteMode} options.mode
+ * @param {ImageDataSource|null} options.imageData
+ * @param {import("../types.js").Rect|null} [options.sampleRegion]
+ * @param {string} [options.sourceKey]
+ * @param {string} [options.sourceLabel]
+ * @param {ManualSwatch[]} [options.fallbackSwatches]
+ * @param {boolean} [options.captureTrace]
+ * @returns {{records: PaletteRecord[], trace: PaletteSelectionTrace|null}}
+ */
 export function createGeneratedPalette({
   config,
   mode,

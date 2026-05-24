@@ -1,6 +1,13 @@
 import { cloneDefaultConfig } from "../state/config.js";
 import { createRuntimeState } from "./runtime-state.js";
 
+/** @typedef {import("../types.js").AppCore} AppCore */
+/** @typedef {import("../types.js").ShaderSources} ShaderSources */
+
+/**
+ * @param {{shaders?: Partial<ShaderSources>, document?: Document, window?: Window, requestAnimationFrame?: typeof globalThis.requestAnimationFrame, cancelAnimationFrame?: typeof globalThis.cancelAnimationFrame, Image?: typeof globalThis.Image, URL?: typeof globalThis.URL}} [options]
+ * @returns {AppCore}
+ */
 export function createAppCore({
   shaders = {},
   document = globalThis.document,

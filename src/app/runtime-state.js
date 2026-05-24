@@ -1,3 +1,9 @@
+/** @typedef {import("../types.js").RuntimeState} RuntimeState */
+
+/**
+ * @param {{document?: Document, maxImageSide?: number}} [options]
+ * @returns {RuntimeState}
+ */
 export function createRuntimeState({document: doc = globalThis.document, maxImageSide = 2200} = {}) {
   if (!doc?.createElement) {
     throw new Error("createRuntimeState requires a document with createElement().");
@@ -71,6 +77,7 @@ export function createRuntimeState({document: doc = globalThis.document, maxImag
     paletteRecords: [],
     palette: [],
     paletteBlock: null,
+    paletteBaseBlock: null,
     paletteFeatures: null,
     paletteSourceIndices: null,
     paletteEntryCount: 0,

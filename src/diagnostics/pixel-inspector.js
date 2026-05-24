@@ -9,6 +9,11 @@ import {
 import { cpuDistanceBreakdown, DIAGNOSTIC } from "./metrics.js";
 import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabForLab, outputLabToHex } from "./output-color.js";
 
+/** @typedef {import("../types.js").AppConfig} AppConfig */
+/** @typedef {import("../types.js").ImageDataSource} ImageDataSource */
+/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.js").PixelInspection} PixelInspection */
+
 export { applyOutputModeCpu, blendHexes };
 
 export function labDeltaParts(aLab, bLab) {
@@ -144,6 +149,15 @@ export function samplePixelBlockColor(imageData, x, y, pixelBlockSize = 1, sampl
   };
 }
 
+/**
+ * @param {Object} options
+ * @param {number} options.x
+ * @param {number} options.y
+ * @param {ImageDataSource|null} options.imageData
+ * @param {PaletteRecord[]|(() => PaletteRecord[])} [options.paletteRecords]
+ * @param {AppConfig|Object} [options.config]
+ * @returns {PixelInspection|null}
+ */
 export function analyzePixelAtImagePoint({
   x,
   y,

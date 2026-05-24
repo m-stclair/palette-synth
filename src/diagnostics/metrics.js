@@ -10,6 +10,15 @@ import {
 } from "../color-utils.js";
 import { applyOutputModeCpu, finalOutputLabForLab } from "./output-color.js";
 
+/** @typedef {import("../types.js").AppConfig} AppConfig */
+/** @typedef {import("../types.js").DistanceBreakdown} DistanceBreakdown */
+/** @typedef {import("../types.js").ImageDataSource} ImageDataSource */
+/** @typedef {import("../types.js").Lab} Lab */
+/** @typedef {import("../types.js").PaletteDiagnostics} PaletteDiagnostics */
+/** @typedef {import("../types.js").PaletteMatch} PaletteMatch */
+/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.js").PaletteUniformEntry} PaletteUniformEntry */
+
 // All tunable diagnostic thresholds live here so the sampler, renderers, and
 // pixel inspector agree on what counts as underused, overused, ambiguous,
 // or colliding. Anything that was previously a magic number elsewhere in
@@ -60,6 +69,16 @@ function recordDistanceComponents(record) {
   return labDistanceComponents(record?.lab);
 }
 
+/**
+ * @param {number} labLightness
+ * @param {number} labChroma
+ * @param {import("../types.js").ScaledHue} labHue
+ * @param {number} featureLightness
+ * @param {number} featureChroma
+ * @param {import("../types.js").ScaledHue} featureHue
+ * @param {AppConfig|Object} [config]
+ * @returns {DistanceBreakdown}
+ */
 export function cpuDistanceBreakdown(labLightness, labChroma, labHue, featureLightness, featureChroma, featureHue, config = {}) {
   const dL = labLightness - featureLightness;
   const dC = labChroma - featureChroma;
@@ -108,6 +127,12 @@ function insertTopPaletteMatch(matches, match, limit) {
 // pixel matched; `renderLab` explains what color the output estimator/shader will
 // blend; `record.hex`/`record.displayIndex` explain which visible swatch gets
 // credited. Keeping all three is noisy, but collapsing them loses real state.
+/**
+ * @param {Lab} lab
+ * @param {PaletteUniformEntry[]} entries
+ * @param {{config?: AppConfig|Object, records?: PaletteRecord[], limit?: number, maxPaletteSize?: number}} [options]
+ * @returns {PaletteMatch[]}
+ */
 export function topPaletteMatches(lab, entries, {config = {}, records = [], limit = DIAGNOSTIC.matchLimit, maxPaletteSize = MAX_PALETTE_SIZE} = {}) {
   const requestedLimit = Math.max(1, limit);
   const matchLimit = requestedLimit === Infinity ? Infinity : Math.trunc(requestedLimit);
@@ -836,6 +861,10 @@ export function computePaletteCollisions(records, config = {}) {
   return {threshold, closest, closeCount};
 }
 
+/**
+ * @param {{imageData?: ImageDataSource|null, records?: PaletteRecord[], entries?: PaletteUniformEntry[], config?: AppConfig|Object, includeCycleOffset?: boolean, now?: () => number}} [options]
+ * @returns {PaletteDiagnostics|null}
+ */
 export function computeDiagnostics({imageData, records = [], entries = [], config = {}, includeCycleOffset = false, now = () => Date.now()} = {}) {
   if (!imageData || !records.length || !entries.length) return null;
   const sample = sampleImageDiagnostics(imageData, entries, records, config);

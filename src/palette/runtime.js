@@ -23,6 +23,14 @@ import {
 } from "./generation.js";
 import { normalizeSampleRegion } from "./sampling.js";
 
+/** @typedef {import("../types.js").AppConfig} AppConfig */
+/** @typedef {import("../types.js").Lab} Lab */
+/** @typedef {import("../types.js").ManualSwatch} ManualSwatch */
+/** @typedef {import("../types.js").PalettePreprocessResult} PalettePreprocessResult */
+/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
+/** @typedef {import("../types.js").PaletteUniformEntry} PaletteUniformEntry */
+/** @typedef {import("../types.js").RuntimeState} RuntimeState */
+
 const MANUAL_PRESET_PREFIX = "manualPreset:";
 
 export function manualPresetName(id) {
@@ -34,6 +42,9 @@ export function manualPresetIdFromName(name) {
   return value.startsWith(MANUAL_PRESET_PREFIX) ? value.slice(MANUAL_PRESET_PREFIX.length) : "";
 }
 
+/**
+ * @param {{config: AppConfig, state: RuntimeState, syncManualSwatches: () => ManualSwatch[], manualSwatchLab: (swatch: ManualSwatch) => Lab, manualSwatchEditable: (record: PaletteRecord) => boolean, manualMatchAliasHex: (identifier: string|number|null) => (import("../types.js").HexColor|null)}} deps
+ */
 export function createPaletteRuntime({
   config,
   state,
@@ -229,6 +240,11 @@ export function createPaletteRuntime({
   //
   // Do not collapse these back into `record.lab`. That is the footgun: a swatch
   // can match in one place, render as another, and display as quantized sRGB hex.
+  /**
+   * @param {PaletteRecord[]} records
+   * @param {Lab[]} [renderPalette]
+   * @returns {PaletteUniformEntry[]}
+   */
   function paletteUniformEntries(records, renderPalette = paletteLabs(records)) {
     const safeRecords = Array.isArray(records) ? records : [];
     const safeRenderPalette = Array.isArray(renderPalette) ? renderPalette : paletteLabs(safeRecords);
@@ -282,6 +298,10 @@ export function createPaletteRuntime({
     return entries;
   }
 
+  /**
+   * @param {PaletteUniformEntry[]} entries
+   * @returns {PalettePreprocessResult}
+   */
   function preprocessPaletteEntries(entries) {
     const safeEntries = Array.isArray(entries) ? entries : [];
     const featurePalette = safeEntries.map(entry => entry.featureLab);
@@ -312,6 +332,10 @@ export function createPaletteRuntime({
     }));
   }
 
+  /**
+   * @param {{captureTrace?: boolean}} [options]
+   * @returns {PaletteRecord[]}
+   */
   function getPaletteRecords(options = {}) {
     let raw;
     if (!isGeneratedPaletteMode()) state.paletteSelectionTrace = null;

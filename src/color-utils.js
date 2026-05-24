@@ -6,6 +6,11 @@ import {
 } from "./constants.js";
 import { manualCycleKeyForId, sanitizeManualSwatchId } from "./manual/ids.js";
 
+/** @typedef {import("./types.js").Lab} Lab */
+/** @typedef {import("./types.js").PaletteRecord} PaletteRecord */
+/** @typedef {import("./types.js").PaletteSource} PaletteSource */
+/** @typedef {import("./types.js").PaletteVariant} PaletteVariant */
+
 export { manualCycleKeyForId, sanitizeManualSwatchId };
 
 export function $(id) { return document.getElementById(id); }
@@ -273,6 +278,23 @@ export function sortLabWalkRecords(records, labForRecord = record => record.lab)
  *
  * Footgun: do not grab `record.lab` just because you need a swatch's L/C/H. If
  * the thing on screen is the subject, use `visibleSwatchLab(record)`.
+ *
+ * @param {Object} options
+ * @param {Lab} options.lab
+ * @param {PaletteSource} [options.source]
+ * @param {string|null} [options.familyId]
+ * @param {number|null} [options.familyIndex]
+ * @param {PaletteVariant} [options.variant]
+ * @param {number} [options.variantIndex]
+ * @param {number|null} [options.sourceIndex]
+ * @param {string|null} [options.swatchId]
+ * @param {Lab|null} [options.seedLab]
+ * @param {Lab|null} [options.sourceLab]
+ * @param {boolean} [options.locked]
+ * @param {string|null} [options.lockId]
+ * @param {boolean} [options.muted]
+ * @param {string} [options.role]
+ * @returns {PaletteRecord}
  */
 export function makePaletteRecord({
     lab,
@@ -317,10 +339,18 @@ export function makePaletteRecord({
     };
   }
 
+/**
+ * @param {PaletteRecord[]} records
+ * @returns {PaletteRecord[]}
+ */
 export function withDisplayIndexes(records) {
     return records.map((record, displayIndex) => ({...record, displayIndex}));
   }
 
+/**
+ * @param {PaletteRecord[]} records
+ * @returns {Lab[]}
+ */
 export function paletteLabs(records) {
     return records.map(record => record.lab);
   }

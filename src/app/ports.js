@@ -1,3 +1,10 @@
+/** @typedef {import("../types.js").DeferredPort} DeferredPort */
+/** @typedef {import("../types.js").AppPorts} AppPorts */
+
+/**
+ * @param {string} name
+ * @returns {DeferredPort}
+ */
 function createDeferredPort(name) {
   let target = null;
 
@@ -28,6 +35,7 @@ function createDeferredPort(name) {
   };
 }
 
+/** @returns {AppPorts} */
 export function createAppPorts() {
   const animationExport = createDeferredPort("animationExportController");
   const conditionalPanels = createDeferredPort("conditionalPanelsController");

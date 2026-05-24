@@ -9,8 +9,22 @@ import {
 import { normalizeCycleManualKeys, normalizeManualSwatches } from "../state/config.js";
 import { createManualSwatchId, manualCycleKeyForId } from "./ids.js";
 
+/** @typedef {import("../types.js").AppConfig} AppConfig */
+/** @typedef {import("../types.js").HexColor} HexColor */
+/** @typedef {import("../types.js").Lab} Lab */
+/** @typedef {import("../types.js").ManualSwatch} ManualSwatch */
+/** @typedef {import("../types.js").PaletteRecord} PaletteRecord */
+
 const MAX_MANUAL_SWATCHES = 42;
 
+/**
+ * @param {HexColor|string} [color]
+ * @param {HexColor|string|null} [aliasHex]
+ * @param {string} [seed]
+ * @param {boolean} [locked]
+ * @param {Lab|null} [lab]
+ * @returns {ManualSwatch}
+ */
 export function createManualSwatch(color = "#eeeeee", aliasHex = null, seed = "swatch", locked = false, lab = null) {
   const hex = normalizeHexColor(color, "#111111");
   const exactLab = normalizeManualLab(lab);
@@ -51,6 +65,10 @@ export function manualSwatchesFromColors(colors, seed = "swatch") {
     .filter(Boolean);
 }
 
+/**
+ * @param {AppConfig} config
+ * @returns {ManualSwatch[]}
+ */
 export function syncManualSwatches(config) {
   if (!config) return [];
   config.manualPalette = normalizeManualSwatches(config.manualPalette, config.manualMatchAliases);
@@ -65,6 +83,11 @@ export function manualSwatchIndex(config, identifier) {
   return swatches.findIndex(swatch => swatch.id === id || manualCycleKeyForId(swatch.id) === id);
 }
 
+/**
+ * @param {AppConfig} config
+ * @param {string|number} identifier
+ * @returns {ManualSwatch|null}
+ */
 export function manualSwatchAt(config, identifier) {
   const index = manualSwatchIndex(config, identifier);
   return index >= 0 ? config.manualPalette[index] : null;
@@ -79,6 +102,10 @@ export function manualSourceHex(config, identifier) {
   return normalizeHexColor(swatch?.hex, "#111111");
 }
 
+/**
+ * @param {ManualSwatch|null|undefined} swatch
+ * @returns {Lab}
+ */
 export function manualSwatchLab(swatch) {
   const hex = normalizeHexColor(swatch?.hex, "#111111");
   const exactLab = normalizeManualLab(swatch?.lab);
