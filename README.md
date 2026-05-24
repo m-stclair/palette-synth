@@ -138,12 +138,12 @@ will be forced to spread away from early high-weighted picks.
 
 **Custom cosine vectors** expose the formula behind the palette. Each row affects lightness, chroma, or hue over the palette: `a` sets the center, `b` sets the swing, `c` sets the frequency, and `d` sets the phase. Small changes can move the whole palette fast. This is the weird machine room. Powerful, but sharp.
 
-### Manual palette workflow
+### Manual palette controls
 
 Manual palettes can be edited swatch by swatch. Generated, reference, harmony, and cosine palettes can also be captured
 into manual swatches with four strategies:
 
-- replace the manual palette
+- replace the manual palette (Shift +M)
 - append to the current manual palette
 - fill unlocked manual slots
 - save as a manual preset
@@ -152,6 +152,104 @@ Manual swatches use additive match anchors: each swatch always catches its curre
 extra colors that route to the same rendered swatch. Use per-swatch **Also catch original source**,
 **Pick from source image**, or the global **Also catch all original sources** when palette adjustments move
 the visible colors but source pixels should still route to the edited swatches.
+
+Manual palettes can also be edited in X-Ray in the inspector window (see next section).
+
+
+## Editing Palettes in the X-Ray
+
+### Opening the X-Ray
+
+The X-Ray lives in the **Inspector** panel as one of five tabs: *Pixel*, *Families*, *Diagnostics*, **X-Ray**, and *Histogram*. Click the **X-Ray** tab to open it, or cycle through inspector tabs with **Shift+I** until you land on it. (**I** on its own toggles the floating inspector open and closed, if it's hidden entirely.)
+
+Once you're there, you'll see a plot of your current palette plus a small row of view buttons across the top. Those buttons matter, because *which view you're in determines what you can edit*.
+
+### The five views, and which ones let you edit
+
+The X-Ray offers five ways of looking at the same palette. They aren't restyled versions of one chart; each one surfaces a genuinely different property of your colors.
+
+| View | What it shows | Editable? |
+|------|--------------|-----------|
+| **Scatter** | Hue across the x-axis, lightness up the y-axis | **Yes** |
+| **Wheel** | A polar OKLCh wheel — hue around the rim, chroma as distance from center | **Yes** |
+| **Tonal** | A one-dimensional lightness ramp, left (dark) to right (light) | **Yes** |
+| **Proximity** | A pairwise distance matrix that surfaces colors sitting too close together | No — read-only |
+| **Cylinder** | A rotatable 3D LCH volume you can orbit by dragging | No — read-only |
+
+The short version: **Scatter, Wheel, and Tonal are the editing views.** Proximity and Cylinder are diagnostic — they're there to help you *decide* what to change, not to change it. Dragging a swatch in Proximity or Cylinder won't move it; the swatch markers there simply aren't draggable. (You can still *click* a marker in any view — more on that below.)
+
+This split is deliberate. Each editable view gives you a different kind of control:
+
+- **Scatter** is your two-axis workhorse. One drag adjusts both hue and lightness at once.
+- **Wheel** is for hue-and-chroma decisions — rotate a color around the rim, or pull it toward the center to desaturate it, while its lightness stays put.
+- **Tonal** is the most surgical. It changes *only* lightness, so you can fix a tonal gap without disturbing hue or chroma at all.
+
+### What you can and can't move
+
+**You can only reposition editable manual swatches.**
+
+The X-Ray plots every color in your active palette, but they don't all behave the same way. Generated colors, locked colors, and colors derived from a source image are shown for context — you can see them, you can click them, but you can't drag them. Only unlocked swatches in a **manual palette** will respond to a reposition gesture.
+
+If you try to drag something that isn't editable, the app won't move it. Instead, you'll see a status message: *"Alt-drag reposition works on editable manual swatches."* That's not an error — it's the app telling you that you've grabbed the wrong kind of color. If you want to edit a generated palette by hand, capture it to your manual palette first (**Shift+M** does this), and then its swatches become fair game.
+
+### Repositioning a swatch — the core gesture
+
+Moving a swatch is an **Alt-drag**. Hold the **Alt** key, press on a swatch marker, and drag.
+
+1. Switch to **Scatter**, **Wheel**, or **Tonal**.
+2. Hold **Alt**.
+3. Press on the swatch marker you want to move.
+4. Drag. The swatch follows your pointer, and the preview updates live as you go.
+5. Release.
+
+A few things worth knowing about how the drag *feels*:
+
+- **It's live.** The image preview re-renders continuously while you drag, so you're editing against the real result, not a guess. What you see at release is what you get.
+- **Each view constrains the drag to its own axes.** In Scatter you're moving in hue *and* lightness. In Wheel you're moving in hue *and* chroma, with lightness held constant. In Tonal you're moving lightness *only* — drag left or right and nothing else changes. Pick your view based on which properties you want to leave alone.
+- **The neutral column is real.** In Scatter, there's a narrow band on the far left labeled "neutral." Drag a swatch into it and the color collapses to a true neutral — chroma drops to zero. Drag back out and it picks up chroma again. It's a quick way to make something gray, or to rescue a near-gray that's drifting.
+
+When you let go, the move is committed to history, and the status line confirms it: something like *"Moved swatch 3 to …"* with the new color. Which means — yes — **undo works.** If a drag goes somewhere ugly, **Ctrl+Z** (or your platform's undo) puts it back. The whole Alt-drag, from press to release, is a single undoable step.
+
+#### If a drag goes wrong mid-gesture
+
+If you start a drag and think better of it, releasing after a real move still commits. But a drag that's canceled by the system — say, the pointer leaves the window — is treated as a cancel: the swatch snaps back to where it started and nothing is recorded. The reliable "undo" is still just Alt-drag normally and then **Ctrl+Z**.
+
+### Recoloring pixels
+
+By default, an Alt+drag replaces the swatch's source color. Sometimes you want to move the visible output color while making sure that the swatch still matches the original source color.
+
+**Hold Shift while Alt-dragging to do exactly this.** At the moment your pointer moves, the swatch's original color is pinned as a match anchor (shown in X-Ray as a rotated diamond connected to the swatch by a dashed line), and the swatch's new position becomes the rendered output. Source pixels near both the original position and the new position will route to this swatch.
+
+This is particularly useful after capturing a generated palette — you can nudge swatches toward better target colors while preserving the image's original color routing.
+
+### Promoting a match anchor back into the source (or: undoing pixel recoloring)
+
+The companion gesture: if a swatch has an extra match anchor and you decide you actually want *that* color to be the swatch's real source, you can promote it.
+
+**Alt+Shift+double-click** a draggable swatch marker. The swatch's match anchor becomes its source color, and the status line confirms the swap. If the swatch doesn't have a match anchor to promote, the app tells you so rather than doing anything surprising — *"Swatch N has no extra match anchor to make into its source."*
+
+**This also works as a reset of the anchor-drop above.** Drop an anchor while dragging, move it around, decide you didn't want to recolor those pixels in the first place: alt-shift-double-click places the swatch back in its original location with no extra match anchor.
+
+### Clicking a swatch (no Alt) — selecting and the modifier menu
+
+Plain interactions — no Alt held — don't move anything. They *select* and *toggle*. A click, or pressing **Enter** or **Space** on a focused marker, activates that swatch, and modifiers change what "activate" means:
+
+- **Plain click / Enter / Space** — selects the swatch. If it's an editable manual swatch, this is also how you open it for editing in the manual palette editor.
+- **Shift+click** — toggles the *diagnostic overlay* for that swatch, isolating its pixels in the preview so you can see exactly where that color lands in the image. Shift+click the same swatch again to turn the overlay off.
+- **Ctrl+click** (or **Cmd+click**) on an editable swatch — toggles **mute**. A muted swatch stays in your palette but is pulled out of active assignment; the X-Ray draws it with a small diagonal slash so you can spot it at a glance. One guard rail here: the app won't let you mute your last remaining active swatch — a palette needs at least one color doing the work.
+
+Every marker is keyboard-reachable: **Tab** to a swatch, and **Enter** or **Space** activates it just like a click. The editing *drags*, though, are pointer gestures — there isn't a keyboard equivalent for Alt-drag repositioning.
+
+### Reading the markers
+
+While you're editing, the swatch markers tell you about their own state.
+
+- A **diagonal slash** through a marker means the swatch is **muted**.
+- A marker drawn as **selected** is the one currently open in the manual editor.
+- Markers also reflect **locked** and **cycle-tagged** states.
+- Hovering a marker shows a tooltip with the swatch number, its color, and any of those states spelled out in words.
+
+So if a swatch isn't responding to an Alt-drag, glance at its marker first — a slash, or a "locked" tooltip, usually explains why.
 
 ## Diagnostics
 
