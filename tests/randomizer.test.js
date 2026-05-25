@@ -36,6 +36,8 @@ test("randomized snapshots stay inside the sanitized config surface", () => {
   assert.match(clean.seedSwatch, /^#[0-9a-f]{6}$/);
   assert.ok(clean.seed >= 1 && clean.seed <= 500);
   assert.ok(clean.paletteGamma >= 0.2 && clean.paletteGamma <= 4);
+  assert.ok(clean.tonalZoneWeight >= 0 && clean.tonalZoneWeight <= 2);
+  assert.ok(clean.widthBonus >= 0 && clean.widthBonus <= 2);
   assert.equal(clean.manualPalette.length, current.manualPalette.length);
 });
 

@@ -70,6 +70,8 @@ export const DEFAULT_CONFIG = {
   maxDistanceEnabled: false,
   maxDistance: 30,
   selectWeights: [0.1, 0, 0],
+  tonalZoneWeight: 1,
+  widthBonus: 1,
   hueSpread: DEFAULT_HUE_SPREAD_BONUS,
   minDistance: 12,
   assignMode: "blend",
@@ -279,6 +281,10 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
       base[key] = cloneJson(source[key]);
     }
   }
+  if (!Object.prototype.hasOwnProperty.call(source, "tonalZoneWeight")
+      && Object.prototype.hasOwnProperty.call(source, "tonalNeedBonusWeight")) {
+    base.tonalZoneWeight = cloneJson(source.tonalNeedBonusWeight);
+  }
 
   base.paletteMode = ["generated", "generatedReference", "harmony", "cosine", "manual"].includes(base.paletteMode) ? base.paletteMode : DEFAULT_CONFIG.paletteMode;
   if (!presetExists(base.presetName)) base.presetName = DEFAULT_CONFIG.presetName;
@@ -323,6 +329,14 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.selectWeights = Array.isArray(base.selectWeights)
     ? [0, 1, 2].map(i => clamp(Number(base.selectWeights[i]) || 0, 0, 1.5))
     : [...DEFAULT_CONFIG.selectWeights];
+  {
+    const tonalZoneWeight = Number(base.tonalZoneWeight);
+    base.tonalZoneWeight = clamp(Number.isFinite(tonalZoneWeight) ? tonalZoneWeight : DEFAULT_CONFIG.tonalZoneWeight, 0, 2);
+  }
+  {
+    const widthBonus = Number(base.widthBonus);
+    base.widthBonus = clamp(Number.isFinite(widthBonus) ? widthBonus : DEFAULT_CONFIG.widthBonus, 0, 2);
+  }
   base.hueSpread = clamp(Number(base.hueSpread ?? DEFAULT_CONFIG.hueSpread) || 0, 0, 0.5);
   base.minDistance = clamp(Math.round(Number(base.minDistance) || DEFAULT_CONFIG.minDistance), 1, 30);
   base.assignMode = Object.prototype.hasOwnProperty.call(ASSIGN_MODE, base.assignMode) ? base.assignMode : DEFAULT_CONFIG.assignMode;

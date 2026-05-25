@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {selectTopNScoredSwatches} from "../src/palette/selection.js";
 import {createDiagnosticsPanel} from "../src/ui/diagnostics-panel.js";
+import {NOVELTY_BONUS, RANGE_EXPANSION_BONUS, TONAL_CROWDING_PENALTY, TONAL_NEED_BONUS} from "../src/constants.js";
 
 function element() {
   return {
@@ -92,4 +93,53 @@ test("diagnostics panel labels nonbinary relaxed spacing with active blocks", ()
   assert.match(els.diagnosticsSelection.innerHTML, /Closest blocked by spacing/);
   assert.match(els.diagnosticsSelection.innerHTML, /blocked by family spacing/);
   assert.doesNotMatch(els.diagnosticsSelection.innerHTML, /fallback pool/);
+});
+
+test("tonal zone weight multiplies tonal need and crowding contributions", () => {
+  const trace = [];
+  selectTopNScoredSwatches(
+    [[80, 0, 0]],
+    {chroma: 0, outlier: 0, midtone: 0},
+    2,
+    0,
+    1,
+    {
+      initialSelected: [[20, 0, 0]],
+      tonalZoneWeight: 1.5,
+      trace
+    }
+  );
+
+  assert.equal(trace[0].constants.tonalNeedBonusBase, TONAL_NEED_BONUS);
+  assert.equal(trace[0].constants.tonalZoneWeight, 1.5);
+  assert.equal(trace[0].constants.tonalNeedBonus, TONAL_NEED_BONUS * 1.5);
+  assert.equal(trace[0].constants.tonalCrowdingPenaltyBase, TONAL_CROWDING_PENALTY);
+  assert.equal(trace[0].constants.tonalCrowdingPenalty, TONAL_CROWDING_PENALTY * 1.5);
+  assert.equal(trace[0].rounds[0].picked.parts.tonalNeedContribution, TONAL_NEED_BONUS * 1.5);
+});
+
+
+test("width bonus multiplies range expansion and novelty contributions", () => {
+  const trace = [];
+  selectTopNScoredSwatches(
+    [[80, 0, 0]],
+    {chroma: 0, outlier: 0, midtone: 0},
+    2,
+    0,
+    1,
+    {
+      initialSelected: [[20, 0, 0]],
+      widthBonus: 1.5,
+      trace
+    }
+  );
+
+  const parts = trace[0].rounds[0].picked.parts;
+  assert.equal(trace[0].constants.widthBonus, 1.5);
+  assert.equal(trace[0].constants.rangeExpansionBonusBase, RANGE_EXPANSION_BONUS);
+  assert.equal(trace[0].constants.rangeExpansionBonus, RANGE_EXPANSION_BONUS * 1.5);
+  assert.equal(trace[0].constants.noveltyBonusBase, NOVELTY_BONUS);
+  assert.equal(trace[0].constants.noveltyBonus, NOVELTY_BONUS * 1.5);
+  assert.equal(parts.rangeExpansionContribution, parts.rangeExpansion * RANGE_EXPANSION_BONUS * 1.5);
+  assert.equal(parts.noveltyContribution, parts.novelty * NOVELTY_BONUS * 1.5);
 });

@@ -368,6 +368,8 @@ export function createGeneratedPalette({
     deltaL: config.deltaL,
     chromaExp: 1,
     familySpacing: tintShadeFamilies,
+    tonalZoneWeight: config.tonalZoneWeight,
+    widthBonus: config.widthBonus,
     hueSpread: config.hueSpread,
     directColorTargets: !tintShadeFamilies,
     initialSelected: lockedSeeds.map(lock => lock.seedLab),

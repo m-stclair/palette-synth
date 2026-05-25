@@ -116,6 +116,10 @@ Use **Mode** to choose where the palette comes from.
 
 **Chroma selection** favors stronger, more saturated colors.
 
+**Tonal zone weight** multiplies both tonal need pressure and tonal crowding pressure. `1` keeps the default behavior, `0` disables both forces, and `2` doubles both.
+
+**Width bonus** multiplies both the novelty bonus and the range expansion bonus. `1` keeps the default behavior, `0` disables those width-seeking bonuses, and `2` doubles them.
+
 **Hue spread** pushes the palette toward broader hue variety.
 
 **Selection spacing** controls how different selected colors need to be. Higher spacing avoids near-duplicates; lower spacing allows tighter, subtler color families.

@@ -114,6 +114,8 @@ test("config sanitization clamps values and honors injected preset lookup", () =
     compareSplit: 2,
     pixelBlockSize: 99,
     pixelBlockSampleMode: "nonsense",
+    tonalZoneWeight: 99,
+    widthBonus: 99,
     generatedTintShadeFamilies: false
   }, {
     presetExists: name => name === "customPreset"
@@ -137,8 +139,26 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.compareSplit, 1);
   assert.equal(clean.pixelBlockSize, 16);
   assert.equal(clean.pixelBlockSampleMode, DEFAULT_CONFIG.pixelBlockSampleMode);
+  assert.equal(clean.tonalZoneWeight, 2);
+  assert.equal(clean.widthBonus, 2);
   assert.equal(clean.generatedTintShadeFamilies, false);
   assert.equal(clean.manualMatchAliases.length, 0);
+});
+
+test("config sanitization keeps tonal zone and width multipliers in range", () => {
+  assert.equal(sanitizeConfigSnapshot({tonalZoneWeight: 0}).tonalZoneWeight, 0);
+  assert.equal(sanitizeConfigSnapshot({tonalZoneWeight: 1.5}).tonalZoneWeight, 1.5);
+  assert.equal(sanitizeConfigSnapshot({tonalZoneWeight: -1}).tonalZoneWeight, 0);
+  assert.equal(sanitizeConfigSnapshot({tonalZoneWeight: "nope"}).tonalZoneWeight, DEFAULT_CONFIG.tonalZoneWeight);
+  assert.equal(sanitizeConfigSnapshot({widthBonus: 0}).widthBonus, 0);
+  assert.equal(sanitizeConfigSnapshot({widthBonus: 1.5}).widthBonus, 1.5);
+  assert.equal(sanitizeConfigSnapshot({widthBonus: -1}).widthBonus, 0);
+  assert.equal(sanitizeConfigSnapshot({widthBonus: "nope"}).widthBonus, DEFAULT_CONFIG.widthBonus);
+});
+
+test("config sanitization migrates old tonal need bonus multiplier", () => {
+  assert.equal(sanitizeConfigSnapshot({tonalNeedBonusWeight: 1.75}).tonalZoneWeight, 1.75);
+  assert.equal(sanitizeConfigSnapshot({tonalZoneWeight: 0.5, tonalNeedBonusWeight: 1.75}).tonalZoneWeight, 0.5);
 });
 
 test("config sanitization keeps direct-color palette sizes and snaps family sizes", () => {

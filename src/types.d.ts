@@ -130,6 +130,8 @@ export interface AppConfig {
   maxDistanceEnabled: boolean;
   maxDistance: number;
   selectWeights: [number, number, number];
+  tonalZoneWeight: number;
+  widthBonus: number;
   hueSpread: number;
   minDistance: number;
   assignMode: AssignMode;

@@ -79,6 +79,8 @@ export const SIMPLE_CONTROL_KEYS = [
   "monotoneBlendDither",
   "maxDistanceEnabled",
   "maxDistance",
+  "tonalZoneWeight",
+  "widthBonus",
   "hueSpread",
   "minDistance",
   "assignMode",

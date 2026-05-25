@@ -102,6 +102,8 @@ function randomizeSharedControls(snapshot, rng) {
   snapshot.gammaC = randStep(rng, 0.5, 1.7, 0.1);
   snapshot.paletteHue = randStep(rng, -5, 5, 1);
   snapshot.deltaL = randStep(rng, 8, 54, 0.5);
+  snapshot.tonalZoneWeight = randStep(rng, 0, 2, 0.01);
+  snapshot.widthBonus = randStep(rng, 0, 2, 0.01);
   snapshot.hueSpread = randStep(rng, 0, 0.45, 0.01);
   snapshot.minDistance = randInt(rng, 4, 24);
   snapshot.sortMode = pick(rng, SORT_MODES, DEFAULT_CONFIG.sortMode);

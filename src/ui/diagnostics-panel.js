@@ -1836,6 +1836,8 @@ export function createDiagnosticsPanel({
         <div><span>${spacingPlural}</span><b>${trace.selectionCount ?? trace.baseCount}</b><small>${trace.finalPaletteSize || trace.requestedSize || "—"} swatches</small></div>
         <div><span>sample</span><b>${sample.count ?? trace.candidateCount}</b><small>${sample.samplingMode || "random"}, block ${sample.blockSize ?? "—"}</small></div>
         <div><span>weights</span><b>C ${formatScore(weights.chroma)}</b><small>O ${formatScore(weights.outlier)} · M ${formatScore(weights.midtone)}</small></div>
+        <div><span>tonal zone</span><b>×${formatScore(constants.tonalZoneWeight ?? 1)}</b><small>need ${formatScore(constants.tonalNeedBonus)} · crowd ${formatScore(constants.tonalCrowdingPenalty)}</small></div>
+        <div><span>width bonus</span><b>×${formatScore(constants.widthBonus ?? 1)}</b><small>range ${formatScore(constants.rangeExpansionBonus)} · novelty ${formatScore(constants.noveltyBonus)}</small></div>
         <div><span>hue spread</span><b>${formatScore(constants.hueSpreadBonus)}</b><small>seed hue anchors, C ${formatScore(constants.hueReliabilityChromaLow)}–${formatScore(constants.hueReliabilityChromaHigh)}</small></div>
         <div><span>${spacingLabel} spacing</span><b>${formatDistance(trace.colorSpacing ?? trace.familySpacing)}</b><small>${spacingMode === "family" ? "whole footprint" : "direct picks"}</small></div>
         ${expansionLine}

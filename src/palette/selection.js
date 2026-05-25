@@ -188,6 +188,14 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   });
   const rng = seededRandom(seed);
   const hueSpreadBonus = clamp(Number(options.hueSpread ?? DEFAULT_HUE_SPREAD_BONUS) || 0, 0, 0.5);
+  const rawTonalZoneWeight = Number(options.tonalZoneWeight ?? options.tonalNeedBonusWeight ?? 1);
+  const tonalZoneWeight = clamp(Number.isFinite(rawTonalZoneWeight) ? rawTonalZoneWeight : 1, 0, 2);
+  const tonalNeedBonus = TONAL_NEED_BONUS * tonalZoneWeight;
+  const tonalCrowdingPenalty = TONAL_CROWDING_PENALTY * tonalZoneWeight;
+  const rawWidthBonus = Number(options.widthBonus ?? 1);
+  const widthBonus = clamp(Number.isFinite(rawWidthBonus) ? rawWidthBonus : 1, 0, 2);
+  const rangeExpansionBonus = RANGE_EXPANSION_BONUS * widthBonus;
+  const noveltyBonus = NOVELTY_BONUS * widthBonus;
   const trace = Array.isArray(options.trace) ? options.trace : null;
   const initialSelected = Array.isArray(options.initialSelected)
     ? options.initialSelected.map(lab => [...lab]).slice(0, Math.max(0, N))
@@ -223,10 +231,16 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
       tonalTargetMode: directColorTargets ? "direct-colors" : "family-seeds",
       tonalTargetBoost,
       constants: {
-        tonalNeedBonus: TONAL_NEED_BONUS,
-        tonalCrowdingPenalty: TONAL_CROWDING_PENALTY,
-        rangeExpansionBonus: RANGE_EXPANSION_BONUS,
-        noveltyBonus: NOVELTY_BONUS,
+        tonalZoneWeight,
+        tonalNeedBonus,
+        tonalNeedBonusBase: TONAL_NEED_BONUS,
+        tonalCrowdingPenalty,
+        tonalCrowdingPenaltyBase: TONAL_CROWDING_PENALTY,
+        widthBonus,
+        rangeExpansionBonus,
+        rangeExpansionBonusBase: RANGE_EXPANSION_BONUS,
+        noveltyBonus,
+        noveltyBonusBase: NOVELTY_BONUS,
         hueSpreadBonus,
         hueReliabilityChromaLow: 6,
         hueReliabilityChromaHigh: 22,
@@ -313,10 +327,10 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         hueAnchorReliability: hueNearest.anchorReliability,
         hueAnchorCount: hueNearest.anchorCount,
         hueReliableAnchorCount: hueNearest.reliableAnchorCount,
-        tonalNeedContribution: bandNeed * TONAL_NEED_BONUS,
-        crowdingPenalty: crowding * TONAL_CROWDING_PENALTY,
-        rangeExpansionContribution: rangeExpansion * RANGE_EXPANSION_BONUS,
-        noveltyContribution: novelty * NOVELTY_BONUS,
+        tonalNeedContribution: bandNeed * tonalNeedBonus,
+        crowdingPenalty: crowding * tonalCrowdingPenalty,
+        rangeExpansionContribution: rangeExpansion * rangeExpansionBonus,
+        noveltyContribution: novelty * noveltyBonus,
         hueSpreadContribution: hueNovelty * hueSpreadBonus,
         noiseContribution
       };

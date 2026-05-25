@@ -8,7 +8,7 @@ import {
 } from "../state/config.js";
 
 export const PALETTE_DIRTY_KEYS = new Set([
-  "paletteMode", "presetName", "paletteSize", "seedSwatch", "harmonyRelationship", "harmonyRegionContrast", "harmonyRampSteepness", "cosinePreset", "cosineCustomVectors", "deltaL", "paletteGamma", "gammaC", "paletteHue", "hueSpread", "minDistance",
+  "paletteMode", "presetName", "paletteSize", "seedSwatch", "harmonyRelationship", "harmonyRegionContrast", "harmonyRampSteepness", "cosinePreset", "cosineCustomVectors", "deltaL", "paletteGamma", "gammaC", "paletteHue", "tonalZoneWeight", "widthBonus", "hueSpread", "minDistance",
   "sortMode", "blockSize", "seed", "samplingMode", "generatedAssist", "generatedTintShadeFamilies", "aliasAllSources", "manualMatchAliases", "CYCLE_MODE"
 ]);
 
