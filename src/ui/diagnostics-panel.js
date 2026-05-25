@@ -327,6 +327,24 @@ export function createDiagnosticsPanel({
     return `swatch ${display} · ${colorInfoLabel(hex, lab)}${stateText}`;
   }
 
+  function xrayMatchAliasEntries(stats) {
+    return (stats?.entries || []).filter(entry => entry?.alias && Array.isArray(entry.featureLab) && entry.sourceRecord);
+  }
+
+  function xrayMatchAliasDisplayIndex(entry, records = []) {
+    const record = entry?.sourceRecord;
+    const fallbackIndex = records.indexOf(record);
+    const index = Number.isInteger(record?.displayIndex)
+      ? record.displayIndex
+      : (fallbackIndex >= 0 ? fallbackIndex : 0);
+    return index + 1;
+  }
+
+  function xrayMatchAliasTitle(entry, records = []) {
+    const hex = labToHex(entry.featureLab);
+    return `match anchor for swatch ${xrayMatchAliasDisplayIndex(entry, records)} · ${colorInfoLabel(hex, entry.featureLab)}`;
+  }
+
   function mutedCircleSlash(cx, cy, radius) {
     const inset = Math.max(2.2, Number(radius) * 0.72);
     return `<line class="xray-swatch-muted-slash" x1="${(cx - inset).toFixed(1)}" y1="${(cy + inset).toFixed(1)}" x2="${(cx + inset).toFixed(1)}" y2="${(cy - inset).toFixed(1)}"/>`;
@@ -1153,7 +1171,7 @@ export function createDiagnosticsPanel({
       const [, C] = labToOklch(swatchLab);
       if (C > maxChroma) maxChroma = C;
     }
-    const aliasEntries = (stats?.entries || []).filter(entry => entry?.alias && Array.isArray(entry.featureLab) && entry.sourceRecord);
+    const aliasEntries = xrayMatchAliasEntries(stats);
     for (const entry of aliasEntries) {
       const [, C] = labToOklch(entry.featureLab);
       if (C > maxChroma) maxChroma = C;
@@ -1246,8 +1264,7 @@ export function createDiagnosticsPanel({
       const [x1, y1] = polar(radiusFor(sourceC), sourceH);
       const [x2, y2] = polar(radiusFor(aliasC), aliasH);
       const hex = labToHex(entry.featureLab);
-      const display = (record?.displayIndex ?? records.indexOf(record)) + 1;
-      return `<g class="xray-match-anchor" aria-hidden="true"><title>match anchor for swatch ${display} · ${colorInfoLabel(hex, entry.featureLab)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect x="${(x2-3.2).toFixed(1)}" y="${(y2-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
+      return `<g class="xray-match-anchor" aria-hidden="true"><title>${xrayMatchAliasTitle(entry, records)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect x="${(x2-3.2).toFixed(1)}" y="${(y2-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
     }).join("");
 
     // Swatches are positioned from the visible chip, not the internal matcher
@@ -1349,6 +1366,20 @@ export function createDiagnosticsPanel({
         <text x="${((xFor(biggestGap.start) + xFor(biggestGap.end)) / 2).toFixed(1)}" y="${(trackY - 5).toFixed(1)}" text-anchor="middle" class="xray-axis" fill="rgba(255,170,150,.85)">gap ${biggestGap.size.toFixed(0)}</text>`
       : "";
 
+    // Manual matcher aliases: projected into the same 1D lightness axis as
+    // the tonal ramp. The dashed leader makes the alias read as an extra
+    // matching coordinate, not as a new output swatch.
+    const aliasMarks = xrayMatchAliasEntries(stats).map(entry => {
+      const record = entry.sourceRecord;
+      const sourceLab = Array.isArray(record?.lab) ? record.lab : (visibleSwatchLab(record) || entry.renderLab || entry.featureLab);
+      const x1 = xFor(sourceLab[0]);
+      const x2 = xFor(entry.featureLab[0]);
+      const y1 = trackY - 8;
+      const y2 = trackY - 18;
+      const hex = labToHex(entry.featureLab);
+      return `<g class="xray-match-anchor" aria-hidden="true"><title>${xrayMatchAliasTitle(entry, records)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect x="${(x2-3.2).toFixed(1)}" y="${(y2-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
+    }).join("");
+
     // Swatch markers: a tall vertical bar at the swatch's L position, in the
     // swatch's actual color. Bars instead of dots so adjacent-L swatches
     // remain distinguishable even when they pile up. Stems extend below the
@@ -1375,6 +1406,7 @@ export function createDiagnosticsPanel({
       ${gapHighlight}
       ${lightnessTicks}
       ${axisLabel}
+      ${aliasMarks}
       ${markers}
     </svg>`;
   }
@@ -1559,6 +1591,10 @@ export function createDiagnosticsPanel({
       const [, C] = labToOklch(swatchLab);
       if (C > maxChroma) maxChroma = C;
     }
+    for (const entry of xrayMatchAliasEntries(stats)) {
+      const [, C] = labToOklch(entry.featureLab);
+      if (C > maxChroma) maxChroma = C;
+    }
     maxChroma = Math.max(1, Math.ceil(maxChroma / 4) * 4);
 
     const project = (L, C, h) => {
@@ -1657,6 +1693,21 @@ export function createDiagnosticsPanel({
       familyLines.push(`<polyline points="${pts}" fill="none" stroke="rgba(184,196,214,.18)" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
+    const aliasMarks = xrayMatchAliasEntries(stats).map(entry => {
+      const record = entry.sourceRecord;
+      const sourceLab = visibleSwatchLab(record) || record.lab || entry.renderLab || entry.featureLab;
+      const [sourceL, sourceC, sourceH] = labToOklch(sourceLab);
+      const [aliasL, aliasC, aliasH] = labToOklch(entry.featureLab);
+      const sourcePoint = project(sourceL, sourceC, sourceH);
+      const aliasPoint = project(aliasL, aliasC, aliasH);
+      const hex = labToHex(entry.featureLab);
+      const opacity = clamp(0.50 + (aliasPoint.depth + 1) * 0.23, 0.42, 0.98);
+      return {
+        depth: Math.min(sourcePoint.depth, aliasPoint.depth) - 0.01,
+        markup: `<g class="xray-match-anchor" aria-hidden="true"><title>${xrayMatchAliasTitle(entry, records)}</title><line x1="${sourcePoint.x.toFixed(1)}" y1="${sourcePoint.y.toFixed(1)}" x2="${aliasPoint.x.toFixed(1)}" y2="${aliasPoint.y.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect x="${(aliasPoint.x-3.2).toFixed(1)}" y="${(aliasPoint.y-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" opacity="${opacity.toFixed(2)}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${aliasPoint.x.toFixed(1)} ${aliasPoint.y.toFixed(1)})"/></g>`
+      };
+    });
+
     const points = records.map((record, index) => {
       const swatchLab = visibleSwatchLab(record) || record.lab;
       const [L, C, h] = labToOklch(swatchLab);
@@ -1668,7 +1719,7 @@ export function createDiagnosticsPanel({
       const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
       const slash = record.muted ? mutedCircleSlash(p.x, p.y, radius) : "";
       return {depth: p.depth, markup: `<g class="${graphSwatchClass(record, index)}" ${swatchGraphAttrs(index, record.displayIndex ?? index)}><title>${graphSwatchTitle(record, index, swatchLab)}</title><circle class="xray-swatch-fill" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius.toFixed(1)}" fill="${hex}" opacity="${opacity.toFixed(2)}" stroke="${stroke}" stroke-width="1.15"${dash}></circle>${slash}</g>`};
-    }).sort((a, b) => a.depth - b.depth).map(item => item.markup).join("");
+    }).concat(aliasMarks).sort((a, b) => a.depth - b.depth).map(item => item.markup).join("");
 
     const yawDeg = ((xrayCylinderYaw * 180 / Math.PI) % 360 + 360) % 360;
     const pitchDeg = xrayCylinderPitch * 180 / Math.PI;

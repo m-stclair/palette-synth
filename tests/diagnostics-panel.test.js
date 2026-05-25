@@ -757,6 +757,57 @@ test("X-Ray wheel displays match anchor aliases", () => {
   assert.match(xray.innerHTML, /max C 42/);
 });
 
+test("X-Ray tonal ramp displays match anchor aliases", () => {
+  const xray = element();
+  const swatchLab = oklchToLab([34, 5, 0]);
+  const anchorLab = oklchToLab([78, 12, Math.PI * 0.33]);
+  const record = {lab: swatchLab, hex: labToHex(swatchLab), displayIndex: 0, swatchId: "tonal-anchor-test"};
+  const anchorHex = labToHex(anchorLab);
+  const stats = {
+    records: [record],
+    entries: [{alias: true, sourceRecord: record, featureLab: anchorLab, renderLab: swatchLab}]
+  };
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getConfig: () => ({}),
+    getState: () => ({diagnostics: {stats}})
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-mode]" ? {dataset: {xrayMode: "ramp"}} : null}});
+
+  assert.match(xray.innerHTML, /data-xray-mode="ramp"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /class="xray-match-anchor"/);
+  assert.match(xray.innerHTML, /match anchor for swatch 1/);
+  assert.match(xray.innerHTML, new RegExp(`fill="${anchorHex}"`));
+});
+
+test("X-Ray cylinder displays match anchor aliases", () => {
+  const xray = element();
+  const swatchLab = oklchToLab([52, 6, 0]);
+  const anchorLab = oklchToLab([66, 44, Math.PI * 0.68]);
+  const record = {lab: swatchLab, hex: labToHex(swatchLab), displayIndex: 0, swatchId: "cylinder-anchor-test"};
+  const anchorHex = labToHex(anchorLab);
+  const stats = {
+    records: [record],
+    entries: [{alias: true, sourceRecord: record, featureLab: anchorLab, renderLab: swatchLab}]
+  };
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getConfig: () => ({}),
+    getState: () => ({diagnostics: {stats}})
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-mode]" ? {dataset: {xrayMode: "cylinder"}} : null}});
+
+  assert.match(xray.innerHTML, /data-xray-mode="cylinder"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /class="xray-match-anchor"/);
+  assert.match(xray.innerHTML, /match anchor for swatch 1/);
+  assert.match(xray.innerHTML, new RegExp(`fill="${anchorHex}"`));
+  assert.match(xray.innerHTML, /C 44/);
+});
+
 test("X-Ray mode switches keep the freshest X-Ray-only stats instead of old full diagnostics", () => {
   const xray = element();
   const oldRecord = {lab: [20, 0, 0], hex: "#111111", displayIndex: 0};
