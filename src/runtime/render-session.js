@@ -73,6 +73,7 @@ export function createRenderSession({
   state,
   config,
   ensureLevelAdjustedSources,
+  ensureLevelAdjustedPreviewSource = ensureLevelAdjustedSources,
   getPaletteRecords,
   paletteUniformEntries,
   renderPaletteLabs,
@@ -129,6 +130,12 @@ export function createRenderSession({
     if (swatches) state.swatchesDirty = true;
   }
 
+  function paletteUsesAdjustedSourceImage(mode = config.paletteMode) {
+    if (mode === "generated") return true;
+    if (mode === "manual") return Math.max(0, Number(config.generatedAssist) || 0) > 0;
+    return false;
+  }
+
   function markMaskDirty() {
     const mask = state.mask;
     if (mask) mask.textureDirty = true;
@@ -140,24 +147,28 @@ export function createRenderSession({
   }
 
   function markLevelsDirty() {
+    state.previewLevelsDirty = true;
+    state.sourceLevelsDirty = true;
+    markTextureDirty();
+    if (paletteUsesAdjustedSourceImage()) markPaletteDirty();
+  }
+
+  function markEverythingDirty() {
+    state.previewLevelsDirty = true;
     state.sourceLevelsDirty = true;
     markTextureDirty();
     markPaletteDirty();
   }
 
-  function markEverythingDirty() {
-    markLevelsDirty();
-  }
-
   function ensureTexture() {
-    ensureLevelAdjustedSources();
     const gl = state.gl;
     if (!state.texture) {
       state.texture = createTextureFn(gl);
       state.textureDirty = true;
     }
     if (!state.textureDirty) return;
-    uploadCanvasTextureFn(gl, state.texture, state.sourceCanvas, {pixelPerfect: config.pixelPerfect});
+    const sourceCanvas = ensureLevelAdjustedPreviewSource() || state.previewSourceCanvas || state.sourceCanvas || state.originalCanvas;
+    uploadCanvasTextureFn(gl, state.texture, sourceCanvas, {pixelPerfect: config.pixelPerfect});
     if (state.blockSample) state.blockSample.dirty = true;
     state.textureVersion = (Number(state.textureVersion) || 0) + 1;
     markCompositeCachesDirty();
@@ -190,7 +201,7 @@ export function createRenderSession({
   }
 
   function ensurePalette(options = {}) {
-    ensureLevelAdjustedSources();
+    if (paletteUsesAdjustedSourceImage()) ensureLevelAdjustedSources();
     const generatedMode = config.paletteMode === "generated" || config.paletteMode === "generatedReference";
     const captureTrace = options.captureTrace === true && generatedMode;
     const needsSelectionTrace = captureTrace && !state.paletteSelectionTrace;
@@ -479,6 +490,9 @@ export function createRenderSession({
     markMaskDirty,
     markLevelsDirty,
     markEverythingDirty,
+    paletteUsesAdjustedSourceImage,
+    ensureLevelAdjustedPreviewSource,
+    ensureLevelAdjustedSources,
     ensureTexture,
     ensurePalette,
     currentRenderSettings,

@@ -80,6 +80,8 @@ export function createImageController({
     state.sourceCanvas.width = width;
     state.sourceCanvas.height = height;
     state.sourceCtx = state.sourceCanvas.getContext("2d", {willReadFrequently: true});
+    state.previewSourceCanvas = null;
+    state.previewLevelsDirty = true;
     state.sourceLevelsDirty = true;
     ensureLevelAdjustedSources();
 

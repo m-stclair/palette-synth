@@ -50,6 +50,7 @@ export function createRenderedCanvasController({
   config,
   document,
   ensurePalette = () => {},
+  ensureLevelAdjustedPreviewSource = () => state.previewSourceCanvas || state.sourceCanvas,
   getPaletteRecords,
   fallbackPaletteRecords,
   paletteUniformEntries,
@@ -102,17 +103,20 @@ export function createRenderedCanvasController({
     viewportOrigin = [0, 0],
     readPixels = false
   } = {}) {
-    if (!state.imageData || !state.sourceCanvas.width || !state.sourceCanvas.height) return null;
+    const sourceCanvas = ensureLevelAdjustedPreviewSource() || state.previewSourceCanvas || state.sourceCanvas;
+    if (!state.imageData || !sourceCanvas?.width || !sourceCanvas?.height) return null;
     const safeRecords = Array.isArray(records) && records.length ? records : getPaletteRecords();
-    const safeWidth = Math.max(1, Math.round(Number(width) || state.sourceCanvas.width || 1));
-    const safeHeight = Math.max(1, Math.round(Number(height) || state.sourceCanvas.height || 1));
+    const sourceWidth = sourceCanvas.width || state.sourceCanvas.width || 1;
+    const sourceHeight = sourceCanvas.height || state.sourceCanvas.height || 1;
+    const safeWidth = Math.max(1, Math.round(Number(width) || sourceWidth || 1));
+    const safeHeight = Math.max(1, Math.round(Number(height) || sourceHeight || 1));
     const exportCanvas = document.createElement("canvas");
     exportCanvas.width = safeWidth;
     exportCanvas.height = safeHeight;
     const gl = createWebgl2ContextFn(exportCanvas, "WebGL2 is required for export rendering.");
 
     const texture = createTextureFn(gl);
-    uploadCanvasTextureFn(gl, texture, state.sourceCanvas, {pixelPerfect: config.pixelPerfect});
+    uploadCanvasTextureFn(gl, texture, sourceCanvas, {pixelPerfect: config.pixelPerfect});
     const mask = state.mask || {};
     const maskEnabled = !!(mask.enabled && mask.canvas?.width && mask.canvas?.height);
     const maskTexture = maskEnabled ? createTextureFn(gl) : null;
@@ -166,7 +170,7 @@ export function createRenderedCanvasController({
           viewportOrigin: [0, 0],
           viewCenter: [0.5, 0.5],
           viewSpan: [1, 1],
-          sourceImageSize: [state.sourceCanvas.width || 1, state.sourceCanvas.height || 1],
+          sourceImageSize: [sourceWidth, sourceHeight],
           blockSampleCache,
           paletteBlock: paletteData.paletteBlock,
           paletteFeatures: paletteData.paletteFeatures,
@@ -228,7 +232,7 @@ export function createRenderedCanvasController({
           viewportOrigin,
           viewCenter,
           viewSpan,
-          sourceImageSize: [state.sourceCanvas.width || 1, state.sourceCanvas.height || 1],
+          sourceImageSize: [sourceWidth, sourceHeight],
           blockSampleCache,
           paletteBlock: paletteData.paletteBlock,
           paletteFeatures: paletteData.paletteFeatures,

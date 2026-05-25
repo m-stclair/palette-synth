@@ -30,6 +30,7 @@ export function createDiagnosticsController({
   state,
   config,
   ensurePalette = () => {},
+  ensureLevelAdjustedSources = () => state.imageData,
   renderPaletteLabs = records => records.map(record => record?.lab).filter(Array.isArray),
   paletteUniformEntries = (records = []) => records.map(record => ({sourceRecord: record, renderLab: record?.lab, featureLab: record?.lab})),
   diagnosticsSignature = () => "",
@@ -57,6 +58,11 @@ export function createDiagnosticsController({
     if (!state.diagnostics) state.diagnostics = {};
     return state.diagnostics;
   };
+
+  function ensureImageData() {
+    ensureLevelAdjustedSources?.();
+    return state.imageData;
+  }
 
   function inspectorTabsEnabled() {
     return !!(els.inspectorTabs || els.inspectorTabPixel || els.inspectorPanelPixel || els.inspectorPanelDiagnostics);
@@ -245,7 +251,7 @@ export function createDiagnosticsController({
   }
 
   function inspectDiagnosticImagePixel(x, y, {announce = false} = {}) {
-    if (!state.imageData) return null;
+    if (!ensureImageData()) return null;
     const width = state.imageData.width || 1;
     const height = state.imageData.height || 1;
     const pxX = clamp(Math.floor(Number(x) || 0), 0, width - 1);
@@ -278,7 +284,7 @@ export function createDiagnosticsController({
   function nudgeDiagnosticPixel(dx, dy, {step = 1, announce = true} = {}) {
     const diagnostic = diagnosticsState();
     const probe = diagnostic.pixelProbe || diagnostic.pixel;
-    if (!probe || !state.imageData) {
+    if (!probe || !ensureImageData()) {
       setStatus("Inspect a pixel first.");
       return null;
     }
@@ -348,7 +354,10 @@ export function createDiagnosticsController({
     }
 
     const inspectorOpen = pixelInspectorPanelIsOpen();
-    if (inspectorOpen) refreshDiagnosticPixel();
+    if (inspectorOpen) {
+      ensureImageData();
+      refreshDiagnosticPixel();
+    }
     else {
       syncPixelInspectorUi();
       syncPixelProbeOverlay();
@@ -370,6 +379,7 @@ export function createDiagnosticsController({
     // generation for its trace only while the families/selection tab is open.
     // The X-Ray is a palette-structure view and does not need image sampling.
     if (!fullDiagnosticsOpen && !histogramOpen && !xrayOpen) return;
+    if (fullDiagnosticsOpen || histogramOpen) ensureImageData();
     if (state.paletteDirty || !state.paletteRecords.length) ensurePalette();
     if (!state.paletteRecords.length) {
       state.diagnostics.stats = null;

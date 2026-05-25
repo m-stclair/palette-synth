@@ -38,6 +38,7 @@ export function createRenderDomain({
     state,
     config,
     ensureLevelAdjustedSources: levelSourceController.ensureLevelAdjustedSources,
+    ensureLevelAdjustedPreviewSource: levelSourceController.ensureLevelAdjustedPreviewSource,
     getPaletteRecords: palette.getPaletteRecords,
     paletteUniformEntries: palette.paletteUniformEntries,
     renderPaletteLabs: palette.renderPaletteLabs,

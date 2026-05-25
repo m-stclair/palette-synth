@@ -22,6 +22,7 @@ export function createExportDomain({
     config,
     document: root,
     ensurePalette: render.ensurePalette,
+    ensureLevelAdjustedPreviewSource: render.ensureLevelAdjustedPreviewSource,
     getPaletteRecords: palette.getPaletteRecords,
     fallbackPaletteRecords: palette.fallbackPaletteRecords,
     paletteUniformEntries: palette.paletteUniformEntries,

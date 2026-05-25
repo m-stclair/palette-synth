@@ -26,6 +26,7 @@ export function createDiagnosticsDomain({
   } = palette;
   const {
     ensurePalette = () => {},
+    ensureLevelAdjustedSources = () => state.imageData,
     queueRender = () => {}
   } = render;
   const {
@@ -40,7 +41,10 @@ export function createDiagnosticsDomain({
 
   const metrics = createDiagnosticMetrics({
     getConfig: () => config,
-    getImageData: () => state.imageData,
+    getImageData: () => {
+      ensureLevelAdjustedSources();
+      return state.imageData;
+    },
     getRecords: () => state.paletteRecords,
     getEntries: records => paletteUniformEntries(records, renderPaletteLabs(records)),
     includeCycleOffset: () => manualCycleModeEnabled()
@@ -83,6 +87,7 @@ export function createDiagnosticsDomain({
     state,
     config,
     ensurePalette,
+    ensureLevelAdjustedSources,
     renderPaletteLabs,
     paletteUniformEntries,
     diagnosticsSignature: metrics.diagnosticsSignature,

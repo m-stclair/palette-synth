@@ -190,26 +190,19 @@ function setLevelsUniforms(gl, program, width, height, settings, defaults) {
   gl.uniform1f(uniformLocation(gl, program, "u_levelsCurveAmount"), clamp01(Number(settings.levelsCurveAmount) || 0));
 }
 
-export function applyLevelsToCanvas(levelsState, {
+export function renderLevelsPreviewCanvas(levelsState, {
   shaders,
   originalCanvas,
-  targetCanvas,
-  targetCtx,
   sourceVersion = 0,
   settings = {},
   defaults = {},
   uploadCanvasTextureFn = uploadCanvasTexture
 }) {
-  if (!originalCanvas || !originalCanvas.width || !originalCanvas.height || !targetCtx) return null;
+  if (!originalCanvas || !originalCanvas.width || !originalCanvas.height) return null;
   const width = originalCanvas.width;
   const height = originalCanvas.height;
-  resizeDrawingBuffer(targetCanvas, width, height);
 
-  if (levelsAreIdentity(settings)) {
-    targetCtx.clearRect(0, 0, width, height);
-    targetCtx.drawImage(originalCanvas, 0, 0);
-    return createLazyCanvasImageData(targetCtx, width, height, {canvas: targetCanvas, version: sourceVersion});
-  }
+  if (levelsAreIdentity(settings)) return originalCanvas;
 
   const gl = ensureLevelsContext(levelsState);
   const canvas = levelsState.canvas;
@@ -228,10 +221,7 @@ export function applyLevelsToCanvas(levelsState, {
     setLevelsUniforms(gl, levelsProgram, width, height, settings, defaults);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.finish();
-
-    targetCtx.clearRect(0, 0, width, height);
-    targetCtx.drawImage(canvas, 0, 0, width, height);
-    return createLazyCanvasImageData(targetCtx, width, height, {canvas: targetCanvas, version: sourceVersion});
+    return canvas;
   }
 
   if (!shaders.clarityLightnessBlurFragmentSource
@@ -349,7 +339,34 @@ export function applyLevelsToCanvas(levelsState, {
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.finish();
 
+  return canvas;
+}
+
+export function applyLevelsToCanvas(levelsState, {
+  shaders,
+  originalCanvas,
+  targetCanvas,
+  targetCtx,
+  sourceVersion = 0,
+  settings = {},
+  defaults = {},
+  uploadCanvasTextureFn = uploadCanvasTexture
+}) {
+  if (!originalCanvas || !originalCanvas.width || !originalCanvas.height || !targetCtx) return null;
+  const width = originalCanvas.width;
+  const height = originalCanvas.height;
+  const sourceCanvas = renderLevelsPreviewCanvas(levelsState, {
+    shaders,
+    originalCanvas,
+    sourceVersion,
+    settings,
+    defaults,
+    uploadCanvasTextureFn
+  });
+  if (!sourceCanvas) return null;
+
+  resizeDrawingBuffer(targetCanvas, width, height);
   targetCtx.clearRect(0, 0, width, height);
-  targetCtx.drawImage(canvas, 0, 0, width, height);
+  targetCtx.drawImage(sourceCanvas, 0, 0, width, height);
   return createLazyCanvasImageData(targetCtx, width, height, {canvas: targetCanvas, version: sourceVersion});
 }

@@ -149,7 +149,7 @@ test("render session dirty flags invalidate only the right cached pieces", () =>
       composite: {program: null, programKey: ""}
     }
   });
-  const {session} = makeSession({state});
+  const {session} = makeSession({state, config: makeConfig({paletteMode: "generated"})});
 
   session.markTextureDirty();
   assert.equal(state.textureDirty, true);

@@ -797,7 +797,7 @@ test("render domain exposes level invalidation through the render session", () =
   const domain = createRenderDomain({
     els: {},
     state,
-    config: {},
+    config: {paletteMode: "generated"},
     shaders: {},
     palette: {
       manualCycleModeEnabled: () => false,

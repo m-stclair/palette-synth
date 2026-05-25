@@ -721,6 +721,9 @@ export interface RuntimeState {
   originalCanvas: HTMLCanvasElement;
   originalCtx: CanvasRenderingContext2D | null;
   originalSourceVersion: number;
+  previewSourceCanvas: HTMLCanvasElement | null;
+  previewSourceVersion: number;
+  previewLevelsDirty: boolean;
   sourceCanvas: HTMLCanvasElement;
   sourceCtx: CanvasRenderingContext2D | null;
   imageData: ImageDataSource | null;
@@ -829,6 +832,8 @@ export interface RenderActions {
   markEverythingDirty(): void;
   ensureTexture(): void;
   ensurePalette(options?: { captureTrace?: boolean }): void;
+  ensureLevelAdjustedPreviewSource(): HTMLCanvasElement | null;
+  ensureLevelAdjustedSources(): ImageDataSource | null;
   currentRenderSettings(): RenderSettings;
   renderPaletteProgram(
     gl: WebGL2RenderingContext,

@@ -117,6 +117,8 @@ export function createAppPorts() {
       markEverythingDirty: (...args) => renderSession.call("markEverythingDirty", ...args),
       ensureTexture: (...args) => renderSession.call("ensureTexture", ...args),
       ensurePalette: (...args) => renderSession.call("ensurePalette", ...args),
+      ensureLevelAdjustedPreviewSource: (...args) => renderSession.call("ensureLevelAdjustedPreviewSource", ...args),
+      ensureLevelAdjustedSources: (...args) => renderSession.call("ensureLevelAdjustedSources", ...args),
       currentRenderSettings: (...args) => renderSession.call("currentRenderSettings", ...args),
       renderPaletteProgram: (...args) => renderSession.call("renderPaletteProgram", ...args),
       draw: (...args) => renderSession.call("draw", ...args),

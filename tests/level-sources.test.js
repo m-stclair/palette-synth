@@ -46,16 +46,25 @@ test("level source controller forwards shader/settings dependencies to the rende
 });
 
 test("level source controller refreshes only dirty primary sources", () => {
+  const draws = [];
   const state = {
     levels: {},
-    originalCanvas: {width: 10, name: "sourceOriginal"},
-    sourceCanvas: {name: "source"},
-    sourceCtx: {name: "sourceCtx"},
+    originalCanvas: {width: 10, height: 2, name: "sourceOriginal"},
+    sourceCanvas: {width: 0, height: 0, name: "source"},
+    sourceCtx: {
+      name: "sourceCtx",
+      clearRect: (...args) => draws.push(["clear", ...args]),
+      drawImage: (...args) => draws.push(["draw", args[0].name, ...args.slice(1)]),
+      getImageData: (x, y, width, height) => ({width, height, data: new Uint8ClampedArray(width * height * 4)})
+    },
     originalSourceVersion: 7,
-    referenceOriginalCanvas: {width: 5, name: "referenceOriginal"},
+    referenceOriginalCanvas: {width: 5, height: 2, name: "referenceOriginal"},
     referenceCanvas: {name: "reference"},
     referenceCtx: {name: "referenceCtx"},
     referenceOriginalSourceVersion: 11,
+    previewLevelsDirty: true,
+    previewSourceCanvas: null,
+    previewSourceVersion: 0,
     sourceLevelsDirty: true,
     referenceLevelsDirty: true,
     textureDirty: false
@@ -64,20 +73,26 @@ test("level source controller refreshes only dirty primary sources", () => {
   const controller = createLevelSourceController({
     state,
     config: {},
-    applyLevelsToCanvasFn: (_levels, {originalCanvas, sourceVersion}) => {
+    renderLevelsPreviewCanvasFn: (_levels, {originalCanvas, sourceVersion}) => {
       calls.push([originalCanvas.name, sourceVersion]);
-      return {name: `${originalCanvas.name}ImageData`};
+      return {width: originalCanvas.width, height: originalCanvas.height, name: `${originalCanvas.name}Preview`};
     }
   });
 
   controller.ensureLevelAdjustedSources();
 
   assert.deepEqual(calls, [["sourceOriginal", 7]]);
-  assert.deepEqual(state.imageData, {name: "sourceOriginalImageData"});
+  assert.equal(state.imageData.width, 10);
+  assert.equal(state.imageData.height, 2);
+  assert.deepEqual(draws, [
+    ["clear", 0, 0, 10, 2],
+    ["draw", "sourceOriginalPreview", 0, 0, 10, 2]
+  ]);
   assert.equal(state.referenceImageData, undefined);
+  assert.equal(state.previewLevelsDirty, false);
   assert.equal(state.sourceLevelsDirty, false);
   assert.equal(state.referenceLevelsDirty, true);
-  assert.equal(state.textureDirty, true);
+  assert.equal(state.textureDirty, false);
 
   controller.ensureLevelAdjustedSources();
   assert.deepEqual(calls, [["sourceOriginal", 7]]);
