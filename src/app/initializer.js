@@ -337,7 +337,13 @@ export function createAppInitializer(deps = {}) {
       inspectDiagnosticPixel
     });
 
-    initWorkbench({queueRender, updateDiagnostics, resetPanelControls, panelHasResettableControls});
+    initWorkbench({
+      queueRender,
+      invalidateCanvasRenderSize: viewportController.invalidateCanvasRenderSize,
+      updateDiagnostics,
+      resetPanelControls,
+      panelHasResettableControls
+    });
     bindDismissibleMenus({root});
     bindRangeScrubSkinHold({root, windowRef});
     viewportController.updateViewStatus();
@@ -361,6 +367,7 @@ export function createAppInitializer(deps = {}) {
       setCompareSplit,
       syncCycleControls,
       queueRender,
+      invalidateCanvasRenderSize: viewportController.invalidateCanvasRenderSize,
       loadFile,
       loadReferenceFile,
       loadDemo,

@@ -417,6 +417,7 @@ export function bindAppControls({
   setCompareSplit,
   syncCycleControls,
   queueRender,
+  invalidateCanvasRenderSize,
   loadFile,
   loadReferenceFile,
   loadDemo,
@@ -474,7 +475,13 @@ export function bindAppControls({
   });
 
   syncCycleControls();
-  window.addEventListener("resize", queueRender);
+  window.addEventListener("resize", () => {
+    if (typeof invalidateCanvasRenderSize === "function") {
+      invalidateCanvasRenderSize({queue: true, afterCurrent: true});
+    } else {
+      queueRender();
+    }
+  });
 
   const demoImageSelect = $("demoImageSelect");
   if (demoImageSelect) {

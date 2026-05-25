@@ -84,6 +84,7 @@ export function createRenderSession({
   getCanvasRenderSize,
   getViewRect,
   getViewSpan,
+  clampViewCenter = () => {},
   buildProgram,
   vertexSource = "",
   blockSampleFragmentSource = "",
@@ -415,6 +416,7 @@ export function createRenderSession({
     const canvas = gl.canvas;
     const target = getCanvasRenderSize();
     resizeDrawingBufferFn(canvas, target.width, target.height);
+    clampViewCenter();
     const viewRect = getViewRect(canvas.width, canvas.height);
     ensureTexture();
     ensurePalette();
@@ -471,8 +473,11 @@ export function createRenderSession({
     });
   }
 
-  function queueRender() {
-    if (state.renderQueued) return;
+  function queueRender(options = {}) {
+    if (state.renderQueued) {
+      if (options?.afterCurrent) state.renderAfterCurrentFrame = true;
+      return;
+    }
     state.renderQueued = true;
     const schedule = requestFrame || (callback => callback(0));
     schedule(frameTime => {
@@ -481,6 +486,10 @@ export function createRenderSession({
       updatePaletteRegionOverlay();
       updateMaskOverlay();
       updateDiagnostics({immediate: true, frameTime});
+      if (state.renderAfterCurrentFrame) {
+        state.renderAfterCurrentFrame = false;
+        queueRender();
+      }
     });
   }
 

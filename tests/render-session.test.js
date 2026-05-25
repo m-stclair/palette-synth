@@ -78,6 +78,7 @@ function makeSession(overrides = {}) {
     getCanvasRenderSize: () => ({width: 200, height: 100}),
     getViewRect: () => ({x: 10, y: 5, w: 180, h: 90}),
     getViewSpan: () => [0.5, 0.25],
+    clampViewCenter: overrides.clampViewCenter || (() => {}),
     buildProgram: () => "program",
     vertexSource: overrides.vertexSource ?? "",
     postProcessFragmentSource: overrides.postProcessFragmentSource ?? "",
@@ -284,6 +285,32 @@ test("queueRender coalesces frames and runs draw plus after-render hooks", () =>
   ]);
 });
 
+test("queueRender can schedule one follow-up frame for resize invalidations", () => {
+  const {session, state, calls} = makeSession();
+
+  session.queueRender();
+  session.queueRender({afterCurrent: true});
+
+  let frames = calls.filter(call => Array.isArray(call) && call[0] === "requestFrame");
+  assert.equal(frames.length, 1);
+  assert.equal(state.renderAfterCurrentFrame, true);
+
+  frames[0][1](77);
+
+  frames = calls.filter(call => Array.isArray(call) && call[0] === "requestFrame");
+  assert.equal(frames.length, 2);
+  assert.equal(state.renderQueued, true);
+  assert.equal(state.renderAfterCurrentFrame, false);
+
+  frames[1][1](88);
+  assert.equal(state.renderQueued, false);
+  assert.equal(calls.filter(call => Array.isArray(call) && call[0] === "render").length, 2);
+  assert.deepEqual(calls.filter(call => Array.isArray(call) && call[0] === "diagnostics"), [
+    ["diagnostics", {immediate: true, frameTime: 77}],
+    ["diagnostics", {immediate: true, frameTime: 88}]
+  ]);
+});
+
 test("renderPaletteProgram supplies cached palette defaults and render settings", () => {
   const state = makeState({
     paletteBlock: new Float32Array([1, 2, 3, 4]),
@@ -350,6 +377,29 @@ test("renderPaletteProgram keeps cycle-within mask active for manual cycle tags"
   assert.equal(renderCall[1].cycleOffset, 0);
   assert.equal(renderCall[1].paletteBaseBlock, paletteBaseBlock);
   assert.ok(renderCall[1].maskTexture, "manual mask should still be uploaded and bound");
+});
+
+
+test("draw clamps zoom center after a canvas resize before rendering", () => {
+  const state = makeState({
+    view: {centerX: 0.9, centerY: 0.9, zoom: 3},
+    diagnostics: {signature: "", pixel: null, overlay: {mode: "none"}},
+    gl: {canvas: {width: 10, height: 10}, NEAREST: "NEAREST", LINEAR: "LINEAR"}
+  });
+  const {session, calls} = makeSession({
+    state,
+    clampViewCenter: () => {
+      state.view.centerX = 0.75;
+      state.view.centerY = 0.625;
+    }
+  });
+
+  session.draw();
+
+  const resizeIndex = calls.findIndex(call => Array.isArray(call) && call[0] === "resize");
+  const renderIndex = calls.findIndex(call => Array.isArray(call) && call[0] === "render");
+  assert.ok(resizeIndex >= 0 && renderIndex > resizeIndex, "the render should happen after the resize path");
+  assert.deepEqual(calls[renderIndex][1].viewCenter, [0.75, 0.625]);
 });
 
 test("draw runs the post-process pipeline when enabled and overlay is off", () => {

@@ -6,9 +6,9 @@ function finitePositive(value, fallback = 1) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-export function canvasRenderSize({canvas, sourceCanvas, dpr = globalThis.window?.devicePixelRatio || 1}) {
+export function canvasRenderSize({canvas, sourceCanvas, dpr = globalThis.window?.devicePixelRatio || 1, cssSize}) {
   const safeDpr = finitePositive(dpr, 1);
-  const rect = canvas.getBoundingClientRect();
+  const rect = cssSize || canvas.getBoundingClientRect();
   const fallbackWidth = sourceCanvas?.width || 1;
   const fallbackHeight = sourceCanvas?.height || 1;
   const width = Math.max(1, Math.round((rect.width || fallbackWidth) * safeDpr));
@@ -134,8 +134,101 @@ export function imagePixelFromClientPoint({
 }
 
 export function createViewportController({els, state, queueRender}) {
+  let cachedCanvasCssSize = null;
+  let cachedCanvasRenderSize = null;
+  let cachedDpr = 0;
+  let cachedFallbackWidth = 0;
+  let cachedFallbackHeight = 0;
+  let canvasSizeDirty = true;
+
+  function currentDpr() {
+    return finitePositive(globalThis.window?.devicePixelRatio || 1, 1);
+  }
+
+  function markCanvasRenderSizeDirty({forgetCssSize = false} = {}) {
+    canvasSizeDirty = true;
+    if (forgetCssSize) cachedCanvasCssSize = null;
+  }
+
+  function invalidateCanvasRenderSize({queue = false, afterCurrent = true, forgetCssSize = true} = {}) {
+    markCanvasRenderSizeDirty({forgetCssSize});
+    if (queue) queueRender(afterCurrent ? {afterCurrent: true} : undefined);
+  }
+
+  function rememberCanvasCssSize(width, height) {
+    const next = {
+      width: Number.isFinite(width) ? width : 0,
+      height: Number.isFinite(height) ? height : 0
+    };
+    const changed = !cachedCanvasCssSize
+      || cachedCanvasCssSize.width !== next.width
+      || cachedCanvasCssSize.height !== next.height;
+    cachedCanvasCssSize = next;
+    if (changed) markCanvasRenderSizeDirty();
+    return changed;
+  }
+
+  function readCanvasCssSize() {
+    const rect = els.canvas.getBoundingClientRect();
+    rememberCanvasCssSize(rect.width, rect.height);
+    return cachedCanvasCssSize;
+  }
+
+  function getResizeObserverBoxSize(entry) {
+    const box = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+    if (box && Number.isFinite(box.inlineSize) && Number.isFinite(box.blockSize)) {
+      return {width: box.inlineSize, height: box.blockSize};
+    }
+    return {
+      width: entry.contentRect?.width || 0,
+      height: entry.contentRect?.height || 0
+    };
+  }
+
+  function queueResizeRender() {
+    invalidateCanvasRenderSize({queue: true, afterCurrent: true, forgetCssSize: false});
+  }
+
+  if (typeof globalThis.ResizeObserver === "function" && els.canvas) {
+    const resizeObserver = new globalThis.ResizeObserver(entries => {
+      const entry = entries?.find?.(item => item.target === els.canvas) || entries?.[0];
+      if (!entry) return;
+      const {width, height} = getResizeObserverBoxSize(entry);
+      if (rememberCanvasCssSize(width, height)) queueResizeRender();
+    });
+    try {
+      resizeObserver.observe(els.canvas, {box: "border-box"});
+    } catch {
+      resizeObserver.observe(els.canvas);
+    }
+  }
+
+
   function getCanvasRenderSize() {
-    return canvasRenderSize({canvas: els.canvas, sourceCanvas: state.sourceCanvas});
+    const dpr = currentDpr();
+    const fallbackWidth = state.sourceCanvas?.width || 1;
+    const fallbackHeight = state.sourceCanvas?.height || 1;
+    const fallbackChanged = cachedFallbackWidth !== fallbackWidth || cachedFallbackHeight !== fallbackHeight;
+    if (
+      cachedCanvasRenderSize
+      && !canvasSizeDirty
+      && cachedDpr === dpr
+      && !fallbackChanged
+    ) {
+      return cachedCanvasRenderSize;
+    }
+
+    cachedDpr = dpr;
+    cachedFallbackWidth = fallbackWidth;
+    cachedFallbackHeight = fallbackHeight;
+    cachedCanvasRenderSize = canvasRenderSize({
+      canvas: els.canvas,
+      sourceCanvas: state.sourceCanvas,
+      dpr,
+      cssSize: cachedCanvasCssSize || readCanvasCssSize()
+    });
+    canvasSizeDirty = false;
+    return cachedCanvasRenderSize;
   }
 
   function imageSize() {
@@ -156,6 +249,7 @@ export function createViewportController({els, state, queueRender}) {
 
   function getDisplayViewRect() {
     const rect = els.canvas.getBoundingClientRect();
+    rememberCanvasCssSize(rect.width, rect.height);
     const renderSize = getCanvasRenderSize();
     const vr = getViewRect(renderSize.width, renderSize.height);
     return displayViewRect(rect, renderSize, vr);
@@ -251,6 +345,7 @@ export function createViewportController({els, state, queueRender}) {
 
   return {
     getCanvasRenderSize,
+    invalidateCanvasRenderSize,
     getViewRect,
     getDisplayViewRect,
     getViewSpan,

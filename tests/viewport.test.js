@@ -71,6 +71,103 @@ test("canvasRenderSize uses css size, dpr, and source fallback", () => {
   );
 });
 
+test("viewport controller caches canvas render size between layout changes", () => {
+  let rectReads = 0;
+  const state = {
+    gl: null,
+    sourceCanvas: {width: 400, height: 200},
+    view: {zoom: 1, centerX: 0.5, centerY: 0.5}
+  };
+  const els = {
+    canvas: {
+      getBoundingClientRect() {
+        rectReads++;
+        return {left: 0, top: 0, width: 320, height: 180};
+      }
+    }
+  };
+  const viewport = createViewportController({els, state, queueRender: () => {}});
+
+  assert.deepEqual(viewport.getCanvasRenderSize(), {width: 320, height: 180, dpr: 1, cssWidth: 320, cssHeight: 180});
+  assert.deepEqual(viewport.getCanvasRenderSize(), {width: 320, height: 180, dpr: 1, cssWidth: 320, cssHeight: 180});
+  assert.equal(rectReads, 1);
+});
+
+
+test("viewport invalidation rereads canvas size only when layout is known to have changed", () => {
+  let rectReads = 0;
+  let rect = {left: 0, top: 0, width: 320, height: 180};
+  const queueCalls = [];
+  const state = {
+    gl: null,
+    sourceCanvas: {width: 400, height: 200},
+    view: {zoom: 2, centerX: 0.5, centerY: 0.5}
+  };
+  const els = {
+    canvas: {
+      getBoundingClientRect() {
+        rectReads++;
+        return rect;
+      }
+    }
+  };
+  const viewport = createViewportController({els, state, queueRender: options => queueCalls.push(options)});
+
+  assert.equal(viewport.getCanvasRenderSize().width, 320);
+  rect = {left: 0, top: 0, width: 640, height: 360};
+  assert.equal(viewport.getCanvasRenderSize().width, 320);
+
+  viewport.invalidateCanvasRenderSize({queue: true});
+  assert.deepEqual(queueCalls, [{afterCurrent: true}]);
+  assert.equal(viewport.getCanvasRenderSize().width, 640);
+  assert.equal(rectReads, 2);
+});
+
+test("viewport resize observer queues a follow-up render when size changes", () => {
+  const previousResizeObserver = globalThis.ResizeObserver;
+  let observerCallback;
+  let observedTarget;
+
+  globalThis.ResizeObserver = class {
+    constructor(callback) {
+      observerCallback = callback;
+    }
+
+    observe(target) {
+      observedTarget = target;
+    }
+  };
+
+  try {
+    const queueCalls = [];
+    const state = {
+      gl: null,
+      sourceCanvas: {width: 400, height: 200},
+      view: {zoom: 2, centerX: 0.5, centerY: 0.5}
+    };
+    const els = {
+      canvas: {
+        getBoundingClientRect() {
+          throw new Error("resize observer size should avoid a layout read");
+        }
+      }
+    };
+    const viewport = createViewportController({els, state, queueRender: options => queueCalls.push(options)});
+
+    assert.equal(observedTarget, els.canvas);
+    observerCallback([{
+      target: els.canvas,
+      borderBoxSize: {inlineSize: 640, blockSize: 360},
+      contentRect: {width: 640, height: 360}
+    }]);
+
+    assert.deepEqual(queueCalls, [{afterCurrent: true}]);
+    assert.deepEqual(viewport.getCanvasRenderSize(), {width: 640, height: 360, dpr: 1, cssWidth: 640, cssHeight: 360});
+  } finally {
+    globalThis.ResizeObserver = previousResizeObserver;
+  }
+});
+
 test("viewport controller zooms, pans, updates controls, and maps image pixels", () => {
   let queued = 0;
   const state = {

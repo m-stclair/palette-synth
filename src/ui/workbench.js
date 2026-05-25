@@ -84,6 +84,7 @@ function ensurePanelScroller(toolPane, doc) {
 export function initWorkbench({
   root,
   queueRender = () => {},
+  invalidateCanvasRenderSize = null,
   updateDiagnostics = () => {},
   resetPanelControls = null,
   panelHasResettableControls = null
@@ -99,6 +100,13 @@ export function initWorkbench({
   const doc = workbench.ownerDocument || rootDocument;
   const win = doc.defaultView || (typeof window !== "undefined" ? window : null);
   const requestFrame = win?.requestAnimationFrame ? callback => win.requestAnimationFrame(callback) : callback => callback();
+  const queueLayoutRender = () => {
+    if (typeof invalidateCanvasRenderSize === "function") {
+      invalidateCanvasRenderSize({queue: true, afterCurrent: true});
+    } else {
+      queueRender();
+    }
+  };
   const narrowLayoutQuery = typeof win?.matchMedia === "function" ? win.matchMedia(NARROW_LAYOUT_QUERY) : null;
   const prefs = loadWorkbenchPrefs();
   const panelScroller = ensurePanelScroller(toolPane, doc);
@@ -129,7 +137,7 @@ export function initWorkbench({
     updateResizeSemantics();
     dockButtons.forEach(button => button.classList.toggle("is-active", button.dataset.dockTarget === safeDock));
     saveWorkbenchPrefs(prefs);
-    queueRender();
+    queueLayoutRender();
   }
 
   function setPanelExpanded(panel, heading, key, expanded) {
@@ -184,7 +192,7 @@ export function initWorkbench({
       const expanded = panel.classList.contains("is-collapsed");
       setPanelExpanded(panel, heading, key, expanded);
       saveWorkbenchPrefs(prefs);
-      queueRender();
+      queueLayoutRender();
       maybeUpdateDiagnostics(key, expanded);
     };
     heading.addEventListener("click", event => {
@@ -203,7 +211,7 @@ export function initWorkbench({
   collapseAllButton?.addEventListener("click", () => {
     panelRecords.forEach(({panel, heading, key}) => setPanelExpanded(panel, heading, key, false));
     saveWorkbenchPrefs(prefs);
-    queueRender();
+    queueLayoutRender();
   });
 
   function recordContainsFocus(record) {
@@ -225,7 +233,7 @@ export function initWorkbench({
     if (toggle && expanded && recordContainsFocus(record)) {
       setPanelExpanded(record.panel, record.heading, record.key, false);
       saveWorkbenchPrefs(prefs);
-      queueRender();
+      queueLayoutRender();
       requestFrame(() => {
         if (focus && typeof record.heading.focus === "function") record.heading.focus({preventScroll: true});
       });
@@ -234,7 +242,7 @@ export function initWorkbench({
 
     setPanelExpanded(record.panel, record.heading, record.key, true);
     saveWorkbenchPrefs(prefs);
-    queueRender();
+    queueLayoutRender();
     maybeUpdateDiagnostics(record.key, true);
 
     requestFrame(() => {
@@ -291,7 +299,7 @@ export function initWorkbench({
         prefs.width = width;
         setCssPx(doc, "--tool-pane-width", width);
       }
-      queueRender();
+      queueLayoutRender();
     }
 
     function end() {
@@ -313,7 +321,7 @@ export function initWorkbench({
   if (narrowLayoutQuery) {
     const handleNarrowLayoutChange = () => {
       updateResizeSemantics();
-      queueRender();
+      queueLayoutRender();
     };
     if (typeof narrowLayoutQuery.addEventListener === "function") {
       narrowLayoutQuery.addEventListener("change", handleNarrowLayoutChange);

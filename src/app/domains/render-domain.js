@@ -49,6 +49,7 @@ export function createRenderDomain({
     getCanvasRenderSize: view.getCanvasRenderSize,
     getViewRect: view.getViewRect,
     getViewSpan: view.getViewSpan,
+    clampViewCenter: view.clampViewCenter,
     buildProgram: shaderProgramController.buildProgram,
     vertexSource: shaders.VERTEX_SHADER,
     blockSampleFragmentSource: shaders.BLOCK_SAMPLE_FRAGMENT_SHADER,
