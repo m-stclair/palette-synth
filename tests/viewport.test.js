@@ -6,6 +6,7 @@ import {
   createViewportController,
   fitViewRect,
   imagePixelFromClientPoint,
+  normalizePointerToRect,
   panCenterByClientDelta,
   viewSpan
 } from "../src/ui/viewport.js";
@@ -38,6 +39,16 @@ test("pure viewport helpers keep center and pixel math bounded", () => {
     centerX: 0.25,
     centerY: 0.875
   });
+
+  assert.deepEqual(
+    normalizePointerToRect(110, 20, {left: 10, top: 20, width: 200, height: 100}),
+    {rect: {left: 10, top: 20, width: 200, height: 100}, nx: 0.5, ny: 0}
+  );
+
+  assert.deepEqual(
+    normalizePointerToRect(110, 120, {left: 10, top: 20, width: 200, height: 100}),
+    {rect: {left: 10, top: 20, width: 200, height: 100}, nx: 0.5, ny: 1}
+  );
 
   assert.deepEqual(
     panCenterByClientDelta({centerX: 0.5, centerY: 0.5}, 20, 10, {width: 200, height: 100}, 0.5, 0.5),
@@ -166,6 +177,33 @@ test("viewport resize observer queues a follow-up render when size changes", () 
   } finally {
     globalThis.ResizeObserver = previousResizeObserver;
   }
+});
+
+test("viewport controller keeps off-center zoom anchored on the same Y pixel", () => {
+  const state = {
+    gl: {canvas: {width: 200, height: 100}},
+    sourceCanvas: {width: 400, height: 200},
+    imageData: {width: 400, height: 200},
+    view: {
+      zoom: 1,
+      centerX: 0.5,
+      centerY: 0.5
+    }
+  };
+  const els = {
+    canvas: fakeCanvas({left: 10, top: 20, width: 200, height: 100}),
+    viewStatus: {textContent: ""},
+    zoomOutButton: {disabled: true},
+    resetViewButton: {disabled: true}
+  };
+  const viewport = createViewportController({els, state, queueRender: () => {}});
+
+  viewport.zoomBy(-Math.log(2) * 1000, 110, 20);
+
+  assert.equal(state.view.zoom, 2);
+  assert.equal(state.view.centerX, 0.5);
+  assert.equal(state.view.centerY, 0.25);
+  assert.deepEqual(viewport.clientPointToImagePixel(110, 20), {x: 200, y: 0});
 });
 
 test("viewport controller zooms, pans, updates controls, and maps image pixels", () => {

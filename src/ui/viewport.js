@@ -93,7 +93,7 @@ export function clampedViewCenter(view, spanX, spanY) {
 
 export function normalizePointerToRect(clientX, clientY, rect) {
   const nx = clamp((clientX - rect.left) / Math.max(rect.width, 1), 0, 1);
-  const ny = clamp(1 - ((clientY - rect.top) / Math.max(rect.height, 1)), 0, 1);
+  const ny = clamp((clientY - rect.top) / Math.max(rect.height, 1), 0, 1);
   return {rect, nx, ny};
 }
 
