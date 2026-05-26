@@ -8,6 +8,7 @@ export const RANGE_EXPANSION_BONUS = 0.18;
 export const NOVELTY_BONUS = 0.16;
 export const DEFAULT_HUE_SPREAD_BONUS = 0.12;
 export const SELECTION_NOISE_AMOUNT = 0.08;
+export const SELECTION_TIE_BREAK_MARGIN = 0.025;
 export const TOP_BAND_RATIO = 0.92;
 export const TOP_BAND_ABS_WINDOW = 0.08;
 export const TAU = Math.PI * 2;

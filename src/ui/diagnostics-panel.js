@@ -1891,7 +1891,7 @@ export function createDiagnosticsPanel({
           ${spacingLine}
           ${crowdingLine}
           ${hueLine}
-          <div class="selection-lottery">Top band ${lottery.topBandSize ?? "—"} candidates · threshold ${formatScore(lottery.threshold)} · ${lottery.pickedByWeightedLottery ? "picked by seeded lottery" : "highest-ranked candidate"}</div>
+          <div class="selection-lottery">Tie window ${lottery.topBandSize ?? "—"} candidates · threshold ${formatScore(lottery.threshold)} · ${lottery.pickedBySeedTieBreak ? "picked by seeded tie-break" : "highest-ranked candidate"}</div>
           <div class="selection-score-grid">${scoreRows}</div>
           <div class="selection-subtitle">Near misses</div>
           <div class="selection-alt-list">${alternativeRowsHtml(round.nearMisses || [], picked.index)}</div>

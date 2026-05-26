@@ -7,11 +7,10 @@ import {
   OKLAB_CHROMA_REF,
   RANGE_EXPANSION_BONUS,
   SELECTION_NOISE_AMOUNT,
+  SELECTION_TIE_BREAK_MARGIN,
   SHADOW_L_CUTOFF,
   TONAL_CROWDING_PENALTY,
-  TONAL_NEED_BONUS,
-  TOP_BAND_ABS_WINDOW,
-  TOP_BAND_RATIO
+  TONAL_NEED_BONUS
 } from "../constants.js";
 import {
   clamp,
@@ -82,22 +81,6 @@ export function targetBandCounts(N, options = {}) {
       ? [0, 1, 0]
       : (N === 2 ? [1, 0, 1] : [1, N - 2, 1]));
   return targetBoost ? counts.map(count => count + targetBoost) : counts;
-}
-
-function weightedPick(entries, rng) {
-  if (entries.length === 0) return null;
-  let total = 0;
-  const weights = entries.map(entry => {
-    const weight = Math.max(entry.marginalScore - entry.bandThreshold, 0) + 1e-4;
-    total += weight;
-    return weight;
-  });
-  let draw = rng() * total;
-  for (let i = 0; i < entries.length; i++) {
-    draw -= weights[i];
-    if (draw <= 0) return entries[i];
-  }
-  return entries[entries.length - 1];
 }
 
 export function selectionBandName(index) {
@@ -245,8 +228,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         hueReliabilityChromaLow: 6,
         hueReliabilityChromaHigh: 22,
         selectionNoiseAmount: SELECTION_NOISE_AMOUNT,
-        topBandRatio: TOP_BAND_RATIO,
-        topBandAbsWindow: TOP_BAND_ABS_WINDOW
+        selectionTieBreakMargin: SELECTION_TIE_BREAK_MARGIN
       },
       rounds: []
     });
@@ -334,17 +316,17 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         hueSpreadContribution: hueNovelty * hueSpreadBonus,
         noiseContribution
       };
-      const marginalScore = entry.baseScore
+      const featureScore = entry.baseScore
         + parts.tonalNeedContribution
         - parts.crowdingPenalty
         + parts.rangeExpansionContribution
         + parts.noveltyContribution
-        + parts.hueSpreadContribution
-        + noiseContribution;
+        + parts.hueSpreadContribution;
       scored.push({
         ...entry,
         band,
-        marginalScore,
+        featureScore,
+        marginalScore: featureScore,
         parts,
         spacingRelaxed,
         hueNovelty,
@@ -362,13 +344,17 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     for (let i = 1; i < scored.length; i++) {
       if (compareRankedCandidates(scored[i], best) < 0) best = scored[i];
     }
-    const bestScore = best.marginalScore;
-    const threshold = Math.max(bestScore * TOP_BAND_RATIO, bestScore - TOP_BAND_ABS_WINDOW);
+    const bestScore = best.featureScore;
+    const threshold = bestScore - SELECTION_TIE_BREAK_MARGIN;
     const topBand = scored
-      .filter(entry => entry.marginalScore >= threshold)
+      .filter(entry => entry.featureScore >= threshold)
       .map(entry => ({...entry, bandThreshold: threshold}))
       .sort(compareRankedCandidates);
-    const picked = weightedPick(topBand, rng) ?? {...best, bandThreshold: threshold};
+    const picked = topBand.slice().sort((a, b) =>
+      (b.parts.noiseContribution - a.parts.noiseContribution)
+      || compareRankedCandidates(a, b)
+    )[0] ?? {...best, bandThreshold: threshold};
+    rng();
 
     if (traceRoot) {
       const ranked = [...scored].sort(compareRankedCandidates);
@@ -443,12 +429,13 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         lottery: {
           bestScore,
           threshold,
-          topBandRatio: TOP_BAND_RATIO,
-          topBandAbsWindow: TOP_BAND_ABS_WINDOW,
           topBandSize: topBand.length,
           pickedRank,
           pickedBest: pickedRank === 1,
-          pickedByWeightedLottery: pickedRank !== 1
+          pickedByWeightedLottery: false,
+          pickedBySeedTieBreak: pickedRank !== 1,
+          tieBreakMargin: SELECTION_TIE_BREAK_MARGIN,
+          tieBreakMode: "near-tie seeded jitter"
         },
         picked: {
           ...scoredCandidateSummary(pickedWithThreshold, pickedRank),
