@@ -12,9 +12,9 @@ import {
 } from "../color-utils.js";
 import {
   activeGeneratedLocks as activeGeneratedLocksForConfig,
-  createCosinePalette,
+  createCosinePaletteResult,
   createGeneratedPalette,
-  createHarmonyPalette,
+  createHarmonyPaletteResult,
   createManualPalette,
   createPresetPalette,
   generatedFamilyCount as generatedFamilyCountForConfig,
@@ -95,12 +95,16 @@ export function createPaletteRuntime({
     return activeGeneratedLocksForConfig(config, baseCount);
   }
 
-  function harmonyPalette() {
-    return createHarmonyPalette(config);
+  function harmonyPalette(options = {}) {
+    const result = createHarmonyPaletteResult(config, {captureTrace: options.captureTrace === true});
+    state.paletteSelectionTrace = options.captureTrace === true ? result.trace : null;
+    return result.records;
   }
 
-  function cosinePalette() {
-    return createCosinePalette(config);
+  function cosinePalette(options = {}) {
+    const result = createCosinePaletteResult(config, {captureTrace: options.captureTrace === true});
+    state.paletteSelectionTrace = options.captureTrace === true ? result.trace : null;
+    return result.records;
   }
 
   function presetPalette() {
@@ -338,12 +342,14 @@ export function createPaletteRuntime({
    */
   function getPaletteRecords(options = {}) {
     let raw;
-    if (!isGeneratedPaletteMode()) state.paletteSelectionTrace = null;
+    const captureTrace = options.captureTrace === true;
+    const traceableMode = isGeneratedPaletteMode() || config.paletteMode === "harmony" || config.paletteMode === "cosine";
+    if (!traceableMode) state.paletteSelectionTrace = null;
     if (config.paletteMode === "manual") raw = manualPalette();
     else if (config.paletteMode === "preset") raw = presetPalette();
-    else if (config.paletteMode === "harmony") raw = harmonyPalette();
-    else if (config.paletteMode === "cosine") raw = cosinePalette();
-    else raw = generatedPalette({captureTrace: options.captureTrace === true});
+    else if (config.paletteMode === "harmony") raw = harmonyPalette({captureTrace});
+    else if (config.paletteMode === "cosine") raw = cosinePalette({captureTrace});
+    else raw = generatedPalette({captureTrace});
     const records = raw.length ? raw : fallbackPaletteRecords();
     return sortPaletteRecords(applyPaletteAdjustments(records), config.sortMode);
   }

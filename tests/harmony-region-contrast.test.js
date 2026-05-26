@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { labToOklch } from "../src/color-utils.js";
 import { cloneDefaultConfig } from "../src/state/config.js";
-import { createHarmonyPalette } from "../src/palette/generation.js";
+import { createHarmonyPalette, createHarmonyPaletteResult } from "../src/palette/generation.js";
 
 function recordsByVariant(records) {
   return Object.fromEntries(records.map(record => [record.variant, record]));
@@ -149,4 +149,24 @@ test("seed harmony seed applies local hue and chroma jitter instead of a uniform
 
   assert.ok(roundedHueDeltas.size >= 3);
   assert.ok(Math.max(...chromaDeltas) > 0.5);
+});
+
+test("seed harmony result records procedural trace for inspector", () => {
+  const config = cloneDefaultConfig();
+  config.paletteMode = "harmony";
+  config.paletteSize = 12;
+  config.harmonyRelationship = "triad";
+  config.harmonyRegionContrast = "splitRegions";
+  config.seed = 9;
+
+  const {records, trace} = createHarmonyPaletteResult(config, {captureTrace: true});
+
+  assert.equal(trace.type, "procedural-harmony");
+  assert.equal(trace.relationship.key, "triad");
+  assert.equal(trace.regionContrast.key, "splitRegions");
+  assert.equal(trace.rows.length, records.length);
+  assert.equal(trace.rows.every(row => Number.isInteger(row.displayIndex)), true);
+  assert.equal(trace.rows.some(row => row.variant === "shade"), true);
+  assert.equal(trace.rows.some(row => row.variant === "base"), true);
+  assert.equal(trace.rows.some(row => row.variant === "tint"), true);
 });

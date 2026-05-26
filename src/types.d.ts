@@ -689,6 +689,114 @@ export interface ViewState {
   movedForClick: boolean;
 }
 
+
+export interface ProceduralHarmonyTraceRow {
+  id: string;
+  familyId: string;
+  familyIndex: number;
+  variant: PaletteVariant;
+  variantIndex: number;
+  role: string;
+  bandCount: number;
+  baseOffsetDegrees: number;
+  ring: number;
+  lightnessDirection: number;
+  nominalVariantL: number;
+  centeredVariantL: number;
+  lightnessOffset: number;
+  offsetScale: number;
+  seedL: number;
+  seedC: number;
+  seedHueDegrees: number;
+  unjitteredSeedC: number;
+  seedHex: HexColor;
+  seedLab: Lab;
+  outputHex: HexColor;
+  outputLab: Lab;
+  displayIndex: number | null;
+  jitter: {
+    hueDegrees: number;
+    chromaScale: number;
+    chromaDelta: number;
+  };
+  region: {
+    key: string;
+    label: string;
+    hueOffsetDegrees: number;
+    chromaScale: number;
+    chromaBias: number;
+  };
+}
+
+export interface ProceduralHarmonyTrace {
+  type: "procedural-harmony";
+  mode: "harmony";
+  sourceLabel: string;
+  requestedSize: number;
+  finalPaletteSize: number;
+  seedHex: HexColor;
+  seedLab: Lab;
+  seedLch: {L: number; C: number; hDegrees: number};
+  usableChroma: number;
+  deltaL: number;
+  sortMode: string;
+  relationship: {key: string; label: string; offsets: number[]; spread: number};
+  regionContrast: {
+    key: string;
+    label: string;
+    offsets: Record<string, number>;
+    chromaScale: Record<string, number>;
+    chromaBias: Record<string, number>;
+  };
+  rampSteepness: number;
+  bandCounts: Record<string, number>;
+  jitterLimits: {hueDegrees: number; chromaRatio: number; chromaDelta: number};
+  rows: ProceduralHarmonyTraceRow[];
+}
+
+export interface ProceduralCosineTraceFamily {
+  familyIndex: number;
+  familyId: string;
+  t: number;
+  seedPhase: number;
+  raw: {L: number; C: number; hue: number};
+  L: number;
+  C: number;
+  hueDegrees: number;
+  seedHex: HexColor;
+  seedLab: Lab;
+  familyHexes: HexColor[];
+  displayIndexes: number[];
+  records: Array<{
+    id: string;
+    variant: PaletteVariant;
+    variantIndex: number;
+    hex: HexColor;
+    lab: Lab;
+    displayIndex: number | null;
+  }>;
+}
+
+export interface ProceduralCosineTrace {
+  type: "procedural-cosine";
+  mode: "cosine";
+  sourceLabel: string;
+  requestedSize: number;
+  finalPaletteSize: number;
+  familyCount: number;
+  deltaL: number;
+  sortMode: string;
+  preset: {key: string; label: string; a: number[]; b: number[]; c: number[]; d: number[]};
+  seed: number;
+  seedPhase: number;
+  seedPeriod: number;
+  chromaMax: number;
+  families: ProceduralCosineTraceFamily[];
+  curveSamples: Array<{t: number; L: number; C: number; hueDegrees: number}>;
+}
+
+export type PaletteBuildTrace = PaletteSelectionTrace | ProceduralHarmonyTrace | ProceduralCosineTrace;
+
 export interface RuntimeLevelsState {
   canvas: HTMLCanvasElement;
   gl: WebGL2RenderingContext | null;
@@ -755,7 +863,7 @@ export interface RuntimeState {
   manualEditor: ManualEditorState;
   cycleAnimation: CycleAnimationState;
   diagnostics: DiagnosticsState;
-  paletteSelectionTrace: PaletteSelectionTrace | null;
+  paletteSelectionTrace: PaletteBuildTrace | null;
   renderQueued: boolean;
   history: HistoryState;
   recipes: Recipe[];

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { cloneDefaultConfig } from "../src/state/config.js";
-import { createCosinePalette } from "../src/palette/generation.js";
+import { createCosinePalette, createCosinePaletteResult } from "../src/palette/generation.js";
 
 test("cosine palette supports custom a/b/c/d vectors", () => {
   const config = cloneDefaultConfig();
@@ -20,4 +20,22 @@ test("cosine palette supports custom a/b/c/d vectors", () => {
   assert.equal(records.length, 6);
   assert.equal(records.every(record => record.source === "cosine"), true);
   assert.equal(records.every(record => record.familyId.startsWith("cosine-custom-")), true);
+});
+
+test("cosine palette result records procedural trace for inspector", () => {
+  const config = cloneDefaultConfig();
+  config.paletteMode = "cosine";
+  config.paletteSize = 9;
+  config.cosinePreset = "aurora";
+  config.seed = 12;
+
+  const {records, trace} = createCosinePaletteResult(config, {captureTrace: true});
+
+  assert.equal(trace.type, "procedural-cosine");
+  assert.equal(trace.preset.key, "aurora");
+  assert.equal(trace.families.length, 3);
+  assert.equal(trace.curveSamples.length, 72);
+  assert.equal(trace.finalPaletteSize, records.length);
+  assert.equal(trace.families.every(family => family.records.length === 3), true);
+  assert.equal(trace.families.every(family => family.displayIndexes.length === 3), true);
 });

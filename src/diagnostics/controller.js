@@ -368,8 +368,8 @@ export function createDiagnosticsController({
     const xrayOpen = xrayPanelIsOpen();
     const selectionDiagnosticsOpen = selectionDiagnosticsPanelIsOpen();
     if (selectionDiagnosticsOpen) {
-      const generatedMode = config.paletteMode === "generated" || config.paletteMode === "generatedReference";
-      if (state.paletteDirty || !state.paletteRecords.length || (generatedMode && !state.paletteSelectionTrace)) ensurePalette({captureTrace: generatedMode});
+      const traceableMode = config.paletteMode === "generated" || config.paletteMode === "generatedReference" || config.paletteMode === "harmony" || config.paletteMode === "cosine";
+      if (state.paletteDirty || !state.paletteRecords.length || (traceableMode && !state.paletteSelectionTrace)) ensurePalette({captureTrace: traceableMode});
       renderDiagnosticsSelection();
     }
 

@@ -16,6 +16,7 @@ import {
   fitLabToSrgb,
   hexToLab,
   labToOklch,
+  labToHex,
   makePaletteRecord,
   normalizeHexColor,
   oklchToLab,
@@ -272,19 +273,32 @@ function harmonySeedJitter(config, variant, familyIndex) {
   };
 }
 
-export function createHarmonyPalette(config) {
+function degreesFromRadians(radians) {
+  const degrees = (Number(radians) || 0) * 360 / TAU;
+  return ((degrees % 360) + 360) % 360;
+}
+
+function harmonyRelationshipForConfig(config) {
+  return HARMONY_RELATIONSHIPS[config?.harmonyRelationship] ?? HARMONY_RELATIONSHIPS[DEFAULT_HARMONY_RELATIONSHIP];
+}
+
+function buildHarmonyPalette(config, {captureTrace = false} = {}) {
   const baseLab = hexToLab(config.seedSwatch);
   const [baseL, baseC, baseH] = labToOklch(baseLab);
-  const relationship = HARMONY_RELATIONSHIPS[config.harmonyRelationship] ?? HARMONY_RELATIONSHIPS[DEFAULT_HARMONY_RELATIONSHIP];
+  const relationshipKey = config.harmonyRelationship ?? DEFAULT_HARMONY_RELATIONSHIP;
+  const relationship = harmonyRelationshipForConfig(config);
+  const regionKey = config.harmonyRegionContrast ?? DEFAULT_HARMONY_REGION_CONTRAST;
+  const regionMode = harmonyRegionContrastForConfig(config);
   const requestedSize = requestedHarmonyPaletteSize(config);
   const bandCounts = harmonyBandCounts(requestedSize);
   const usableC = Math.max(baseC, baseC < NEUTRAL_CHROMA_EPSILON ? 24 : baseC);
   const rampSteepness = harmonyRampSteepnessForConfig(config);
   const records = [];
+  const rows = [];
 
   for (const {variant, lightnessDirection} of HARMONY_BAND_VARIANTS) {
     const bandCount = bandCounts[variant] ?? 0;
-    const offsets = relationshipOffsetsForCount(config.harmonyRelationship, bandCount);
+    const offsets = relationshipOffsetsForCount(relationshipKey, bandCount);
     const lightnessOffsets = offsets.map((_, familyIndex) => harmonyLightnessRampOffset(familyIndex, bandCount, relationship, config, rampSteepness));
     const maxAbsLightnessOffset = Math.max(0, ...lightnessOffsets.map(value => Math.abs(value)));
     const [minVariantL, maxVariantL] = harmonyVariantLightnessBounds(variant);
@@ -309,10 +323,10 @@ export function createHarmonyPalette(config) {
       const hue = baseH + (offset + jitter.hueDegrees) * Math.PI / 180;
       const seedLab = fitLabToSrgb(oklchToLab([seedL, seedC, hue]));
       const variantLab = regionContrastVariant(seedLab, config, variant);
-      records.push(makePaletteRecord({
+      const record = makePaletteRecord({
         lab: variantLab,
         source: "harmony",
-        familyId: `harmony-${config.harmonyRelationship}-${familyIndex}`,
+        familyId: `harmony-${relationshipKey}-${familyIndex}`,
         familyIndex,
         variant,
         variantIndex: FAMILY_VARIANTS.findIndex(entry => entry.variant === variant),
@@ -320,11 +334,95 @@ export function createHarmonyPalette(config) {
         seedLab,
         sourceLab: seedLab,
         role: lightnessDirection === 0 ? "harmony-family-member" : `harmony-${variant}-member`
-      }));
+      });
+      records.push(record);
+
+      if (captureTrace) {
+        rows.push({
+          id: record.id,
+          familyId: record.familyId,
+          familyIndex,
+          variant,
+          variantIndex: record.variantIndex,
+          role: record.role,
+          bandCount,
+          baseOffsetDegrees: offset,
+          ring,
+          lightnessDirection,
+          nominalVariantL,
+          centeredVariantL,
+          lightnessOffset,
+          offsetScale,
+          seedL,
+          seedC,
+          seedHueDegrees: degreesFromRadians(hue),
+          unjitteredSeedC,
+          seedHex: labToHex(seedLab),
+          seedLab: [...seedLab],
+          outputHex: record.hex,
+          outputLab: [...record.lab],
+          jitter: {...jitter},
+          region: {
+            key: regionKey,
+            label: regionMode.label,
+            hueOffsetDegrees: Number(regionMode.offsets?.[variant]) || 0,
+            chromaScale: Number(regionMode.chromaScale?.[variant] ?? 1) || 1,
+            chromaBias: Number(regionMode.chromaBias?.[variant]) || 0
+          }
+        });
+      }
     }
   }
 
-  return sortPaletteRecords(records, config.sortMode);
+  const sorted = sortPaletteRecords(records, config.sortMode);
+  let trace = null;
+  if (captureTrace) {
+    const displayById = new Map(sorted.map((record, displayIndex) => [record.id, displayIndex]));
+    const rowsWithDisplay = rows.map(row => ({...row, displayIndex: displayById.get(row.id) ?? null}));
+    trace = {
+      type: "procedural-harmony",
+      mode: "harmony",
+      sourceLabel: "seed harmony",
+      requestedSize,
+      finalPaletteSize: sorted.length,
+      seedHex: normalizeHexColor(config.seedSwatch),
+      seedLab: baseLab,
+      seedLch: {L: baseL, C: baseC, hDegrees: degreesFromRadians(baseH)},
+      usableChroma: usableC,
+      deltaL: Number(config.deltaL) || 0,
+      sortMode: config.sortMode,
+      relationship: {
+        key: relationshipKey,
+        label: relationship.label,
+        offsets: [...relationship.offsets],
+        spread: Number(relationship.spread) || 0
+      },
+      regionContrast: {
+        key: regionKey,
+        label: regionMode.label,
+        offsets: {...regionMode.offsets},
+        chromaScale: {...regionMode.chromaScale},
+        chromaBias: {...regionMode.chromaBias}
+      },
+      rampSteepness,
+      bandCounts: {...bandCounts},
+      jitterLimits: {
+        hueDegrees: HARMONY_HUE_JITTER_DEGREES,
+        chromaRatio: HARMONY_CHROMA_JITTER_RATIO,
+        chromaDelta: HARMONY_CHROMA_JITTER_DELTA
+      },
+      rows: rowsWithDisplay
+    };
+  }
+  return {records: sorted, trace};
+}
+
+export function createHarmonyPalette(config) {
+  return buildHarmonyPalette(config).records;
+}
+
+export function createHarmonyPaletteResult(config, options = {}) {
+  return buildHarmonyPalette(config, options);
 }
 
 function cosinePresetVector(key) {
@@ -353,37 +451,110 @@ function cosineSeedPhase(seed) {
   return ((safeSeed - 1) / COSINE_SEED_PERIOD) * COSINE_SEED_CYCLES;
 }
 
-export function createCosinePalette(config) {
+function buildCosinePalette(config, {captureTrace = false} = {}) {
   const preset = cosineVectorConfig(config);
+  const presetKey = config.cosinePreset === "custom" ? "custom" : (config.cosinePreset ?? DEFAULT_COSINE_PRESET);
   const familyCount = generatedFamilyCount(config);
   const seedPhase = cosineSeedPhase(config.seed);
   const records = [];
+  const families = [];
 
   for (let familyIndex = 0; familyIndex < familyCount; familyIndex++) {
     const t = familyCount <= 1 ? 0 : familyIndex / familyCount;
+    const rawL = cosineChannel(preset, 0, t, seedPhase);
+    const rawC = cosineChannel(preset, 1, t, seedPhase);
+    const rawH = cosineChannel(preset, 2, t, seedPhase);
 
-    const L = clamp(
-      cosineChannel(preset, 0, t, seedPhase) * 100,
-      6,
-      94
-    );
-    const C = clamp(
-      cosineChannel(preset, 1, t, seedPhase) * OKLCH_PROCEDURAL_CHROMA_MAX,
-      0,
-      OKLCH_PROCEDURAL_CHROMA_MAX
-    );
-    const h = TAU * positiveFraction(
-      cosineChannel(preset, 2, t, seedPhase)
-    );
+    const L = clamp(rawL * 100, 6, 94);
+    const C = clamp(rawC * OKLCH_PROCEDURAL_CHROMA_MAX, 0, OKLCH_PROCEDURAL_CHROMA_MAX);
+    const h = TAU * positiveFraction(rawH);
     const seedLab = fitLabToSrgb(oklchToLab([L, C, h]));
 
-    records.push(...buildFamilyRecords(seedLab, familyIndex, config, "cosine", familyIndex, {
-      familyId: `cosine-${config.cosinePreset === "custom" ? "custom" : config.cosinePreset}-${familyIndex}`,
+    const familyRecords = buildFamilyRecords(seedLab, familyIndex, config, "cosine", familyIndex, {
+      familyId: `cosine-${presetKey}-${familyIndex}`,
       role: "cosine-family-member"
-    }));
+    });
+    records.push(...familyRecords);
+
+    if (captureTrace) {
+      families.push({
+        familyIndex,
+        familyId: familyRecords[0]?.familyId ?? `cosine-${presetKey}-${familyIndex}`,
+        t,
+        seedPhase,
+        raw: {L: rawL, C: rawC, hue: rawH},
+        L,
+        C,
+        hueDegrees: degreesFromRadians(h),
+        seedHex: labToHex(seedLab),
+        seedLab: [...seedLab],
+        familyHexes: familyRecords.map(record => record.hex),
+        records: familyRecords.map(record => ({
+          id: record.id,
+          variant: record.variant,
+          variantIndex: record.variantIndex,
+          hex: record.hex,
+          lab: [...record.lab]
+        }))
+      });
+    }
   }
 
-  return sortPaletteRecords(records, config.sortMode);
+  const sorted = sortPaletteRecords(records, config.sortMode);
+  let trace = null;
+  if (captureTrace) {
+    const displayById = new Map(sorted.map((record, displayIndex) => [record.id, displayIndex]));
+    const sampleCount = 72;
+    const curveSamples = Array.from({length: sampleCount}, (_, i) => {
+      const t = sampleCount <= 1 ? 0 : i / (sampleCount - 1);
+      const rawL = cosineChannel(preset, 0, t, seedPhase);
+      const rawC = cosineChannel(preset, 1, t, seedPhase);
+      const rawH = cosineChannel(preset, 2, t, seedPhase);
+      return {
+        t,
+        L: clamp(rawL * 100, 6, 94),
+        C: clamp(rawC * OKLCH_PROCEDURAL_CHROMA_MAX, 0, OKLCH_PROCEDURAL_CHROMA_MAX),
+        hueDegrees: positiveFraction(rawH) * 360
+      };
+    });
+    trace = {
+      type: "procedural-cosine",
+      mode: "cosine",
+      sourceLabel: "cosine palette",
+      requestedSize: familyCount * FAMILY_VARIANTS.length,
+      finalPaletteSize: sorted.length,
+      familyCount,
+      deltaL: Number(config.deltaL) || 0,
+      sortMode: config.sortMode,
+      preset: {
+        key: presetKey,
+        label: config.cosinePreset === "custom" ? "Custom" : (preset.label || presetKey),
+        a: [...preset.a],
+        b: [...preset.b],
+        c: [...preset.c],
+        d: [...preset.d]
+      },
+      seed: Math.max(1, Math.min(COSINE_SEED_PERIOD, Math.round(Number(config.seed) || 1))),
+      seedPhase,
+      seedPeriod: COSINE_SEED_PERIOD,
+      chromaMax: OKLCH_PROCEDURAL_CHROMA_MAX,
+      families: families.map(family => ({
+        ...family,
+        displayIndexes: family.records.map(record => displayById.get(record.id)).filter(Number.isInteger),
+        records: family.records.map(record => ({...record, displayIndex: displayById.get(record.id) ?? null}))
+      })),
+      curveSamples
+    };
+  }
+  return {records: sorted, trace};
+}
+
+export function createCosinePalette(config) {
+  return buildCosinePalette(config).records;
+}
+
+export function createCosinePaletteResult(config, options = {}) {
+  return buildCosinePalette(config, options);
 }
 
 export function createPresetPalette(config, colors, size) {

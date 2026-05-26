@@ -225,7 +225,7 @@ test("ensurePalette refreshes records, uniforms, and swatches once", () => {
 
 
 
-test("ensurePalette captures selection trace only when requested for generated palettes", () => {
+test("ensurePalette captures selection trace only when requested for traceable palette modes", () => {
   const state = makeState({paletteSelectionTrace: null});
   const config = makeConfig({paletteMode: "generated"});
   const getPaletteCalls = [];
@@ -249,6 +249,33 @@ test("ensurePalette captures selection trace only when requested for generated p
 
   session.ensurePalette({captureTrace: true});
   assert.deepEqual(getPaletteCalls, [{captureTrace: false}, {captureTrace: true}]);
+});
+
+
+
+test("ensurePalette captures procedural traces for harmony and cosine palettes", () => {
+  for (const mode of ["harmony", "cosine"]) {
+    const state = makeState({paletteSelectionTrace: null});
+    const config = makeConfig({paletteMode: mode});
+    const getPaletteCalls = [];
+    const {session} = makeSession({
+      state,
+      config,
+      getPaletteRecords: options => {
+        getPaletteCalls.push(options);
+        state.paletteSelectionTrace = options?.captureTrace ? {type: `procedural-${mode}`} : null;
+        return [{lab: [50, 1, 2]}];
+      }
+    });
+
+    session.ensurePalette();
+    assert.deepEqual(getPaletteCalls, [{captureTrace: false}]);
+    assert.equal(state.paletteSelectionTrace, null);
+
+    session.ensurePalette({captureTrace: true});
+    assert.deepEqual(getPaletteCalls, [{captureTrace: false}, {captureTrace: true}]);
+    assert.deepEqual(state.paletteSelectionTrace, {type: `procedural-${mode}`});
+  }
 });
 
 test("palette-only refresh keeps existing swatch buttons mounted", () => {

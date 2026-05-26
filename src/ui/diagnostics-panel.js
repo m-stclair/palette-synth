@@ -194,6 +194,203 @@ function alternativeRowsHtml(items = [], pickedIndex = null) {
   }).join("");
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatDegrees(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  const wrapped = ((n % 360) + 360) % 360;
+  return `${wrapped.toFixed(Math.abs(wrapped) >= 10 ? 0 : 1)}°`;
+}
+
+function formatDegreeOffset(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  const sign = n > 0 ? "+" : (n < 0 ? "−" : "");
+  const abs = Math.abs(n);
+  return `${sign}${abs.toFixed(abs >= 10 ? 0 : 1)}°`;
+}
+
+function formatVector(values = []) {
+  return `[${values.map(value => formatScore(value)).join(", ")}]`;
+}
+
+function groupByFamily(items = []) {
+  const groups = new Map();
+  for (const item of items) {
+    const key = Number.isInteger(item?.familyIndex) ? item.familyIndex : (item?.familyId ?? groups.size);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  return [...groups.entries()]
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([familyIndex, rows]) => ({familyIndex, rows}));
+}
+
+function proceduralHuePlotHtml(points = [], {title = "Generated palette hue and lightness map"} = {}) {
+  const safePoints = points.filter(point => Number.isFinite(Number(point?.hueDegrees)) && Number.isFinite(Number(point?.L)) && point?.hex);
+  if (!safePoints.length) return "";
+  const width = 360;
+  const height = 124;
+  const padX = 18;
+  const padY = 16;
+  const plotW = width - padX * 2;
+  const plotH = height - padY * 2;
+  const rails = [25, 50, 75].map(L => {
+    const y = padY + (1 - L / 100) * plotH;
+    return `<line x1="${padX}" y1="${y.toFixed(1)}" x2="${(width - padX).toFixed(1)}" y2="${y.toFixed(1)}" class="procedural-plot-grid"/><text x="4" y="${(y + 3).toFixed(1)}">L${L}</text>`;
+  }).join("");
+  const dots = safePoints.map((point, index) => {
+    const x = padX + ((((Number(point.hueDegrees) % 360) + 360) % 360) / 360) * plotW;
+    const y = padY + (1 - clamp(Number(point.L) / 100, 0, 1)) * plotH;
+    const radius = point.variant === "base" ? 4.2 : 3.4;
+    const label = escapeHtml(`${point.label || point.hex} · ${formatDegrees(point.hueDegrees)} · L ${formatScore(point.L)}`);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${radius}" fill="${point.hex}" class="procedural-plot-dot" tabindex="0"><title>${label}</title></circle>`;
+  }).join("");
+  return `<figure class="procedural-plot" aria-label="${escapeHtml(title)}">
+      <svg viewBox="0 0 ${width} ${height}" role="img">
+        <title>${escapeHtml(title)}</title>
+        <line x1="${padX}" y1="${height - padY}" x2="${width - padX}" y2="${height - padY}" class="procedural-plot-axis"/>
+        ${rails}${dots}
+        <text x="${padX}" y="${height - 3}">0°</text><text x="${width / 2 - 10}" y="${height - 3}">180°</text><text x="${width - padX - 24}" y="${height - 3}">360°</text>
+      </svg>
+      <figcaption>Hue runs left to right; lightness rises upward. Each dot is a generated seed/output position.</figcaption>
+    </figure>`;
+}
+
+function cosineCurvePlotHtml(trace = {}) {
+  const samples = Array.isArray(trace.curveSamples) ? trace.curveSamples : [];
+  if (samples.length < 2) return "";
+  const width = 360;
+  const height = 132;
+  const padX = 18;
+  const padY = 16;
+  const plotW = width - padX * 2;
+  const plotH = height - padY * 2;
+  const chromaMax = Math.max(1, Number(trace.chromaMax) || 42);
+  const pathFor = (key, scaleMax) => samples.map((sample, index) => {
+    const x = padX + clamp(Number(sample.t) || 0, 0, 1) * plotW;
+    const y = padY + (1 - clamp((Number(sample[key]) || 0) / scaleMax, 0, 1)) * plotH;
+    return `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
+  const familyDots = (trace.families || []).map(family => {
+    const x = padX + clamp(Number(family.t) || 0, 0, 1) * plotW;
+    const y = padY + (1 - clamp(Number(family.L) / 100, 0, 1)) * plotH;
+    const hex = family.seedHex || family.familyHexes?.[0] || "#ffffff";
+    const label = escapeHtml(`family ${Number(family.familyIndex) + 1} · t ${formatScore(family.t)} · L ${formatScore(family.L)} C ${formatScore(family.C)} H ${formatDegrees(family.hueDegrees)}`);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${hex}" class="procedural-plot-dot"><title>${label}</title></circle>`;
+  }).join("");
+  return `<figure class="procedural-plot procedural-cosine-curve" aria-label="Cosine channel curves">
+      <svg viewBox="0 0 ${width} ${height}" role="img">
+        <title>Cosine channel curves</title>
+        <line x1="${padX}" y1="${height - padY}" x2="${width - padX}" y2="${height - padY}" class="procedural-plot-axis"/>
+        <line x1="${padX}" y1="${padY}" x2="${padX}" y2="${height - padY}" class="procedural-plot-axis"/>
+        <path d="${pathFor("L", 100)}" class="procedural-curve procedural-curve-l"/>
+        <path d="${pathFor("C", chromaMax)}" class="procedural-curve procedural-curve-c"/>
+        <path d="${pathFor("hueDegrees", 360)}" class="procedural-curve procedural-curve-h"/>
+        ${familyDots}
+        <text x="${padX}" y="${height - 3}">t0</text><text x="${width - padX - 14}" y="${height - 3}">t1</text>
+      </svg>
+      <figcaption>L, C, and hue are normalized onto one graph; dots mark sampled families.</figcaption>
+    </figure>`;
+}
+
+function renderProceduralHarmonyTrace(trace = {}) {
+  const relationship = trace.relationship || {};
+  const region = trace.regionContrast || {};
+  const bands = trace.bandCounts || {};
+  const rows = Array.isArray(trace.rows) ? trace.rows : [];
+  const plotPoints = rows.map(row => ({
+    hex: row.outputHex,
+    hueDegrees: row.seedHueDegrees,
+    L: row.outputLab?.[0] ?? row.seedL,
+    variant: row.variant,
+    label: `${row.variant} ${row.outputHex}`
+  }));
+  const rules = `<div class="selection-rules procedural-rules">
+      <div><span>algorithm</span><b>Seed harmony</b><small>deterministic, no image sampling</small></div>
+      <div><span>seed</span><b><i class="selection-swatch" style="background:${trace.seedHex}"></i> ${trace.seedHex || "—"}</b><small>${formatScore(trace.seedLch?.L)} L · ${formatScore(trace.seedLch?.C)} C · ${formatDegrees(trace.seedLch?.hDegrees)}</small></div>
+      <div><span>relationship</span><b>${escapeHtml(relationship.label || relationship.key || "—")}</b><small>${(relationship.offsets || []).map(formatDegreeOffset).join(" · ") || "—"} · spread ${formatDegreeOffset(relationship.spread || 0)}</small></div>
+      <div><span>tonal bands</span><b>shade ${bands.shade || 0} · base ${bands.base || 0} · tint ${bands.tint || 0}</b><small>final ${trace.finalPaletteSize || rows.length} swatches</small></div>
+      <div><span>lightness</span><b>ΔL ${formatScore(trace.deltaL)}</b><small>ramp ×${formatScore(trace.rampSteepness)}</small></div>
+      <div><span>region contrast</span><b>${escapeHtml(region.label || region.key || "—")}</b><small>per-band hue/chroma offsets</small></div>
+      <div><span>jitter</span><b>±${formatDegrees(trace.jitterLimits?.hueDegrees || 0)}</b><small>C ×±${formatScore(trace.jitterLimits?.chromaRatio || 0)} · C ±${formatScore(trace.jitterLimits?.chromaDelta || 0)}</small></div>
+      <div><span>sort</span><b>${escapeHtml(trace.sortMode || "lightness")}</b><small>display order after generation</small></div>
+    </div>`;
+  const note = `<div class="selection-note">The seed is converted to OKLCh, copied through the selected hue relationship, split into shade/base/tint lanes, nudged by the lightness ramp, jittered deterministically from the seed, then pushed through the region-contrast rule and fitted back into sRGB. No candidates. No lottery. Just a little machine making families.</div>`;
+  const families = groupByFamily(rows).map((group, index) => {
+    const ordered = [...group.rows].sort((a, b) => (a.variantIndex ?? 0) - (b.variantIndex ?? 0));
+    const hexes = ordered.map(row => row.outputHex).filter(Boolean);
+    const first = ordered[0] || {};
+    const rowsHtml = ordered.map(row => {
+      const jitter = row.jitter || {};
+      const region = row.region || {};
+      return `<div class="selection-score-row procedural-row">
+          <span>${escapeHtml(row.variant || "swatch")}</span><b>${row.outputHex || "—"}</b>
+          <small>relationship ${formatDegreeOffset(row.baseOffsetDegrees)} + jitter ${formatDegreeOffset(jitter.hueDegrees || 0)} → seed H ${formatDegrees(row.seedHueDegrees)} · seed L ${formatScore(row.seedL)} C ${formatScore(row.seedC)} · region H ${formatDegreeOffset(region.hueOffsetDegrees || 0)} C×${formatScore(region.chromaScale)} ${formatSignedScore(region.chromaBias || 0)} · display #${Number.isInteger(row.displayIndex) ? row.displayIndex + 1 : "—"}</small>
+        </div>`;
+    }).join("");
+    return `<details class="selection-round procedural-round" ${index < 2 ? "open" : ""}>
+        <summary>
+          <span class="selection-round-title">Family ${Number(group.familyIndex) + 1}</span>
+          <span class="selection-round-swatches">${swatchListHtml(hexes)}</span>
+          <span class="selection-round-seed">offset ${formatDegreeOffset(first.baseOffsetDegrees)}</span>
+          <span class="selection-round-score">ring ${first.ring ?? 0}</span>
+          <span class="selection-round-rank">${hexes.length} swatches</span>
+        </summary>
+        <div class="selection-score-grid procedural-grid">${rowsHtml}</div>
+      </details>`;
+  }).join("");
+  return `${rules}${note}${proceduralHuePlotHtml(plotPoints, {title: "Seed harmony hue/lightness map"})}<div class="selection-rounds">${families || `<div class="diagnostics-summary-empty">No harmony rows recorded.</div>`}</div>`;
+}
+
+function renderProceduralCosineTrace(trace = {}) {
+  const preset = trace.preset || {};
+  const families = Array.isArray(trace.families) ? trace.families : [];
+  const plotPoints = families.map(family => ({
+    hex: family.seedHex,
+    hueDegrees: family.hueDegrees,
+    L: family.L,
+    variant: "base",
+    label: `family ${Number(family.familyIndex) + 1}`
+  }));
+  const rules = `<div class="selection-rules procedural-rules">
+      <div><span>algorithm</span><b>Cosine palette</b><small>periodic OKLCh generator</small></div>
+      <div><span>preset</span><b>${escapeHtml(preset.label || preset.key || "—")}</b><small>${preset.key === "custom" ? "custom vectors" : "built-in vectors"}</small></div>
+      <div><span>families</span><b>${trace.familyCount || families.length}</b><small>${trace.finalPaletteSize || 0} swatches after tint/shade expansion</small></div>
+      <div><span>seed phase</span><b>${formatScore(trace.seedPhase)}</b><small>seed ${trace.seed || "—"} / ${trace.seedPeriod || "—"}</small></div>
+      <div><span>lightness</span><b>ΔL ${formatScore(trace.deltaL)}</b><small>base, tint, shade per family</small></div>
+      <div><span>formula</span><b>a + b·cos(τ(c·t+d+phase))</b><small>run separately for L, C, and hue</small></div>
+      <div><span>vectors a/b</span><b>${escapeHtml(formatVector(preset.a))}</b><small>${escapeHtml(formatVector(preset.b))}</small></div>
+      <div><span>vectors c/d</span><b>${escapeHtml(formatVector(preset.c))}</b><small>${escapeHtml(formatVector(preset.d))}</small></div>
+    </div>`;
+  const note = `<div class="selection-note">Each family samples one position <b>t</b> on the cosine curves. The three channel curves produce OKLCh lightness, chroma, and hue; the seed shifts phase; then each sampled seed expands into base, tint, and shade. It is a waveform palette, not a search.</div>`;
+  const familyHtml = families.map((family, index) => {
+    const rowsHtml = (family.records || []).map(record => `<div class="selection-score-row procedural-row">
+        <span>${escapeHtml(record.variant || "swatch")}</span><b>${record.hex || "—"}</b>
+        <small>display #${Number.isInteger(record.displayIndex) ? record.displayIndex + 1 : "—"} · variant index ${record.variantIndex ?? "—"}</small>
+      </div>`).join("");
+    return `<details class="selection-round procedural-round" ${index < 2 ? "open" : ""}>
+        <summary>
+          <span class="selection-round-title">Family ${Number(family.familyIndex) + 1}</span>
+          <span class="selection-round-swatches">${swatchListHtml(family.familyHexes || [])}</span>
+          <span class="selection-round-seed">t ${formatScore(family.t)}</span>
+          <span class="selection-round-score">L ${formatScore(family.L)} C ${formatScore(family.C)}</span>
+          <span class="selection-round-rank">H ${formatDegrees(family.hueDegrees)}</span>
+        </summary>
+        <div class="selection-note">Raw channels: L ${formatScore(family.raw?.L)} · C ${formatScore(family.raw?.C)} · hue ${formatScore(family.raw?.hue)}. Seed ${family.seedHex || "—"} becomes the family anchor before tint/shade expansion.</div>
+        <div class="selection-score-grid procedural-grid">${rowsHtml}</div>
+      </details>`;
+  }).join("");
+  return `${rules}${note}${cosineCurvePlotHtml(trace)}${proceduralHuePlotHtml(plotPoints, {title: "Cosine family hue/lightness map"})}<div class="selection-rounds">${familyHtml || `<div class="diagnostics-summary-empty">No cosine families recorded.</div>`}</div>`;
+}
+
 export function createDiagnosticsPanel({
   els = {},
   getConfig = () => ({}),
@@ -1811,9 +2008,22 @@ export function createDiagnosticsPanel({
   function renderDiagnosticsSelection() {
     if (!els.diagnosticsSelection) return;
     const state = getState();
+    const config = getConfig();
     const trace = state.paletteSelectionTrace;
+    if (trace?.type === "procedural-harmony" && config?.paletteMode === "harmony") {
+      els.diagnosticsSelection.innerHTML = renderProceduralHarmonyTrace(trace);
+      return;
+    }
+    if (trace?.type === "procedural-cosine" && config?.paletteMode === "cosine") {
+      els.diagnosticsSelection.innerHTML = renderProceduralCosineTrace(trace);
+      return;
+    }
     if (!trace || !isGeneratedPaletteMode() || !activePaletteImageData()) {
-      els.diagnosticsSelection.innerHTML = `<div class="diagnostics-summary-empty">Generate from an image to inspect selection forces.</div>`;
+      const mode = config?.paletteMode;
+      const message = mode === "harmony" || mode === "cosine"
+        ? "Generate the palette to inspect the procedural build."
+        : "Generate from an image to inspect selection forces.";
+      els.diagnosticsSelection.innerHTML = `<div class="diagnostics-summary-empty">${message}</div>`;
       return;
     }
 

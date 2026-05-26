@@ -203,8 +203,9 @@ export function createRenderSession({
 
   function ensurePalette(options = {}) {
     if (paletteUsesAdjustedSourceImage()) ensureLevelAdjustedSources();
-    const generatedMode = config.paletteMode === "generated" || config.paletteMode === "generatedReference";
-    const captureTrace = options.captureTrace === true && generatedMode;
+    const traceableMode = config.paletteMode === "generated" || config.paletteMode === "generatedReference"
+      || config.paletteMode === "harmony" || config.paletteMode === "cosine";
+    const captureTrace = options.captureTrace === true && traceableMode;
     const needsSelectionTrace = captureTrace && !state.paletteSelectionTrace;
     if (state.paletteDirty || !state.paletteBlock || !state.paletteFeatures || needsSelectionTrace) {
       state.paletteRecords = getPaletteRecords({captureTrace});

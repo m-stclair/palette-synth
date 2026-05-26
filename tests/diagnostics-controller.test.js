@@ -406,3 +406,35 @@ test("diagnostics controller inspects against the palette after ensurePalette re
   assert.equal(state.diagnostics.pixel.matches[0].sourceRecord.id, "fresh");
 });
 
+
+test("diagnostics controller requests procedural traces for harmony and cosine selection tab", () => {
+  for (const mode of ["harmony", "cosine"]) {
+    const ensureCalls = [];
+    let selected = 0;
+    const state = {
+      imageData: null,
+      diagnostics: {pixelInspectorOpen: true, inspectorTab: "selection"},
+      paletteRecords: [{lab: [0, 0, 0]}],
+      paletteSelectionTrace: null,
+      paletteDirty: false
+    };
+    const controller = createDiagnosticsController({
+      els: {
+        pixelInspectorPane: makePanel(),
+        inspectorPanelSelection: makePanel(),
+        inspectorPanelDiagnostics: makePanel()
+      },
+      state,
+      config: {paletteMode: mode},
+      ensurePalette: options => {
+        ensureCalls.push(options);
+        state.paletteSelectionTrace = {type: `procedural-${mode}`};
+      },
+      renderDiagnosticsSelection: () => { selected++; }
+    });
+
+    controller.updateDiagnostics();
+    assert.deepEqual(ensureCalls, [{captureTrace: true}], mode);
+    assert.equal(selected, 1, mode);
+  }
+});

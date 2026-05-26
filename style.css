@@ -854,6 +854,7 @@ body[data-palette-mode="generated"] .reference-only,
 body[data-palette-mode="harmony"] .reference-only,
 body[data-palette-mode="cosine"] .reference-only,
 body[data-palette-mode="manual"] .reference-only,
+body[data-palette-mode="manual"] .algorithm-palette-only,
 body[data-palette-mode="generated"] .harmony-only,
 body[data-palette-mode="generatedReference"] .harmony-only,
 body[data-palette-mode="cosine"] .harmony-only,
@@ -2743,6 +2744,73 @@ canvas {
   color: var(--muted);
   font-size: 10px;
 }
+
+.procedural-rules b .selection-swatch {
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+.procedural-plot {
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel2);
+  color: var(--muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.procedural-plot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.procedural-plot text {
+  fill: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .05em;
+}
+.procedural-plot figcaption {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+.procedural-plot-axis,
+.procedural-plot-grid {
+  stroke: rgba(255,255,255,.16);
+  stroke-width: 1;
+}
+.procedural-plot-grid {
+  stroke-dasharray: 2 4;
+}
+.procedural-plot-dot {
+  stroke: var(--line-strong);
+  stroke-width: 1.25;
+}
+.procedural-curve {
+  fill: none;
+  stroke: var(--soft);
+  stroke-width: 1.35;
+  opacity: .78;
+}
+.procedural-curve-c {
+  stroke-dasharray: 5 4;
+  opacity: .62;
+}
+.procedural-curve-h {
+  stroke-dasharray: 1 4;
+  opacity: .72;
+}
+.procedural-grid .selection-score-row {
+  grid-template-columns: minmax(5.5em, 1fr) auto;
+}
+.procedural-row b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
 @media (max-width: 520px) {
   .selection-alt {
     grid-template-columns: 28px minmax(52px, 1fr) auto;
