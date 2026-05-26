@@ -695,6 +695,7 @@ export interface ProceduralHarmonyTraceRow {
   id: string;
   familyId: string;
   familyIndex: number;
+  groupIndex?: number;
   variant: PaletteVariant;
   variantIndex: number;
   role: string;
@@ -751,6 +752,9 @@ export interface ProceduralHarmonyTrace {
   };
   rampSteepness: number;
   bandCounts: Record<string, number>;
+  activeFamilyCount?: number;
+  relationshipFamilyCount?: number;
+  slotOrder?: string;
   jitterLimits: {hueDegrees: number; chromaRatio: number; chromaDelta: number};
   rows: ProceduralHarmonyTraceRow[];
 }

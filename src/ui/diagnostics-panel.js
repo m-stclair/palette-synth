@@ -301,29 +301,57 @@ function cosineCurvePlotHtml(trace = {}) {
     </figure>`;
 }
 
+
+function regionContrastMathHtml(region = {}, deltaL = 0) {
+  const variants = [
+    {variant: "shade", label: "shadow", lTerm: `Lseed − ${formatScore(deltaL)}`},
+    {variant: "base", label: "midtone", lTerm: "Lseed"},
+    {variant: "tint", label: "highlight", lTerm: `Lseed + ${formatScore(deltaL)}`}
+  ];
+  const rows = variants.map(({variant, label, lTerm}) => {
+    const hueOffset = Number(region.offsets?.[variant]) || 0;
+    const chromaScale = Number(region.chromaScale?.[variant] ?? 1) || 1;
+    const chromaBias = Number(region.chromaBias?.[variant]) || 0;
+    return `<div class="selection-score-row procedural-region-row">
+        <span>${label} / ${variant}</span><b>H ${formatDegreeOffset(hueOffset)}</b>
+        <small>L′=${escapeHtml(lTerm)} · C′=Cseed×${formatScore(chromaScale)} ${formatSignedScore(chromaBias)} · H′=Hseed ${formatDegreeOffset(hueOffset)}</small>
+      </div>`;
+  }).join("");
+  return `<div class="selection-note procedural-region-formula"><b>Region formula</b>: output OKLCh = fit-sRGB(L′, C′, H′). Each tonal lane takes the relationship seed, then applies this lane-specific hue/chroma transform.</div>
+    <div class="selection-score-grid procedural-region-grid">${rows}</div>`;
+}
+
 function renderProceduralHarmonyTrace(trace = {}) {
   const relationship = trace.relationship || {};
   const region = trace.regionContrast || {};
   const bands = trace.bandCounts || {};
   const rows = Array.isArray(trace.rows) ? trace.rows : [];
-  const plotPoints = rows.map(row => ({
-    hex: row.outputHex,
-    hueDegrees: row.seedHueDegrees,
-    L: row.outputLab?.[0] ?? row.seedL,
-    variant: row.variant,
-    label: `${row.variant} ${row.outputHex}`
-  }));
+  const plotPoints = rows.map(row => {
+    const outputLab = Array.isArray(row.outputLab) ? row.outputLab : null;
+    const [, outputC, outputHue] = outputLab ? labToOklch(outputLab) : [null, null, null];
+    return {
+      hex: row.outputHex,
+      // Plot the visible/generated output hue after the tonal-region rule and
+      // final sRGB fitting. The row text still shows the relationship seed hue,
+      // but the scatter should reflect where the swatch actually landed.
+      hueDegrees: outputLab && outputC >= NEUTRAL_CHROMA_EPSILON ? outputHue * 360 / TAU : row.seedHueDegrees,
+      L: outputLab?.[0] ?? row.seedL,
+      variant: row.variant,
+      label: `${row.variant} ${row.outputHex}`
+    };
+  });
   const rules = `<div class="selection-rules procedural-rules">
       <div><span>algorithm</span><b>Seed harmony</b><small>deterministic, no image sampling</small></div>
       <div><span>seed</span><b><i class="selection-swatch" style="background:${trace.seedHex}"></i> ${trace.seedHex || "—"}</b><small>${formatScore(trace.seedLch?.L)} L · ${formatScore(trace.seedLch?.C)} C · ${formatDegrees(trace.seedLch?.hDegrees)}</small></div>
       <div><span>relationship</span><b>${escapeHtml(relationship.label || relationship.key || "—")}</b><small>${(relationship.offsets || []).map(formatDegreeOffset).join(" · ") || "—"} · spread ${formatDegreeOffset(relationship.spread || 0)}</small></div>
-      <div><span>tonal bands</span><b>shade ${bands.shade || 0} · base ${bands.base || 0} · tint ${bands.tint || 0}</b><small>final ${trace.finalPaletteSize || rows.length} swatches</small></div>
+      <div><span>tonal bands</span><b>shade ${bands.shade || 0} · base ${bands.base || 0} · tint ${bands.tint || 0}</b><small>final ${trace.finalPaletteSize || rows.length} swatches · ${trace.activeFamilyCount || "—"} families</small></div>
       <div><span>lightness</span><b>ΔL ${formatScore(trace.deltaL)}</b><small>ramp ×${formatScore(trace.rampSteepness)}</small></div>
       <div><span>region contrast</span><b>${escapeHtml(region.label || region.key || "—")}</b><small>per-band hue/chroma offsets</small></div>
       <div><span>jitter</span><b>±${formatDegrees(trace.jitterLimits?.hueDegrees || 0)}</b><small>C ×±${formatScore(trace.jitterLimits?.chromaRatio || 0)} · C ±${formatScore(trace.jitterLimits?.chromaDelta || 0)}</small></div>
       <div><span>sort</span><b>${escapeHtml(trace.sortMode || "lightness")}</b><small>display order after generation</small></div>
     </div>`;
-  const note = `<div class="selection-note">The seed is converted to OKLCh, copied through the selected hue relationship, split into shade/base/tint lanes, nudged by the lightness ramp, jittered deterministically from the seed, then pushed through the region-contrast rule and fitted back into sRGB.</div>`;
+  const regionMath = regionContrastMathHtml(region, trace.deltaL);
+  const note = `<div class="selection-note">The seed is converted to OKLCh, copied through the selected hue relationship, allocated across relationship-ring families before stacking extra tones, nudged by the lightness ramp, jittered deterministically from the seed, then pushed through the region-contrast rule and fitted back into sRGB.</div>`;
   const families = groupByFamily(rows).map((group, index) => {
     const ordered = [...group.rows].sort((a, b) => (a.variantIndex ?? 0) - (b.variantIndex ?? 0));
     const hexes = ordered.map(row => row.outputHex).filter(Boolean);
@@ -347,7 +375,7 @@ function renderProceduralHarmonyTrace(trace = {}) {
         <div class="selection-score-grid procedural-grid">${rowsHtml}</div>
       </details>`;
   }).join("");
-  return `${rules}${note}${proceduralHuePlotHtml(plotPoints, {title: "Seed harmony hue/lightness map"})}<div class="selection-rounds">${families || `<div class="diagnostics-summary-empty">No harmony rows recorded.</div>`}</div>`;
+  return `${rules}${regionMath}${note}${proceduralHuePlotHtml(plotPoints, {title: "Seed harmony hue/lightness map"})}<div class="selection-rounds">${families || `<div class="diagnostics-summary-empty">No harmony rows recorded.</div>`}</div>`;
 }
 
 function renderProceduralCosineTrace(trace = {}) {

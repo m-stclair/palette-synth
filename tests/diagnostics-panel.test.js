@@ -5,7 +5,9 @@ import {
   formatDistance,
   formatUsagePercent
 } from "../src/ui/diagnostics-panel.js";
-import { labToHex, oklchToLab } from "../src/color-utils.js";
+import { labToHex, labToOklch, oklchToLab } from "../src/color-utils.js";
+import { cloneDefaultConfig } from "../src/state/config.js";
+import { createHarmonyPaletteResult } from "../src/palette/generation.js";
 
 function fakeElement() {
   return {
@@ -33,6 +35,16 @@ function element() {
   return el;
 }
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function formattedDegrees(value) {
+  const n = Number(value);
+  const wrapped = ((n % 360) + 360) % 360;
+  return `${wrapped.toFixed(Math.abs(wrapped) >= 10 ? 0 : 1)}°`;
+}
+
 test("diagnostics panel formatters match runtime display rules", () => {
   assert.equal(formatDistance(Number.NaN), "—");
   assert.equal(formatDistance(123.45), "123");
@@ -42,6 +54,42 @@ test("diagnostics panel formatters match runtime display rules", () => {
   assert.equal(formatUsagePercent(0.0005), "<0.1%");
   assert.equal(formatUsagePercent(0.034), "3.4%");
   assert.equal(formatUsagePercent(0.56), "56%");
+});
+
+
+test("diagnostics build tab shows seed harmony region contrast math", () => {
+  const diagnosticsSelection = element();
+  const config = cloneDefaultConfig();
+  config.paletteMode = "harmony";
+  config.paletteSize = 9;
+  config.harmonyRelationship = "square";
+  config.harmonyRegionContrast = "triadicRegions";
+  const {trace} = createHarmonyPaletteResult(config, {captureTrace: true});
+
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsSelection},
+    getConfig: () => config,
+    getState: () => ({paletteSelectionTrace: trace})
+  });
+
+  panel.renderDiagnosticsSelection();
+
+  assert.match(diagnosticsSelection.innerHTML, /Region formula/);
+  assert.match(diagnosticsSelection.innerHTML, /L′=Lseed − 30\.0/);
+  assert.match(diagnosticsSelection.innerHTML, /C′=Cseed×/);
+  assert.match(diagnosticsSelection.innerHTML, /H′=Hseed \+120°/);
+  assert.match(diagnosticsSelection.innerHTML, /allocated across relationship-ring families/);
+
+  const tintRow = trace.rows.find(row => row.variant === "tint" && Array.isArray(row.outputLab));
+  assert.ok(tintRow);
+  const [, , outputHue] = labToOklch(tintRow.outputLab);
+  const outputHueDegrees = formattedDegrees(outputHue * 360 / (Math.PI * 2));
+  const seedHueDegrees = formattedDegrees(tintRow.seedHueDegrees);
+  assert.notEqual(outputHueDegrees, seedHueDegrees);
+  assert.match(
+    diagnosticsSelection.innerHTML,
+    new RegExp(`<title>tint ${escapeRegex(tintRow.outputHex)} · ${escapeRegex(outputHueDegrees)} · L `)
+  );
 });
 
 test("pixel inspector uses manual palette numbering for manual swatches", () => {

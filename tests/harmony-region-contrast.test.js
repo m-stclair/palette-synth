@@ -151,6 +151,49 @@ test("seed harmony seed applies local hue and chroma jitter instead of a uniform
   assert.ok(Math.max(...chromaDeltas) > 0.5);
 });
 
+
+test("triadic region contrast actually rotates tint and shade away from shared hue", () => {
+  const shared = cloneDefaultConfig();
+  shared.paletteSize = 3;
+  shared.harmonyRelationship = "monochrome";
+  shared.harmonyRegionContrast = "tonalRamp";
+  shared.seedSwatch = "#6f84c8";
+
+  const triadic = cloneDefaultConfig();
+  triadic.paletteSize = shared.paletteSize;
+  triadic.harmonyRelationship = shared.harmonyRelationship;
+  triadic.harmonyRegionContrast = "triadicRegions";
+  triadic.seedSwatch = shared.seedSwatch;
+
+  const sharedByVariant = recordsByVariant(createHarmonyPalette(shared));
+  const triadicByVariant = recordsByVariant(createHarmonyPalette(triadic));
+
+  assert.ok(hueDistanceDegrees(hueDegrees(sharedByVariant.base), hueDegrees(sharedByVariant.tint)) < 8);
+  assert.ok(hueDistanceDegrees(hueDegrees(sharedByVariant.base), hueDegrees(sharedByVariant.shade)) < 8);
+  assert.ok(hueDistanceDegrees(hueDegrees(triadicByVariant.base), hueDegrees(triadicByVariant.tint)) > 70);
+  assert.ok(hueDistanceDegrees(hueDegrees(triadicByVariant.base), hueDegrees(triadicByVariant.shade)) > 70);
+});
+
+test("seed harmony distributes incomplete relationship rings across families before stacking tones", () => {
+  const config = cloneDefaultConfig();
+  config.paletteSize = 9;
+  config.harmonyRelationship = "square";
+  config.seedSwatch = "#6f84c8";
+
+  const {records, trace} = createHarmonyPaletteResult(config, {captureTrace: true});
+  const familyCounts = new Map();
+  for (const row of trace.rows) familyCounts.set(row.familyIndex, (familyCounts.get(row.familyIndex) || 0) + 1);
+
+  assert.equal(records.length, 9);
+  assert.equal(familyCounts.size, 4);
+  assert.deepEqual([...familyCounts.values()].sort((a, b) => b - a), [3, 2, 2, 2]);
+  assert.deepEqual(records.reduce((counts, record) => {
+    counts[record.variant] = (counts[record.variant] || 0) + 1;
+    return counts;
+  }, {}), {base: 3, tint: 3, shade: 3});
+  assert.equal(trace.slotOrder, "ring-distributed");
+});
+
 test("seed harmony result records procedural trace for inspector", () => {
   const config = cloneDefaultConfig();
   config.paletteMode = "harmony";

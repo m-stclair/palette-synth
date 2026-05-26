@@ -40,6 +40,7 @@ import { selectTopNScoredSwatches } from "./selection.js";
 
 const DEFAULT_HARMONY_RELATIONSHIP = "monochrome";
 const DEFAULT_HARMONY_REGION_CONTRAST = "triadicRegions";
+const PLAIN_HARMONY_REGION_CONTRAST = "tonalRamp";
 const DEFAULT_COSINE_PRESET = "sinebow";
 
 const FAMILY_VARIANTS = [
@@ -161,7 +162,7 @@ function harmonyRegionContrastForConfig(config) {
 }
 
 function regionContrastFamilyVariants(seedLab, config) {
-  if ((config?.harmonyRegionContrast ?? DEFAULT_HARMONY_REGION_CONTRAST) === DEFAULT_HARMONY_REGION_CONTRAST) {
+  if ((config?.harmonyRegionContrast ?? DEFAULT_HARMONY_REGION_CONTRAST) === PLAIN_HARMONY_REGION_CONTRAST) {
     return expandSwatchVariants(seedLab, config.deltaL, 1);
   }
   const mode = harmonyRegionContrastForConfig(config);
@@ -237,20 +238,129 @@ function harmonyLightnessRampOffset(familyIndex, familyCount, relationship, conf
   return legacyOffset + (filledOffset - legacyOffset) * fillAmount;
 }
 
-function relationshipOffsetsForCount(relationshipKey, count) {
+function relationshipOffsetForIndex(relationshipKey, familyIndex) {
   const relationship = HARMONY_RELATIONSHIPS[relationshipKey] ?? HARMONY_RELATIONSHIPS[DEFAULT_HARMONY_RELATIONSHIP];
   const baseOffsets = relationship.offsets.length ? relationship.offsets : [0];
   const spread = Number(relationship.spread) || 0;
-  const out = [];
-  for (let i = 0; i < count; i++) {
-    const groupIndex = i % baseOffsets.length;
-    const ring = Math.floor(i / baseOffsets.length);
-    const side = ring % 2 === 0 ? -1 : 1;
-    const step = Math.ceil(ring / 2);
-    const clusterOffset = ring === 0 ? 0 : side * step * spread;
-    out.push(baseOffsets[groupIndex] + clusterOffset);
+  const groupIndex = familyIndex % baseOffsets.length;
+  const ring = Math.floor(familyIndex / baseOffsets.length);
+  const side = ring % 2 === 0 ? -1 : 1;
+  const step = Math.ceil(ring / 2);
+  const clusterOffset = ring === 0 ? 0 : side * step * spread;
+  return {
+    offset: baseOffsets[groupIndex] + clusterOffset,
+    groupIndex,
+    ring
+  };
+}
+
+const HARMONY_SLOT_VARIANT_ORDER = ["base", "tint", "shade"];
+
+function assignHarmonySlotVariants(slotFrames, targetCounts) {
+  const variantMask = Object.fromEntries(HARMONY_SLOT_VARIANT_ORDER.map((variant, index) => [variant, 1 << index]));
+  const variantMeta = Object.fromEntries(FAMILY_VARIANTS.map(entry => [entry.variant, entry]));
+  const usedMasks = [];
+  const picked = [];
+  const memo = new Set();
+
+  function futureCapacity(startIndex, remainingCounts) {
+    const caps = Object.fromEntries(HARMONY_SLOT_VARIANT_ORDER.map(variant => [variant, 0]));
+    const futureMasks = usedMasks.slice();
+    for (let i = startIndex; i < slotFrames.length; i++) {
+      const familyIndex = slotFrames[i].familyIndex;
+      const mask = futureMasks[familyIndex] ?? 0;
+      for (const variant of HARMONY_SLOT_VARIANT_ORDER) {
+        if ((remainingCounts[variant] || 0) > 0 && (mask & variantMask[variant]) === 0) caps[variant] += 1;
+      }
+    }
+    return caps;
   }
-  return out;
+
+  function canFinish(nextIndex, remainingCounts) {
+    const totalRemaining = HARMONY_SLOT_VARIANT_ORDER.reduce((sum, variant) => sum + (remainingCounts[variant] || 0), 0);
+    if (totalRemaining !== slotFrames.length - nextIndex) return false;
+    const caps = futureCapacity(nextIndex, remainingCounts);
+    return HARMONY_SLOT_VARIANT_ORDER.every(variant => (remainingCounts[variant] || 0) <= caps[variant]);
+  }
+
+  function search(index, remainingCounts) {
+    if (index >= slotFrames.length) return HARMONY_SLOT_VARIANT_ORDER.every(variant => (remainingCounts[variant] || 0) === 0);
+    const key = `${index}|${HARMONY_SLOT_VARIANT_ORDER.map(variant => remainingCounts[variant] || 0).join(',')}|${usedMasks.join('')}`;
+    if (memo.has(key)) return false;
+    const frame = slotFrames[index];
+    const familyIndex = frame.familyIndex;
+    const currentMask = usedMasks[familyIndex] ?? 0;
+    const candidates = [...HARMONY_SLOT_VARIANT_ORDER]
+      .filter(variant => (remainingCounts[variant] || 0) > 0 && (currentMask & variantMask[variant]) === 0)
+      .sort((a, b) => (remainingCounts[b] || 0) - (remainingCounts[a] || 0) || HARMONY_SLOT_VARIANT_ORDER.indexOf(a) - HARMONY_SLOT_VARIANT_ORDER.indexOf(b));
+
+    for (const variant of candidates) {
+      const nextCounts = {...remainingCounts, [variant]: (remainingCounts[variant] || 0) - 1};
+      usedMasks[familyIndex] = currentMask | variantMask[variant];
+      if (canFinish(index + 1, nextCounts)) {
+        picked[index] = variant;
+        if (search(index + 1, nextCounts)) return true;
+        picked[index] = null;
+      }
+      usedMasks[familyIndex] = currentMask;
+    }
+    memo.add(key);
+    return false;
+  }
+
+  search(0, {...targetCounts});
+  return slotFrames.map((slot, index) => {
+    const variant = picked[index] ?? HARMONY_SLOT_VARIANT_ORDER[0];
+    const meta = variantMeta[variant] ?? FAMILY_VARIANTS[0];
+    return {
+      ...slot,
+      variant,
+      variantIndex: FAMILY_VARIANTS.findIndex(entry => entry.variant === variant),
+      lightnessDirection: meta.lightnessDirection ?? 0
+    };
+  });
+}
+
+function harmonySlotsForSize(relationshipKey, requestedSize) {
+  const relationship = HARMONY_RELATIONSHIPS[relationshipKey] ?? HARMONY_RELATIONSHIPS[DEFAULT_HARMONY_RELATIONSHIP];
+  const baseGroupCount = Math.max(1, relationship.offsets.length);
+  const targetCounts = harmonyBandCounts(requestedSize);
+  const slotFrames = [];
+  let remainingSlots = requestedSize;
+  let ring = 0;
+
+  while (remainingSlots > 0) {
+    const ringFamilyCounts = Array.from({length: baseGroupCount}, () => 0);
+    for (let pass = 0; pass < HARMONY_BAND_VARIANTS.length && remainingSlots > 0; pass++) {
+      for (let groupIndex = 0; groupIndex < baseGroupCount && remainingSlots > 0; groupIndex++) {
+        ringFamilyCounts[groupIndex] += 1;
+        remainingSlots -= 1;
+      }
+    }
+
+    for (let pass = 0; pass < HARMONY_BAND_VARIANTS.length; pass++) {
+      for (let groupIndex = 0; groupIndex < baseGroupCount; groupIndex++) {
+        if (ringFamilyCounts[groupIndex] <= pass) continue;
+        const familyIndex = ring * baseGroupCount + groupIndex;
+        const relationshipOffset = relationshipOffsetForIndex(relationshipKey, familyIndex);
+        slotFrames.push({
+          familyIndex,
+          groupIndex: relationshipOffset.groupIndex,
+          ring: relationshipOffset.ring,
+          baseOffsetDegrees: relationshipOffset.offset
+        });
+      }
+    }
+    ring += 1;
+  }
+
+  const slots = assignHarmonySlotVariants(slotFrames, targetCounts);
+  return {
+    slots,
+    targetCounts,
+    activeFamilyCount: Math.max(1, slots.reduce((max, slot) => Math.max(max, slot.familyIndex + 1), 0)),
+    baseGroupCount
+  };
 }
 
 function hashHarmonyJitterSeed(seed, relationshipKey, variant, familyIndex) {
@@ -290,16 +400,17 @@ function buildHarmonyPalette(config, {captureTrace = false} = {}) {
   const regionKey = config.harmonyRegionContrast ?? DEFAULT_HARMONY_REGION_CONTRAST;
   const regionMode = harmonyRegionContrastForConfig(config);
   const requestedSize = requestedHarmonyPaletteSize(config);
-  const bandCounts = harmonyBandCounts(requestedSize);
+  const slotPlan = harmonySlotsForSize(relationshipKey, requestedSize);
+  const bandCounts = slotPlan.targetCounts;
+  const activeFamilyCount = slotPlan.activeFamilyCount;
   const usableC = Math.max(baseC, baseC < NEUTRAL_CHROMA_EPSILON ? 24 : baseC);
   const rampSteepness = harmonyRampSteepnessForConfig(config);
   const records = [];
   const rows = [];
+  const lightnessByVariant = new Map();
 
   for (const {variant, lightnessDirection} of HARMONY_BAND_VARIANTS) {
-    const bandCount = bandCounts[variant] ?? 0;
-    const offsets = relationshipOffsetsForCount(relationshipKey, bandCount);
-    const lightnessOffsets = offsets.map((_, familyIndex) => harmonyLightnessRampOffset(familyIndex, bandCount, relationship, config, rampSteepness));
+    const lightnessOffsets = Array.from({length: activeFamilyCount}, (_, familyIndex) => harmonyLightnessRampOffset(familyIndex, activeFamilyCount, relationship, config, rampSteepness));
     const maxAbsLightnessOffset = Math.max(0, ...lightnessOffsets.map(value => Math.abs(value)));
     const [minVariantL, maxVariantL] = harmonyVariantLightnessBounds(variant);
     const halfBandWidth = Math.max(0, (maxVariantL - minVariantL) / 2);
@@ -307,70 +418,75 @@ function buildHarmonyPalette(config, {captureTrace = false} = {}) {
     const offsetScale = maxAbsLightnessOffset > 0 ? halfRange / maxAbsLightnessOffset : 1;
     const nominalVariantL = baseL + config.deltaL * lightnessDirection;
     const centeredVariantL = clamp(nominalVariantL, minVariantL + halfRange, maxVariantL - halfRange);
+    lightnessByVariant.set(variant, {lightnessOffsets, lightnessDirection, nominalVariantL, centeredVariantL, offsetScale});
+  }
 
-    for (let familyIndex = 0; familyIndex < offsets.length; familyIndex++) {
-      const offset = offsets[familyIndex];
-      const baseGroupCount = Math.max(1, relationship.offsets.length);
-      const ring = Math.floor(familyIndex / baseGroupCount);
-      const monoT = bandCount <= 1 ? 0 : (familyIndex / (bandCount - 1)) - 0.5;
-      const lightnessOffset = lightnessOffsets[familyIndex] * offsetScale;
-      const seedL = clamp(centeredVariantL + lightnessOffset - config.deltaL * lightnessDirection, 4, 96);
-      const unjitteredSeedC = relationship.offsets.length === 1
-        ? usableC * (1 + monoT * 0.55)
-        : usableC * Math.max(0.55, 1 - ring * 0.08);
-      const jitter = harmonySeedJitter(config, variant, familyIndex);
-      const seedC = clamp(unjitteredSeedC * jitter.chromaScale + jitter.chromaDelta, 0, OKLCH_PROCEDURAL_CHROMA_MAX);
-      const hue = baseH + (offset + jitter.hueDegrees) * Math.PI / 180;
-      const seedLab = fitLabToSrgb(oklchToLab([seedL, seedC, hue]));
-      const variantLab = regionContrastVariant(seedLab, config, variant);
-      const record = makePaletteRecord({
-        lab: variantLab,
-        source: "harmony",
-        familyId: `harmony-${relationshipKey}-${familyIndex}`,
+  for (const slot of slotPlan.slots) {
+    const {familyIndex, variant, variantIndex, lightnessDirection, baseOffsetDegrees: offset, ring} = slot;
+    const bandCount = bandCounts[variant] ?? 0;
+    const lightness = lightnessByVariant.get(variant) ?? {};
+    const monoT = activeFamilyCount <= 1 ? 0 : (familyIndex / (activeFamilyCount - 1)) - 0.5;
+    const lightnessOffset = (lightness.lightnessOffsets?.[familyIndex] ?? 0) * (lightness.offsetScale ?? 1);
+    const nominalVariantL = lightness.nominalVariantL ?? baseL;
+    const centeredVariantL = lightness.centeredVariantL ?? baseL;
+    const offsetScale = lightness.offsetScale ?? 1;
+    const seedL = clamp(centeredVariantL + lightnessOffset - config.deltaL * lightnessDirection, 4, 96);
+    const unjitteredSeedC = relationship.offsets.length === 1
+      ? usableC * (1 + monoT * 0.55)
+      : usableC * Math.max(0.55, 1 - ring * 0.08);
+    const jitter = harmonySeedJitter(config, variant, familyIndex);
+    const seedC = clamp(unjitteredSeedC * jitter.chromaScale + jitter.chromaDelta, 0, OKLCH_PROCEDURAL_CHROMA_MAX);
+    const hue = baseH + (offset + jitter.hueDegrees) * Math.PI / 180;
+    const seedLab = fitLabToSrgb(oklchToLab([seedL, seedC, hue]));
+    const variantLab = regionContrastVariant(seedLab, config, variant);
+    const record = makePaletteRecord({
+      lab: variantLab,
+      source: "harmony",
+      familyId: `harmony-${relationshipKey}-${familyIndex}`,
+      familyIndex,
+      variant,
+      variantIndex,
+      sourceIndex: familyIndex,
+      seedLab,
+      sourceLab: seedLab,
+      role: lightnessDirection === 0 ? "harmony-family-member" : `harmony-${variant}-member`
+    });
+    records.push(record);
+
+    if (captureTrace) {
+      rows.push({
+        id: record.id,
+        familyId: record.familyId,
         familyIndex,
+        groupIndex: slot.groupIndex,
         variant,
-        variantIndex: FAMILY_VARIANTS.findIndex(entry => entry.variant === variant),
-        sourceIndex: familyIndex,
-        seedLab,
-        sourceLab: seedLab,
-        role: lightnessDirection === 0 ? "harmony-family-member" : `harmony-${variant}-member`
+        variantIndex: record.variantIndex,
+        role: record.role,
+        bandCount,
+        baseOffsetDegrees: offset,
+        ring,
+        lightnessDirection,
+        nominalVariantL,
+        centeredVariantL,
+        lightnessOffset,
+        offsetScale,
+        seedL,
+        seedC,
+        seedHueDegrees: degreesFromRadians(hue),
+        unjitteredSeedC,
+        seedHex: labToHex(seedLab),
+        seedLab: [...seedLab],
+        outputHex: record.hex,
+        outputLab: [...record.lab],
+        jitter: {...jitter},
+        region: {
+          key: regionKey,
+          label: regionMode.label,
+          hueOffsetDegrees: Number(regionMode.offsets?.[variant]) || 0,
+          chromaScale: Number(regionMode.chromaScale?.[variant] ?? 1) || 1,
+          chromaBias: Number(regionMode.chromaBias?.[variant]) || 0
+        }
       });
-      records.push(record);
-
-      if (captureTrace) {
-        rows.push({
-          id: record.id,
-          familyId: record.familyId,
-          familyIndex,
-          variant,
-          variantIndex: record.variantIndex,
-          role: record.role,
-          bandCount,
-          baseOffsetDegrees: offset,
-          ring,
-          lightnessDirection,
-          nominalVariantL,
-          centeredVariantL,
-          lightnessOffset,
-          offsetScale,
-          seedL,
-          seedC,
-          seedHueDegrees: degreesFromRadians(hue),
-          unjitteredSeedC,
-          seedHex: labToHex(seedLab),
-          seedLab: [...seedLab],
-          outputHex: record.hex,
-          outputLab: [...record.lab],
-          jitter: {...jitter},
-          region: {
-            key: regionKey,
-            label: regionMode.label,
-            hueOffsetDegrees: Number(regionMode.offsets?.[variant]) || 0,
-            chromaScale: Number(regionMode.chromaScale?.[variant] ?? 1) || 1,
-            chromaBias: Number(regionMode.chromaBias?.[variant]) || 0
-          }
-        });
-      }
     }
   }
 
@@ -406,6 +522,9 @@ function buildHarmonyPalette(config, {captureTrace = false} = {}) {
       },
       rampSteepness,
       bandCounts: {...bandCounts},
+      activeFamilyCount,
+      relationshipFamilyCount: slotPlan.baseGroupCount,
+      slotOrder: "ring-distributed",
       jitterLimits: {
         hueDegrees: HARMONY_HUE_JITTER_DEGREES,
         chromaRatio: HARMONY_CHROMA_JITTER_RATIO,
