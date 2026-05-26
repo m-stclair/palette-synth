@@ -110,11 +110,9 @@ function randomizeSharedControls(snapshot, rng) {
   snapshot.seed = randInt(rng, 1, 500);
   snapshot.blockSize = randInt(rng, 1, 5);
   snapshot.samplingMode = pick(rng, SAMPLING_MODES, DEFAULT_CONFIG.samplingMode);
-  snapshot.selectWeights = [
-    randStep(rng, 0, 0.9, 0.05),
-    randStep(rng, 0, 0.8, 0.05),
-    randStep(rng, 0, 0.8, 0.05)
-  ];
+  snapshot.selectionMidtoneWeight = randStep(rng, 0, 0.9, 0.05);
+  snapshot.selectionOutlierWeight = randStep(rng, 0, 0.8, 0.05);
+  snapshot.selectionChromaWeight = randStep(rng, 0, 0.8, 0.05);
   snapshot.generatedLocks = [];
 }
 

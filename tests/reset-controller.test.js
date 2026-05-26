@@ -60,7 +60,9 @@ test("reset controller resets only config-backed controls in a panel", () => {
   const config = cloneDefaultConfig();
   config.paletteSize = 42;
   config.levelsExposure = 2;
-  config.selectWeights = [1.1, 1.2, 1.3];
+  config.selectionMidtoneWeight = 1.1;
+  config.selectionOutlierWeight = 1.2;
+  config.selectionChromaWeight = 1.3;
   let snapshot = null;
   let status = "";
   const controller = createResetController({
@@ -81,7 +83,9 @@ test("reset controller resets only config-backed controls in a panel", () => {
   assert.equal(changed, true);
   assert.equal(snapshot.paletteSize, 15);
   assert.equal(snapshot.levelsExposure, 2);
-  assert.deepEqual(snapshot.selectWeights, [1.1, 0, 1.3]);
+  assert.equal(snapshot.selectionMidtoneWeight, 1.1);
+  assert.equal(snapshot.selectionOutlierWeight, 0);
+  assert.equal(snapshot.selectionChromaWeight, 1.3);
   assert.equal(status, "Reset Palette controls.");
 });
 

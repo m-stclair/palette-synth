@@ -1,4 +1,4 @@
-import { $, SELECT_WEIGHT_CONTROL_IDS } from "./dom.js";
+import { $, SELECTION_APPEAL_WEIGHT_CONTROLS } from "./dom.js";
 import { COSINE_VECTOR_KEYS, normalizeCosineCustomVectors, snapPaletteSizeToFamilyMultiple } from "../state/config.js";
 import { createShortcutDispatcher } from "./shortcuts.js";
 import { cyclePaletteSwatchScale, syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
@@ -241,21 +241,21 @@ export function bindControls({
     commitHistory
   });
 
-  for (const [index, key] of SELECT_WEIGHT_CONTROL_IDS.entries()) {
-    const el = $(key);
+  for (const {id, configKey} of SELECTION_APPEAL_WEIGHT_CONTROLS) {
+    const el = $(id);
     if (!el) continue;
-    el.value = config.selectWeights[index];
-    const out = $(`${key}Value`);
+    el.value = config[configKey];
+    const out = $(`${id}Value`);
     if (out) out.textContent = el.value;
     el.addEventListener("input", () => {
-      beginHistory(`Change ${key}`);
-      config.selectWeights[index] = Number(el.value);
+      beginHistory(`Change ${configKey}`);
+      config[configKey] = Number(el.value);
       if (out) out.textContent = el.value;
       markPaletteDirty();
       queueRender();
     });
-    el.addEventListener("change", () => commitHistory(`Change ${key}`));
-    el.addEventListener("blur", () => commitHistory(`Change ${key}`));
+    el.addEventListener("change", () => commitHistory(`Change ${configKey}`));
+    el.addEventListener("blur", () => commitHistory(`Change ${configKey}`));
   }
 }
 

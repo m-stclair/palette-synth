@@ -1,4 +1,4 @@
-import { $, SELECT_WEIGHT_CONTROL_IDS } from "../ui/dom.js";
+import { $, SELECTION_APPEAL_WEIGHT_CONTROLS } from "../ui/dom.js";
 import { syncCosineCustomVectorControls, syncGeneratedPaletteSizeControl } from "../ui/controls.js";
 import { syncColorPickerInput } from "../ui/color-picker.js";
 import { syncPaletteSwatchScaleUi } from "../ui/palette-swatch-scale.js";
@@ -8,7 +8,7 @@ import {
 } from "../state/config.js";
 
 export const PALETTE_DIRTY_KEYS = new Set([
-  "paletteMode", "presetName", "paletteSize", "seedSwatch", "harmonyRelationship", "harmonyRegionContrast", "harmonyRampSteepness", "cosinePreset", "cosineCustomVectors", "deltaL", "paletteGamma", "gammaC", "paletteHue", "tonalZoneWeight", "widthBonus", "hueSpread", "minDistance",
+  "paletteMode", "presetName", "paletteSize", "seedSwatch", "harmonyRelationship", "harmonyRegionContrast", "harmonyRampSteepness", "cosinePreset", "cosineCustomVectors", "deltaL", "paletteGamma", "gammaC", "paletteHue", "selectionMidtoneWeight", "selectionOutlierWeight", "selectionChromaWeight", "tonalZoneWeight", "widthBonus", "hueSpread", "minDistance",
   "sortMode", "blockSize", "seed", "samplingMode", "generatedAssist", "generatedTintShadeFamilies", "cosineCustomTintShadeFamilies", "aliasAllSources", "manualMatchAliases", "CYCLE_MODE"
 ]);
 
@@ -105,10 +105,10 @@ export function createConfigController({
     }
     syncGeneratedPaletteSizeControl(config, {root, setOutputText});
     syncCosineCustomVectorControls(config, root);
-    SELECT_WEIGHT_CONTROL_IDS.forEach((id, i) => {
+    SELECTION_APPEAL_WEIGHT_CONTROLS.forEach(({id, configKey}) => {
       const el = byId(id);
       if (!el) return;
-      el.value = config.selectWeights[i];
+      el.value = config[configKey];
       const out = byId(`${id}Value`);
       if (out) out.textContent = el.value;
     });

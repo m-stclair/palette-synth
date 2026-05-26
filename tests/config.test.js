@@ -16,9 +16,9 @@ test("default config clones are deep copies", () => {
   const a = cloneDefaultConfig();
   const b = cloneDefaultConfig();
   a.manualPalette[0].hex = "#ffffff";
-  a.selectWeights[0] = 1.5;
+  a.selectionMidtoneWeight = 1.5;
   assert.equal(b.manualPalette[0].hex, DEFAULT_CONFIG.manualPalette[0].hex);
-  assert.equal(b.selectWeights[0], DEFAULT_CONFIG.selectWeights[0]);
+  assert.equal(b.selectionMidtoneWeight, DEFAULT_CONFIG.selectionMidtoneWeight);
 
   const snapshot = cloneConfigSnapshot(a);
   snapshot.manualPalette[1].hex = "#000000";
@@ -100,7 +100,9 @@ test("config sanitization clamps values and honors injected preset lookup", () =
     harmonyRegionContrast: "bad",
     harmonyRampSteepness: 99,
     cosinePreset: "bad",
-    selectWeights: [2, -1, "0.25"],
+    selectionMidtoneWeight: 2,
+    selectionOutlierWeight: -1,
+    selectionChromaWeight: "0.25",
     CYCLE_MODE: "manual",
     cycleManualKeys: ["Manual-One"],
     manualPalette: [{id: "Manual One", hex: "abc", aliasHex: "def"}],
@@ -128,7 +130,9 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   assert.equal(clean.harmonyRegionContrast, DEFAULT_CONFIG.harmonyRegionContrast);
   assert.equal(clean.harmonyRampSteepness, 2.5);
-  assert.deepEqual(clean.selectWeights, [1.5, 0, 0.25]);
+  assert.equal(clean.selectionMidtoneWeight, 1.5);
+  assert.equal(clean.selectionOutlierWeight, 0);
+  assert.equal(clean.selectionChromaWeight, 0.25);
   assert.equal(clean.CYCLE_MODE, "manual");
   assert.deepEqual(clean.cycleManualKeys, ["manual:manual-one"]);
   assert.deepEqual(clean.paletteRegionRect, {x: 0, y: 2, width: 1, height: 13});

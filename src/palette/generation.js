@@ -782,13 +782,13 @@ export function createGeneratedPalette({
     region: sampleRegion,
     blockSize: config.blockSize
   }));
-  const weights = {
-    midtone: config.selectWeights[0],
-    outlier: config.selectWeights[1],
-    chroma: config.selectWeights[2]
+  const candidateAppealWeights = {
+    midtone: config.selectionMidtoneWeight,
+    outlier: config.selectionOutlierWeight,
+    chroma: config.selectionChromaWeight
   };
   const selectionTrace = [];
-  const selected = selectTopNScoredSwatches(candidates, weights, selectionCount, config.minDistance, config.seed, {
+  const selected = selectTopNScoredSwatches(candidates, candidateAppealWeights, selectionCount, config.minDistance, config.seed, {
     deltaL: config.deltaL,
     chromaExp: 1,
     familySpacing: tintShadeFamilies,

@@ -46,6 +46,11 @@ app.js
 - `ui/palette-preview.js`, `ui/manual-palette-editor.js`, and `ui/manual-swatches-list.js` own palette-facing UI rendering and swatch editing affordances.
 - `ui/diagnostics-panel.js` owns diagnostics display formatting.
 
+
+## Generated-palette scoring vocabulary
+
+Image-generated palettes use `selectionMidtoneWeight`, `selectionOutlierWeight`, and `selectionChromaWeight` as independent candidate-appeal nudges. They are deliberately not a packed config tuple. Treat them as secondary score inputs that bias the preliminary candidate appeal; tonal-zone pressure, range/novelty pressure, hue spread, and spacing constraints are the stronger modern selection forces.
+
 ## Runtime / GL modules
 
 - `runtime/image-controller.js` owns image decoding, scaled canvas creation, main/reference image state, and object URL cleanup.

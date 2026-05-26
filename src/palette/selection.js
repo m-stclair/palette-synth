@@ -33,16 +33,19 @@ export function meanLab(samples) {
   return [sum[0] / n, sum[1] / n, sum[2] / n];
 }
 
-export function baseScoreBreakdown(lab, center, weights = {chroma: 1, outlier: 0.7, midtone: 0.25}, chromaCap = OKLAB_CHROMA_REF, outlierCap = 80) {
+// Preliminary generated-image appeal. These knobs are intentionally small,
+// independent candidate nudges now; the later tonal, spacing, range/novelty,
+// and hue-spread forces are the primary selection machinery.
+export function candidateAppealBreakdown(lab, center, candidateAppealWeights = {chroma: 1, outlier: 0.7, midtone: 0.25}, chromaCap = OKLAB_CHROMA_REF, outlierCap = 80) {
   const [L, a, b] = lab;
   const C = Math.hypot(a, b);
   const chromaRaw = clamp(C / chromaCap, 0, 1);
   const outlierDistance = labDistance(lab, center);
   const outlierRaw = clamp(outlierDistance / outlierCap, 0, 1);
   const midtoneRaw = clamp(1 - Math.abs(L - 50) / 50, 0, 1);
-  const chromaContribution = (Number(weights.chroma) || 0) * chromaRaw;
-  const outlierContribution = (Number(weights.outlier) || 0) * outlierRaw;
-  const midtoneContribution = (Number(weights.midtone) || 0) * midtoneRaw;
+  const chromaContribution = (Number(candidateAppealWeights.chroma) || 0) * chromaRaw;
+  const outlierContribution = (Number(candidateAppealWeights.outlier) || 0) * outlierRaw;
+  const midtoneContribution = (Number(candidateAppealWeights.midtone) || 0) * midtoneRaw;
   return {
     total: chromaContribution + outlierContribution + midtoneContribution,
     chromaRaw,
@@ -57,9 +60,10 @@ export function baseScoreBreakdown(lab, center, weights = {chroma: 1, outlier: 0
   };
 }
 
-export function baseScore(lab, center, weights = {chroma: 1, outlier: 0.7, midtone: 0.25}, chromaCap = OKLAB_CHROMA_REF, outlierCap = 80) {
-  return baseScoreBreakdown(lab, center, weights, chromaCap, outlierCap).total;
+export function candidateAppealScore(lab, center, candidateAppealWeights = {chroma: 1, outlier: 0.7, midtone: 0.25}, chromaCap = OKLAB_CHROMA_REF, outlierCap = 80) {
+  return candidateAppealBreakdown(lab, center, candidateAppealWeights, chromaCap, outlierCap).total;
 }
+
 
 export function tonalBandIndex(L) {
   if (L < SHADOW_L_CUTOFF) return 0;
@@ -105,7 +109,7 @@ function scoredCandidateSummary(entry, rank = null) {
     hex: labToHex(entry.lab),
     familyHexes: family.map(labToHex),
     band: selectionBandName(entry.band ?? tonalBandIndex(entry.lab[0])),
-    baseScore: entry.baseScore,
+    candidateAppealScore: entry.candidateAppealScore,
     marginalScore: entry.marginalScore,
     nearestFamilyDistance: entry.nearestFamilyDistance,
     hueNearestDistanceDegrees: entry.hueNearestDistanceDegrees,
@@ -119,12 +123,12 @@ function scoredCandidateSummary(entry, rank = null) {
 
 function selectionTraceBadge(parts, spacing) {
   const badges = [];
-  const strongestBase = [
+  const strongestAppeal = [
     ["chroma", parts.chromaContribution],
     ["outlier", parts.outlierContribution],
     ["midtone", parts.midtoneContribution]
   ].sort((a, b) => b[1] - a[1])[0];
-  if (strongestBase && strongestBase[1] > 0.08) badges.push(`${strongestBase[0]} led base appeal`);
+  if (strongestAppeal && strongestAppeal[1] > 0.08) badges.push(`${strongestAppeal[0]} nudged candidate appeal`);
   if (parts.tonalNeedContribution > 0.08) badges.push(`filled ${parts.band} target`);
   if (parts.rangeExpansionContribution > 0.06) badges.push("expanded lightness range");
   if (parts.hueSpreadContribution > 0.04) badges.push("expanded hue spread");
@@ -136,7 +140,7 @@ function selectionTraceBadge(parts, spacing) {
 }
 
 function compareRankedCandidates(a, b) {
-  return (b.marginalScore - a.marginalScore) || (b.baseScore - a.baseScore) || (a.index - b.index);
+  return (b.marginalScore - a.marginalScore) || (b.candidateAppealScore - a.candidateAppealScore) || (a.index - b.index);
 }
 
 function updateNearestFamilyMatches(entries, selectedFamily, selectedFamilyIndex, nearestFamilyByIndex, usedFlags = null) {
@@ -151,19 +155,19 @@ function updateNearestFamilyMatches(entries, selectedFamily, selectedFamilyIndex
   }
 }
 
-export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 14, seed = 1, options = {}) {
+export function selectTopNScoredSwatches(candidates, candidateAppealWeights, N, minDistance = 14, seed = 1, options = {}) {
   const center = meanLab(candidates);
   const footprintDeltaL = Number.isFinite(Number(options.deltaL)) ? Number(options.deltaL) : 10;
   const footprintChromaExp = Number.isFinite(Number(options.chromaExp)) ? Number(options.chromaExp) : 1.0;
   const familySpacing = options.familySpacing !== false;
   const spacingFootprint = lab => familySpacing ? familyFootprint(lab, footprintDeltaL, footprintChromaExp) : [lab];
-  const baseScored = candidates.map((lab, index) => {
-    const score = baseScoreBreakdown(lab, center, weights);
+  const appealScoredCandidates = candidates.map((lab, index) => {
+    const score = candidateAppealBreakdown(lab, center, candidateAppealWeights);
     return {
       lab,
       index,
-      baseScore: score.total,
-      baseParts: score,
+      candidateAppealScore: score.total,
+      candidateAppealParts: score,
       family: spacingFootprint(lab),
       familySpacing,
       hueCandidate: hueInfoForSeedLab(lab)
@@ -188,7 +192,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   const selectedHueAnchors = selected.map(hueInfoForSeedLab);
   const nearestFamilyByIndex = candidates.map(() => ({distance: Infinity, index: -1}));
   selectedFamilies.forEach((family, index) => {
-    updateNearestFamilyMatches(baseScored, family, index, nearestFamilyByIndex);
+    updateNearestFamilyMatches(appealScoredCandidates, family, index, nearestFamilyByIndex);
   });
   const usedFlags = new Uint8Array(candidates.length);
   const bandCounts = [0, 0, 0];
@@ -208,7 +212,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
       candidateCount: candidates.length,
       centerLab: [...center],
       centerHex: labToHex(center),
-      weights: {...weights},
+      candidateAppealWeights: {...candidateAppealWeights},
       expansion: familySpacing ? {deltaL: footprintDeltaL, chromaExp: footprintChromaExp} : null,
       tonalTargets: desiredBandCounts.map((count, index) => ({band: selectionBandName(index), count})),
       tonalTargetMode: directColorTargets ? "direct-colors" : "family-seeds",
@@ -241,7 +245,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     let bestAvailableSpacing = selectedFamilies.length ? 0 : Infinity;
     let finiteSpacingCount = 0;
 
-    for (const entry of baseScored) {
+    for (const entry of appealScoredCandidates) {
       if (usedFlags[entry.index]) continue;
       const nearest = nearestFamilyByIndex[entry.index];
       const nearestFamilyDistance = nearest.distance;
@@ -296,7 +300,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
       const hueNovelty = hueNearest.raw;
       const noiseContribution = rng() * SELECTION_NOISE_AMOUNT;
       const parts = {
-        ...entry.baseParts,
+        ...entry.candidateAppealParts,
         band: selectionBandName(band),
         bandNeed,
         crowding,
@@ -316,7 +320,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
         hueSpreadContribution: hueNovelty * hueSpreadBonus,
         noiseContribution
       };
-      const featureScore = entry.baseScore
+      const featureScore = entry.candidateAppealScore
         + parts.tonalNeedContribution
         - parts.crowdingPenalty
         + parts.rangeExpansionContribution
@@ -457,7 +461,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
     bandCounts[picked.band] += 1;
     if (selected.length < N) {
       updateNearestFamilyMatches(
-        baseScored,
+        appealScoredCandidates,
         pickedFamily,
         pickedFamilyIndex,
         nearestFamilyByIndex,
@@ -467,7 +471,7 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
   }
 
   if (selected.length >= N) return selected;
-  for (const entry of [...baseScored].sort((a, b) => b.baseScore - a.baseScore)) {
+  for (const entry of [...appealScoredCandidates].sort((a, b) => b.candidateAppealScore - a.candidateAppealScore)) {
     if (selected.length >= N) break;
     if (usedFlags[entry.index]) continue;
     selected.push(entry.lab);
@@ -485,10 +489,10 @@ export function selectTopNScoredSwatches(candidates, weights, N, minDistance = 1
           hex: labToHex(entry.lab),
           familyHexes: family.map(labToHex),
           band: selectionBandName(tonalBandIndex(entry.lab[0])),
-          baseScore: entry.baseScore,
-          marginalScore: entry.baseScore,
-          parts: {...entry.baseParts},
-          badges: ["fallback base-score fill"]
+          candidateAppealScore: entry.candidateAppealScore,
+          marginalScore: entry.candidateAppealScore,
+          parts: {...entry.candidateAppealParts},
+          badges: ["fallback candidate-appeal fill"]
         },
         nearMisses: [],
         blockedNearMisses: []

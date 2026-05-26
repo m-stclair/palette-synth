@@ -65,13 +65,15 @@ test("generated palette generation reuses cached candidate samples across non-sa
     seed: 3,
     samplingMode: "stratified",
     blockSize: 1,
-    selectWeights: [0.1, 0.2, 0.3],
+    selectionMidtoneWeight: 0.1,
+    selectionOutlierWeight: 0.2,
+    selectionChromaWeight: 0.3,
     generatedLocks: []
   };
 
   const first = createGeneratedPalette({config, mode: "generated", imageData});
   const second = createGeneratedPalette({
-    config: {...config, selectWeights: [0.3, 0.1, 0.2], minDistance: config.minDistance + 1},
+    config: {...config, selectionMidtoneWeight: 0.3, selectionOutlierWeight: 0.1, selectionChromaWeight: 0.2, minDistance: config.minDistance + 1},
     mode: "generated",
     imageData
   });
@@ -97,7 +99,9 @@ test("generated locks seed selection before automatic families are picked", () =
     samplingMode: "stratified",
     blockSize: 1,
     minDistance: 30,
-    selectWeights: [0.1, 0.2, 0.3],
+    selectionMidtoneWeight: 0.1,
+    selectionOutlierWeight: 0.2,
+    selectionChromaWeight: 0.3,
     generatedLocks: [{id: "lock-red", hex: "#ff0000"}],
     generatedTintShadeFamilies: true
   };
@@ -129,7 +133,9 @@ test("generated image palettes can select individual colors without tint/shade f
     samplingMode: "stratified",
     blockSize: 1,
     minDistance: 12,
-    selectWeights: [0.1, 0.2, 0.3],
+    selectionMidtoneWeight: 0.1,
+    selectionOutlierWeight: 0.2,
+    selectionChromaWeight: 0.3,
     generatedLocks: []
   };
 
@@ -176,7 +182,9 @@ test("direct-color generated palettes use two shadow and highlight targets at se
     samplingMode: "stratified",
     blockSize: 1,
     minDistance: 12,
-    selectWeights: [0.1, 0.2, 0.3],
+    selectionMidtoneWeight: 0.1,
+    selectionOutlierWeight: 0.2,
+    selectionChromaWeight: 0.3,
     generatedLocks: []
   };
 
@@ -207,7 +215,9 @@ test("generated image locks become individual colors when tint/shade families ar
     samplingMode: "stratified",
     blockSize: 1,
     minDistance: 12,
-    selectWeights: [0.1, 0.2, 0.3],
+    selectionMidtoneWeight: 0.1,
+    selectionOutlierWeight: 0.2,
+    selectionChromaWeight: 0.3,
     generatedLocks: [{id: "lock-red", hex: "#ff0000"}]
   };
 

@@ -1,9 +1,9 @@
 import { cloneConfigSnapshot, cloneDefaultConfig } from "../state/config.js";
-import { SELECT_WEIGHT_CONTROL_IDS } from "../ui/dom.js";
+import { SELECTION_APPEAL_WEIGHT_CONTROLS } from "../ui/dom.js";
 
 const noop = () => {};
 
-const SELECT_WEIGHT_INDEX_BY_ID = new Map(SELECT_WEIGHT_CONTROL_IDS.map((id, index) => [id, index]));
+const SELECTION_APPEAL_CONFIG_KEY_BY_CONTROL_ID = new Map(SELECTION_APPEAL_WEIGHT_CONTROLS.map(({id, configKey}) => [id, configKey]));
 
 const DEFAULT_ANIMATION_EXPORT = {
   frameCount: null,
@@ -21,14 +21,13 @@ function panelControls(panel) {
 
 function panelResetTargets(panel, resetSnapshot = cloneDefaultConfig()) {
   const configKeys = new Set();
-  const selectWeightIndexes = new Set();
   const animationKeys = new Set();
   const domControls = new Set();
 
   panelControls(panel).forEach(control => {
     if (!control?.id || control.type === "file") return;
-    if (SELECT_WEIGHT_INDEX_BY_ID.has(control.id)) {
-      selectWeightIndexes.add(SELECT_WEIGHT_INDEX_BY_ID.get(control.id));
+    if (SELECTION_APPEAL_CONFIG_KEY_BY_CONTROL_ID.has(control.id)) {
+      configKeys.add(SELECTION_APPEAL_CONFIG_KEY_BY_CONTROL_ID.get(control.id));
       return;
     }
     if (Object.prototype.hasOwnProperty.call(resetSnapshot, control.id)) {
@@ -42,12 +41,12 @@ function panelResetTargets(panel, resetSnapshot = cloneDefaultConfig()) {
     domControls.add(control);
   });
 
-  return {configKeys, selectWeightIndexes, animationKeys, domControls};
+  return {configKeys, animationKeys, domControls};
 }
 
 export function panelHasResettableControls(panel) {
   const targets = panelResetTargets(panel);
-  return !!(targets.configKeys.size || targets.selectWeightIndexes.size || targets.animationKeys.size || targets.domControls.size);
+  return !!(targets.configKeys.size || targets.animationKeys.size || targets.domControls.size);
 }
 
 function dispatchControlReset(control) {
@@ -94,7 +93,7 @@ export function createResetController({
   function resetPanelControls(panel, {label = "panel"} = {}) {
     const resetSnapshot = cloneDefaultConfig();
     const targets = panelResetTargets(panel, resetSnapshot);
-    const hasConfigTargets = targets.configKeys.size || targets.selectWeightIndexes.size;
+    const hasConfigTargets = targets.configKeys.size;
     const hasAnimationTargets = targets.animationKeys.size;
     const hasDomTargets = targets.domControls.size;
     if (!hasConfigTargets && !hasAnimationTargets && !hasDomTargets) return false;
@@ -104,13 +103,6 @@ export function createResetController({
       targets.configKeys.forEach(key => {
         snapshot[key] = resetSnapshot[key];
       });
-      if (targets.selectWeightIndexes.size) {
-        const nextWeights = Array.isArray(snapshot.selectWeights) ? snapshot.selectWeights.slice() : resetSnapshot.selectWeights.slice();
-        targets.selectWeightIndexes.forEach(index => {
-          nextWeights[index] = resetSnapshot.selectWeights[index];
-        });
-        snapshot.selectWeights = nextWeights;
-      }
       replaceConfigSnapshot(snapshot, {cancelPendingHistory: false});
     }
 

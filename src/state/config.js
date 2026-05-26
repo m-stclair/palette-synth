@@ -69,7 +69,12 @@ export const DEFAULT_CONFIG = {
   monotoneBlendDither: false,
   maxDistanceEnabled: false,
   maxDistance: 30,
-  selectWeights: [0, 0, 0],
+  // Generated-image candidate appeal nudges. These are independent, secondary
+  // inputs to the preliminary appeal score; spacing, tonal-zone pressure,
+  // range/novelty, and hue spread now carry most selection behavior.
+  selectionMidtoneWeight: 0,
+  selectionOutlierWeight: 0,
+  selectionChromaWeight: 0,
   tonalZoneWeight: 1,
   widthBonus: 1,
   hueSpread: DEFAULT_HUE_SPREAD_BONUS,
@@ -333,9 +338,10 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
     const maxDistance = Number(base.maxDistance);
     base.maxDistance = clamp(Number.isFinite(maxDistance) ? maxDistance : DEFAULT_CONFIG.maxDistance, 0, 100);
   }
-  base.selectWeights = Array.isArray(base.selectWeights)
-    ? [0, 1, 2].map(i => clamp(Number(base.selectWeights[i]) || 0, 0, 1.5))
-    : [...DEFAULT_CONFIG.selectWeights];
+  for (const key of ["selectionMidtoneWeight", "selectionOutlierWeight", "selectionChromaWeight"]) {
+    const value = Number(base[key]);
+    base[key] = clamp(Number.isFinite(value) ? value : DEFAULT_CONFIG[key], 0, 1.5);
+  }
   {
     const tonalZoneWeight = Number(base.tonalZoneWeight);
     base.tonalZoneWeight = clamp(Number.isFinite(tonalZoneWeight) ? tonalZoneWeight : DEFAULT_CONFIG.tonalZoneWeight, 0, 2);

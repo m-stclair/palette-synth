@@ -189,7 +189,7 @@ function alternativeRowsHtml(items = [], pickedIndex = null) {
         <span class="selection-alt-rank">#${item.rank ?? "—"}</span>
         <span class="selection-alt-swatches">${swatchListHtml(item.familyHexes || [item.hex])}</span>
         <span class="selection-alt-text"><b>${item.hex}</b><span class="selection-alt-meta">${item.band}${distance}</span><em>${item.reason || "candidate"}</em></span>
-        <strong>${formatScore(item.marginalScore ?? item.baseScore)}</strong>
+        <strong>${formatScore(item.marginalScore ?? item.candidateAppealScore)}</strong>
       </div>`;
   }).join("");
 }
@@ -2067,7 +2067,7 @@ export function createDiagnosticsPanel({
       return;
     }
 
-    const weights = trace.weights || {};
+    const candidateAppealWeights = trace.candidateAppealWeights || {};
     const constants = trace.constants || {};
     const expansion = trace.expansion || {};
     const sample = trace.sample || {};
@@ -2085,7 +2085,7 @@ export function createDiagnosticsPanel({
         <div><span>source</span><b>${trace.sourceLabel || "image"}</b></div>
         <div><span>${spacingPlural}</span><b>${trace.selectionCount ?? trace.baseCount}</b><small>${trace.finalPaletteSize || trace.requestedSize || "—"} swatches</small></div>
         <div><span>sample</span><b>${sample.count ?? trace.candidateCount}</b><small>${sample.samplingMode || "random"}, block ${sample.blockSize ?? "—"}</small></div>
-        <div><span>weights</span><b>C ${formatScore(weights.chroma)}</b><small>O ${formatScore(weights.outlier)} · M ${formatScore(weights.midtone)}</small></div>
+        <div><span>candidate appeal</span><b>C ${formatScore(candidateAppealWeights.chroma)}</b><small>secondary · O ${formatScore(candidateAppealWeights.outlier)} · M ${formatScore(candidateAppealWeights.midtone)}</small></div>
         <div><span>tonal zone</span><b>×${formatScore(constants.tonalZoneWeight ?? 1)}</b><small>need ${formatScore(constants.tonalNeedBonus)} · crowd ${formatScore(constants.tonalCrowdingPenalty)}</small></div>
         <div><span>width bonus</span><b>×${formatScore(constants.widthBonus ?? 1)}</b><small>range ${formatScore(constants.rangeExpansionBonus)} · novelty ${formatScore(constants.noveltyBonus)}</small></div>
         <div><span>hue spread</span><b>${formatScore(constants.hueSpreadBonus)}</b><small>seed hue anchors, C ${formatScore(constants.hueReliabilityChromaLow)}–${formatScore(constants.hueReliabilityChromaHigh)}</small></div>
@@ -2119,9 +2119,9 @@ export function createDiagnosticsPanel({
       const hueLine = `<div class="selection-note">Hue-spread pressure: ${hue.positiveCandidateCount || 0} of ${hue.poolSize || 0} scored candidates got hue credit; ${hue.reliableAnchorCount || 0} reliable prior anchors; max ${formatSignedScore(hue.maxContribution || 0)}; picked ${formatSignedScore(parts.hueSpreadContribution || 0)}.</div>`;
       const lottery = round.lottery || {};
       const scoreRows = [
-        scorePartRow("chroma", parts.chromaContribution || 0, `raw ${formatScore(parts.chromaRaw)} × weight ${formatScore(weights.chroma)}`),
-        scorePartRow("outlier", parts.outlierContribution || 0, `raw ${formatScore(parts.outlierRaw)} · mean distance ${formatDistance(parts.outlierDistance)}`),
-        scorePartRow("midtone", parts.midtoneContribution || 0, `raw ${formatScore(parts.midtoneRaw)} · L ${formatScore(parts.L)}`),
+        scorePartRow("chroma", parts.chromaContribution || 0, `raw ${formatScore(parts.chromaRaw)} × appeal ${formatScore(candidateAppealWeights.chroma)}`),
+        scorePartRow("outlier", parts.outlierContribution || 0, `raw ${formatScore(parts.outlierRaw)} × appeal ${formatScore(candidateAppealWeights.outlier)} · mean distance ${formatDistance(parts.outlierDistance)}`),
+        scorePartRow("midtone", parts.midtoneContribution || 0, `raw ${formatScore(parts.midtoneRaw)} × appeal ${formatScore(candidateAppealWeights.midtone)} · L ${formatScore(parts.L)}`),
         scorePartRow("tonal need", parts.tonalNeedContribution || 0, `${parts.band || picked.band || "band"} need ${formatScore(parts.bandNeed)}`),
         scorePartRow("crowding", -(parts.crowdingPenalty || 0), `selected ${formatScore(parts.crowding)} · round max ${formatSignedScore(-(crowding.maxPenalty || 0))}`),
         scorePartRow("range", parts.rangeExpansionContribution || 0, `range expand ${formatScore(parts.rangeExpansion)}`),
@@ -2134,7 +2134,7 @@ export function createDiagnosticsPanel({
             <span class="selection-round-title">Family ${i + 1}</span>
             <span class="selection-round-swatches">${swatchListHtml(familyHexes)}</span>
             ${familySeedReadout}
-            <span class="selection-round-score">score ${formatScore(picked.marginalScore ?? picked.baseScore)}</span>
+            <span class="selection-round-score">score ${formatScore(picked.marginalScore ?? picked.candidateAppealScore)}</span>
             <span class="selection-round-rank">rank ${lottery.pickedRank ? `#${lottery.pickedRank}` : "—"}</span>
           </summary>
           <div class="selection-badges">${badges}</div>

@@ -135,10 +135,10 @@ export const UI_ELEMENT_IDS = [
   "addPixelSourceToManualPalette"
 ];
 
-export const SELECT_WEIGHT_CONTROL_IDS = [
-  "selectMidtone",
-  "selectOutlier",
-  "selectChroma"
+export const SELECTION_APPEAL_WEIGHT_CONTROLS = [
+  {id: "selectMidtone", configKey: "selectionMidtoneWeight"},
+  {id: "selectOutlier", configKey: "selectionOutlierWeight"},
+  {id: "selectChroma", configKey: "selectionChromaWeight"}
 ];
 
 export function collectUiElements(target = {}, ids = UI_ELEMENT_IDS, root = document) {
@@ -157,12 +157,12 @@ export function syncConfigControls(config, root = document) {
   });
 }
 
-export function syncSelectWeightControls(config, root = document) {
-  SELECT_WEIGHT_CONTROL_IDS.forEach((id, index) => {
+export function syncSelectionAppealWeightControls(config, root = document) {
+  SELECTION_APPEAL_WEIGHT_CONTROLS.forEach(({id, configKey}) => {
     const el = $(id, root);
     const value = $(`${id}Value`, root);
     if (!el || !value) return;
-    el.value = config.selectWeights[index];
+    el.value = config[configKey];
     value.textContent = el.value;
   });
 }

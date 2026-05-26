@@ -129,7 +129,9 @@ export interface AppConfig {
   monotoneBlendDither: boolean;
   maxDistanceEnabled: boolean;
   maxDistance: number;
-  selectWeights: [number, number, number];
+  selectionMidtoneWeight: number;
+  selectionOutlierWeight: number;
+  selectionChromaWeight: number;
   tonalZoneWeight: number;
   widthBonus: number;
   hueSpread: number;
@@ -481,7 +483,7 @@ export interface SelectionCandidateSummary {
   hex: HexColor;
   familyHexes: HexColor[];
   band: LooseString<"shadow" | "midtone" | "highlight">;
-  baseScore: number;
+  candidateAppealScore: number;
   marginalScore: number;
   nearestFamilyDistance?: number;
   hueNearestDistanceDegrees?: number;
@@ -531,7 +533,7 @@ export interface PaletteSelectionTrace {
   candidateCount: number;
   centerLab: Lab;
   centerHex: HexColor;
-  weights: {
+  candidateAppealWeights: {
     midtone?: number;
     outlier?: number;
     chroma?: number;

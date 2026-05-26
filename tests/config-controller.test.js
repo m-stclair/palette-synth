@@ -114,7 +114,9 @@ test("config controller replaces snapshots and syncs the app surface", () => {
     paletteSize: 20,
     pixelPerfect: true,
     generatedTintShadeFamilies: true,
-    selectWeights: [0.2, 0.4, 0.6]
+    selectionMidtoneWeight: 0.2,
+    selectionOutlierWeight: 0.4,
+    selectionChromaWeight: 0.6
   });
 
   assert.equal(config.paletteSize, 21);

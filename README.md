@@ -111,11 +111,11 @@ Use **Mode** to choose where the palette comes from.
 
 **Sample placement** chooses how samples are distributed. **Random** is loose and organic. **Stratified + jittered** spreads samples more evenly across the image or selected region.
 
-**Midtone weight** favors colors that sit away from pure shadow or pure highlight.
+**Midtone appeal**, **outlier appeal**, and **chroma appeal** are secondary candidate-appeal nudges for image-generated palettes. They are three separate config values: `selectionMidtoneWeight`, `selectionOutlierWeight`, and `selectionChromaWeight`. Historically these lived together as one bundled config value; now they just bias the preliminary score before the stronger selection forces take over.
 
-**Outlier weight** favors colors that stand apart from the image average. Good for pulling accents out of the noise.
-
-**Chroma selection** favors stronger, more saturated colors.
+- **Midtone appeal** favors colors that sit away from pure shadow or pure highlight.
+- **Outlier appeal** favors colors that stand apart from the image average. Good for pulling accents out of the noise.
+- **Chroma appeal** favors stronger, more saturated colors.
 
 **Tonal zone weight** multiplies both tonal need pressure and tonal crowding pressure. `1` keeps the default behavior, `0` disables both forces, and `2` doubles both.
 
@@ -124,8 +124,8 @@ Use **Mode** to choose where the palette comes from.
 **Hue spread** pushes the palette toward broader hue variety.
 
 **Selection spacing** controls how different selected colors need to be. Higher spacing avoids near-duplicates; lower spacing allows tighter, subtler color families.
-Selection spacing takes precedence over other generation criteria. So, on large palettes, selection spacing can easily overwhelm weights, as later picks
-will be forced to spread away from early high-weighted picks.
+Selection spacing takes precedence over the candidate-appeal nudges. On large palettes it can easily overwhelm midtone/outlier/chroma appeal, because later picks
+are forced to spread away from early high-appeal picks.
 
 ### Harmony controls
 
@@ -413,7 +413,7 @@ inside the composition root.
 | `src/palette/runtime.js`    | Selects the active palette source, normalizes generated/reference/manual inputs, and produces render-ready records. |
 | `src/palette/generation.js` | Builds generated, preset, harmony, cosine, and manual-assisted palettes.                                            |
 | `src/palette/sampling.js`   | Normalizes sample regions, creates patch origins, and samples image blocks into OKLab candidates.                   |
-| `src/palette/selection.js`  | Scores candidates and selects diverse swatches using tonal, chroma, novelty, spacing, and hue-family pressure.      |
+| `src/palette/selection.js`  | Scores candidates and selects diverse swatches using secondary candidate-appeal nudges plus tonal, novelty, spacing, and hue-family pressure.      |
 | `src/palette/cycle.js`      | Sorts and cycles palette records globally, in bands, or by manual cycle tags.                                       |
 
 ### `src/manual/`
