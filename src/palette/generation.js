@@ -425,6 +425,21 @@ export function createHarmonyPaletteResult(config, options = {}) {
   return buildHarmonyPalette(config, options);
 }
 
+
+export function cosinePaletteUsesTintShadeFamilies(config) {
+  return config?.cosinePreset !== "custom" || config?.cosineCustomTintShadeFamilies !== false;
+}
+
+export function requestedCosinePaletteSize(config) {
+  return Math.max(3, Math.min(MAX_PROCEDURAL_PALETTE_SIZE, Math.round(Number(config?.paletteSize) || 3)));
+}
+
+function cosineAnchorCount(config) {
+  return cosinePaletteUsesTintShadeFamilies(config)
+    ? generatedFamilyCount(config)
+    : requestedCosinePaletteSize(config);
+}
+
 function cosinePresetVector(key) {
   return COSINE_PALETTE_PRESETS[key] ?? COSINE_PALETTE_PRESETS[DEFAULT_COSINE_PRESET];
 }
@@ -454,7 +469,8 @@ function cosineSeedPhase(seed) {
 function buildCosinePalette(config, {captureTrace = false} = {}) {
   const preset = cosineVectorConfig(config);
   const presetKey = config.cosinePreset === "custom" ? "custom" : (config.cosinePreset ?? DEFAULT_COSINE_PRESET);
-  const familyCount = generatedFamilyCount(config);
+  const tintShadeFamilies = cosinePaletteUsesTintShadeFamilies(config);
+  const familyCount = cosineAnchorCount(config);
   const seedPhase = cosineSeedPhase(config.seed);
   const records = [];
   const families = [];
@@ -469,19 +485,34 @@ function buildCosinePalette(config, {captureTrace = false} = {}) {
     const C = clamp(rawC * OKLCH_PROCEDURAL_CHROMA_MAX, 0, OKLCH_PROCEDURAL_CHROMA_MAX);
     const h = TAU * positiveFraction(rawH);
     const seedLab = fitLabToSrgb(oklchToLab([L, C, h]));
+    const familyId = `cosine-${presetKey}-${familyIndex}`;
 
-    const familyRecords = buildFamilyRecords(seedLab, familyIndex, config, "cosine", familyIndex, {
-      familyId: `cosine-${presetKey}-${familyIndex}`,
-      role: "cosine-family-member"
-    });
+    const familyRecords = tintShadeFamilies
+      ? buildFamilyRecords(seedLab, familyIndex, config, "cosine", familyIndex, {
+        familyId,
+        role: "cosine-family-member"
+      })
+      : [makePaletteRecord({
+        lab: seedLab,
+        source: "cosine",
+        familyId,
+        familyIndex,
+        variant: "single",
+        variantIndex: 0,
+        sourceIndex: familyIndex,
+        seedLab,
+        sourceLab: seedLab,
+        role: "cosine-waveform-swatch"
+      })];
     records.push(...familyRecords);
 
     if (captureTrace) {
       families.push({
         familyIndex,
-        familyId: familyRecords[0]?.familyId ?? `cosine-${presetKey}-${familyIndex}`,
+        familyId: familyRecords[0]?.familyId ?? familyId,
         t,
         seedPhase,
+        tintShadeFamilies,
         raw: {L: rawL, C: rawC, hue: rawH},
         L,
         C,
@@ -520,10 +551,11 @@ function buildCosinePalette(config, {captureTrace = false} = {}) {
     trace = {
       type: "procedural-cosine",
       mode: "cosine",
-      sourceLabel: "cosine palette",
-      requestedSize: familyCount * FAMILY_VARIANTS.length,
+      sourceLabel: tintShadeFamilies ? "cosine palette" : "custom cosine palette",
+      requestedSize: tintShadeFamilies ? familyCount * FAMILY_VARIANTS.length : familyCount,
       finalPaletteSize: sorted.length,
       familyCount,
+      tintShadeFamilies,
       deltaL: Number(config.deltaL) || 0,
       sortMode: config.sortMode,
       preset: {

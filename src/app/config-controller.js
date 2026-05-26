@@ -9,7 +9,7 @@ import {
 
 export const PALETTE_DIRTY_KEYS = new Set([
   "paletteMode", "presetName", "paletteSize", "seedSwatch", "harmonyRelationship", "harmonyRegionContrast", "harmonyRampSteepness", "cosinePreset", "cosineCustomVectors", "deltaL", "paletteGamma", "gammaC", "paletteHue", "tonalZoneWeight", "widthBonus", "hueSpread", "minDistance",
-  "sortMode", "blockSize", "seed", "samplingMode", "generatedAssist", "generatedTintShadeFamilies", "aliasAllSources", "manualMatchAliases", "CYCLE_MODE"
+  "sortMode", "blockSize", "seed", "samplingMode", "generatedAssist", "generatedTintShadeFamilies", "cosineCustomTintShadeFamilies", "aliasAllSources", "manualMatchAliases", "CYCLE_MODE"
 ]);
 
 export const TEXTURE_DIRTY_KEYS = new Set(["pixelPerfect"]);

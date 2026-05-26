@@ -39,3 +39,39 @@ test("cosine palette result records procedural trace for inspector", () => {
   assert.equal(trace.families.every(family => family.records.length === 3), true);
   assert.equal(trace.families.every(family => family.displayIndexes.length === 3), true);
 });
+
+
+test("custom cosine can emit direct waveform colors without tint shade families", () => {
+  const config = cloneDefaultConfig();
+  config.paletteMode = "cosine";
+  config.paletteSize = 8;
+  config.cosinePreset = "custom";
+  config.cosineCustomTintShadeFamilies = false;
+
+  const {records, trace} = createCosinePaletteResult(config, {captureTrace: true});
+
+  assert.equal(records.length, 8);
+  assert.equal(trace.tintShadeFamilies, false);
+  assert.equal(trace.requestedSize, 8);
+  assert.equal(trace.familyCount, 8);
+  assert.equal(trace.finalPaletteSize, 8);
+  assert.equal(trace.families.length, 8);
+  assert.equal(records.every(record => record.variant === "single"), true);
+  assert.equal(records.every(record => record.role === "cosine-waveform-swatch"), true);
+  assert.equal(trace.families.every(family => family.records.length === 1), true);
+});
+
+test("built-in cosine presets ignore the custom-only tint shade toggle", () => {
+  const config = cloneDefaultConfig();
+  config.paletteMode = "cosine";
+  config.paletteSize = 8;
+  config.cosinePreset = "aurora";
+  config.cosineCustomTintShadeFamilies = false;
+
+  const {records, trace} = createCosinePaletteResult(config, {captureTrace: true});
+
+  assert.equal(records.length, 9);
+  assert.equal(trace.tintShadeFamilies, true);
+  assert.equal(trace.familyCount, 3);
+  assert.equal(trace.families.every(family => family.records.length === 3), true);
+});

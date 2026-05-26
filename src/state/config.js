@@ -93,6 +93,7 @@ export const DEFAULT_CONFIG = {
   ditherScale: 1,
   generatedAssist: 0,
   generatedTintShadeFamilies: false,
+  cosineCustomTintShadeFamilies: true,
   levelsExposure: 0,
   levelsGamma: 1,
   levelsShoulder: 2.5,
@@ -299,6 +300,7 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.showPaletteRegion = !!base.showPaletteRegion;
   base.paletteSwatchScale = normalizePaletteSwatchScale(base.paletteSwatchScale);
   base.generatedTintShadeFamilies = base.generatedTintShadeFamilies !== false;
+  base.cosineCustomTintShadeFamilies = base.cosineCustomTintShadeFamilies !== false;
   base.paletteSize = sanitizePaletteSize(base.paletteSize, {tintShadeFamilies: generatedPaletteUsesFamilySizes(base)});
   base.seedSwatch = normalizeHexColor(base.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   base.harmonyRelationship = Object.prototype.hasOwnProperty.call(HARMONY_RELATIONSHIPS, base.harmonyRelationship) ? base.harmonyRelationship : DEFAULT_CONFIG.harmonyRelationship;

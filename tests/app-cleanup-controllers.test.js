@@ -32,7 +32,8 @@ test("conditional panels normalize palette mode, sync datasets, and refresh depe
     paletteMode: "manual",
     assignMode: "blend",
     outputMode: "preserveLuma",
-    generatedTintShadeFamilies: "true"
+    generatedTintShadeFamilies: "true",
+    cosineCustomTintShadeFamilies: "true"
   });
   assert.deepEqual(calls, [
     ["cancel", {announce: false}],

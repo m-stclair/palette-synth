@@ -116,7 +116,8 @@ test("config sanitization clamps values and honors injected preset lookup", () =
     pixelBlockSampleMode: "nonsense",
     tonalZoneWeight: 99,
     widthBonus: 99,
-    generatedTintShadeFamilies: false
+    generatedTintShadeFamilies: false,
+    cosineCustomTintShadeFamilies: false
   }, {
     presetExists: name => name === "customPreset"
   });
@@ -142,6 +143,7 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.tonalZoneWeight, 2);
   assert.equal(clean.widthBonus, 2);
   assert.equal(clean.generatedTintShadeFamilies, false);
+  assert.equal(clean.cosineCustomTintShadeFamilies, false);
   assert.equal(clean.manualMatchAliases.length, 0);
 });
 
@@ -166,9 +168,14 @@ test("config sanitization keeps direct-color palette sizes and snaps family size
   const family = sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: true});
   const harmony = sanitizeConfigSnapshot({paletteMode: "harmony", paletteSize: 20, generatedTintShadeFamilies: true});
 
+  const customCosineDirect = sanitizeConfigSnapshot({paletteMode: "cosine", cosinePreset: "custom", paletteSize: 20, cosineCustomTintShadeFamilies: false});
+  const customCosineFamilies = sanitizeConfigSnapshot({paletteMode: "cosine", cosinePreset: "custom", paletteSize: 20, cosineCustomTintShadeFamilies: true});
+
   assert.equal(direct.paletteSize, 20);
   assert.equal(family.paletteSize, 21);
   assert.equal(harmony.paletteSize, 20);
+  assert.equal(customCosineDirect.paletteSize, 20);
+  assert.equal(customCosineFamilies.paletteSize, 20);
 });
 
 test("palette swatch scale normalizes and cycles through allowed sizes", () => {

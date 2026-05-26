@@ -101,6 +101,7 @@ export const SIMPLE_CONTROL_KEYS = [
   "ditherScale",
   "generatedAssist",
   "generatedTintShadeFamilies",
+  "cosineCustomTintShadeFamilies",
   "levelsExposure",
   "levelsGamma",
   "levelsShoulder",
@@ -122,7 +123,8 @@ const CONDITIONAL_PANEL_KEYS = new Set([
   "assignMode",
   "outputMode",
   "CYCLE_MODE",
-  "generatedTintShadeFamilies"
+  "generatedTintShadeFamilies",
+  "cosineCustomTintShadeFamilies"
 ]);
 
 function generatedPaletteUsesFamilySizes(config) {

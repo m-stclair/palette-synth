@@ -153,6 +153,7 @@ export interface AppConfig {
   ditherScale: number;
   generatedAssist: number;
   generatedTintShadeFamilies: boolean;
+  cosineCustomTintShadeFamilies: boolean;
   levelsExposure: number;
   levelsGamma: number;
   levelsShoulder: number;
@@ -784,6 +785,7 @@ export interface ProceduralCosineTrace {
   requestedSize: number;
   finalPaletteSize: number;
   familyCount: number;
+  tintShadeFamilies: boolean;
   deltaL: number;
   sortMode: string;
   preset: {key: string; label: string; a: number[]; b: number[]; c: number[]; d: number[]};

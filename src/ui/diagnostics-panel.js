@@ -297,7 +297,7 @@ function cosineCurvePlotHtml(trace = {}) {
         ${familyDots}
         <text x="${padX}" y="${height - 3}">t0</text><text x="${width - padX - 14}" y="${height - 3}">t1</text>
       </svg>
-      <figcaption>L, C, and hue are normalized onto one graph; dots mark sampled families.</figcaption>
+      <figcaption>L, C, and hue are normalized onto one graph; dots mark samples.</figcaption>
     </figure>`;
 }
 
@@ -323,7 +323,7 @@ function renderProceduralHarmonyTrace(trace = {}) {
       <div><span>jitter</span><b>±${formatDegrees(trace.jitterLimits?.hueDegrees || 0)}</b><small>C ×±${formatScore(trace.jitterLimits?.chromaRatio || 0)} · C ±${formatScore(trace.jitterLimits?.chromaDelta || 0)}</small></div>
       <div><span>sort</span><b>${escapeHtml(trace.sortMode || "lightness")}</b><small>display order after generation</small></div>
     </div>`;
-  const note = `<div class="selection-note">The seed is converted to OKLCh, copied through the selected hue relationship, split into shade/base/tint lanes, nudged by the lightness ramp, jittered deterministically from the seed, then pushed through the region-contrast rule and fitted back into sRGB. No candidates. No lottery. Just a little machine making families.</div>`;
+  const note = `<div class="selection-note">The seed is converted to OKLCh, copied through the selected hue relationship, split into shade/base/tint lanes, nudged by the lightness ramp, jittered deterministically from the seed, then pushed through the region-contrast rule and fitted back into sRGB.</div>`;
   const families = groupByFamily(rows).map((group, index) => {
     const ordered = [...group.rows].sort((a, b) => (a.variantIndex ?? 0) - (b.variantIndex ?? 0));
     const hexes = ordered.map(row => row.outputHex).filter(Boolean);
@@ -353,24 +353,34 @@ function renderProceduralHarmonyTrace(trace = {}) {
 function renderProceduralCosineTrace(trace = {}) {
   const preset = trace.preset || {};
   const families = Array.isArray(trace.families) ? trace.families : [];
+  const tintShadeFamilies = trace.tintShadeFamilies !== false;
+  const unitLabel = tintShadeFamilies ? "families" : "samples";
   const plotPoints = families.map(family => ({
     hex: family.seedHex,
     hueDegrees: family.hueDegrees,
     L: family.L,
-    variant: "base",
-    label: `family ${Number(family.familyIndex) + 1}`
+    variant: tintShadeFamilies ? "base" : "single",
+    label: `${tintShadeFamilies ? "family" : "sample"} ${Number(family.familyIndex) + 1}`
   }));
+  const expansionSummary = tintShadeFamilies
+    ? `${trace.finalPaletteSize || 0} swatches after tint/shade expansion`
+    : `${trace.finalPaletteSize || 0} direct waveform swatches`;
+  const lightnessSummary = tintShadeFamilies
+    ? `<b>ΔL ${formatScore(trace.deltaL)}</b><small>base, tint, shade per family</small>`
+    : `<b>off</b><small>custom cosine emits direct samples</small>`;
   const rules = `<div class="selection-rules procedural-rules">
       <div><span>algorithm</span><b>Cosine palette</b><small>periodic OKLCh generator</small></div>
       <div><span>preset</span><b>${escapeHtml(preset.label || preset.key || "—")}</b><small>${preset.key === "custom" ? "custom vectors" : "built-in vectors"}</small></div>
-      <div><span>families</span><b>${trace.familyCount || families.length}</b><small>${trace.finalPaletteSize || 0} swatches after tint/shade expansion</small></div>
+      <div><span>${unitLabel}</span><b>${trace.familyCount || families.length}</b><small>${expansionSummary}</small></div>
       <div><span>seed phase</span><b>${formatScore(trace.seedPhase)}</b><small>seed ${trace.seed || "—"} / ${trace.seedPeriod || "—"}</small></div>
-      <div><span>lightness</span><b>ΔL ${formatScore(trace.deltaL)}</b><small>base, tint, shade per family</small></div>
+      <div><span>tint/shade</span>${lightnessSummary}</div>
       <div><span>formula</span><b>a + b·cos(τ(c·t+d+phase))</b><small>run separately for L, C, and hue</small></div>
       <div><span>vectors a/b</span><b>${escapeHtml(formatVector(preset.a))}</b><small>${escapeHtml(formatVector(preset.b))}</small></div>
       <div><span>vectors c/d</span><b>${escapeHtml(formatVector(preset.c))}</b><small>${escapeHtml(formatVector(preset.d))}</small></div>
     </div>`;
-  const note = `<div class="selection-note">Each family samples one position <b>t</b> on the cosine curves. The three channel curves produce OKLCh lightness, chroma, and hue; the seed shifts phase; then each sampled seed expands into base, tint, and shade. It is a waveform palette, not a search.</div>`;
+  const note = tintShadeFamilies
+    ? `<div class="selection-note">Each family samples one position <b>t</b> on the cosine curves. The three channel curves produce OKLCh lightness, chroma, and hue; the seed shifts phase; then each sampled seed expands into base, tint, and shade.</div>`
+    : `<div class="selection-note">Each custom cosine swatch samples one position <b>t</b> on the cosine curves. The channels produce OKLCh lightness, chroma, and hue directly; the seen shifts phase.</div>`;
   const familyHtml = families.map((family, index) => {
     const rowsHtml = (family.records || []).map(record => `<div class="selection-score-row procedural-row">
         <span>${escapeHtml(record.variant || "swatch")}</span><b>${record.hex || "—"}</b>
@@ -378,17 +388,19 @@ function renderProceduralCosineTrace(trace = {}) {
       </div>`).join("");
     return `<details class="selection-round procedural-round" ${index < 2 ? "open" : ""}>
         <summary>
-          <span class="selection-round-title">Family ${Number(family.familyIndex) + 1}</span>
+          <span class="selection-round-title">${tintShadeFamilies ? "Family" : "Sample"} ${Number(family.familyIndex) + 1}</span>
           <span class="selection-round-swatches">${swatchListHtml(family.familyHexes || [])}</span>
           <span class="selection-round-seed">t ${formatScore(family.t)}</span>
           <span class="selection-round-score">L ${formatScore(family.L)} C ${formatScore(family.C)}</span>
           <span class="selection-round-rank">H ${formatDegrees(family.hueDegrees)}</span>
         </summary>
-        <div class="selection-note">Raw channels: L ${formatScore(family.raw?.L)} · C ${formatScore(family.raw?.C)} · hue ${formatScore(family.raw?.hue)}. Seed ${family.seedHex || "—"} becomes the family anchor before tint/shade expansion.</div>
+        <div class="selection-note">Raw channels: L ${formatScore(family.raw?.L)} · C ${formatScore(family.raw?.C)} · hue ${formatScore(family.raw?.hue)}. Seed ${family.seedHex || "—"} ${tintShadeFamilies ? "becomes the family anchor before tint/shade expansion" : "is emitted directly as the swatch"}.</div>
         <div class="selection-score-grid procedural-grid">${rowsHtml}</div>
       </details>`;
   }).join("");
-  return `${rules}${note}${cosineCurvePlotHtml(trace)}${proceduralHuePlotHtml(plotPoints, {title: "Cosine family hue/lightness map"})}<div class="selection-rounds">${familyHtml || `<div class="diagnostics-summary-empty">No cosine families recorded.</div>`}</div>`;
+  const plotTitle = tintShadeFamilies ? "Cosine family hue/lightness map" : "Custom cosine sample hue/lightness map";
+  const empty = tintShadeFamilies ? "No cosine families recorded." : "No custom cosine samples recorded.";
+  return `${rules}${note}${cosineCurvePlotHtml(trace)}${proceduralHuePlotHtml(plotPoints, {title: plotTitle})}<div class="selection-rounds">${familyHtml || `<div class="diagnostics-summary-empty">${empty}</div>`}</div>`;
 }
 
 export function createDiagnosticsPanel({
