@@ -110,6 +110,7 @@ test("config controller replaces snapshots and syncs the app surface", () => {
   });
 
   controller.replaceConfigSnapshot({
+    paletteMode: "generated",
     paletteSize: 20,
     pixelPerfect: true,
     generatedTintShadeFamilies: true,
@@ -154,17 +155,23 @@ test("config controller keeps direct-color sizes freeform and snaps family sizes
     root: makeRoot(elements)
   });
 
-  controller.replaceConfigSnapshot({paletteSize: 20, generatedTintShadeFamilies: false});
+  controller.replaceConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: false});
   assert.equal(config.paletteSize, 20);
   assert.equal(elements.paletteSize.value, 20);
   assert.equal(elements.paletteSize.step, "1");
   assert.equal(elements.paletteSizeValue.textContent, "20");
 
-  controller.replaceConfigSnapshot({paletteSize: 20, generatedTintShadeFamilies: true});
+  controller.replaceConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: true});
   assert.equal(config.paletteSize, 21);
   assert.equal(elements.paletteSize.value, 21);
   assert.equal(elements.paletteSize.step, "3");
   assert.equal(elements.paletteSizeValue.textContent, "21");
+
+  controller.replaceConfigSnapshot({paletteMode: "harmony", paletteSize: 20, generatedTintShadeFamilies: true});
+  assert.equal(config.paletteSize, 20);
+  assert.equal(elements.paletteSize.value, 20);
+  assert.equal(elements.paletteSize.step, "1");
+  assert.equal(elements.paletteSizeValue.textContent, "20");
 });
 
 test("config controller can replace snapshots without cancelling pending history", () => {

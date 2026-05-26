@@ -162,11 +162,13 @@ test("config sanitization migrates old tonal need bonus multiplier", () => {
 });
 
 test("config sanitization keeps direct-color palette sizes and snaps family sizes", () => {
-  const direct = sanitizeConfigSnapshot({paletteSize: 20, generatedTintShadeFamilies: false});
-  const family = sanitizeConfigSnapshot({paletteSize: 20, generatedTintShadeFamilies: true});
+  const direct = sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: false});
+  const family = sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: true});
+  const harmony = sanitizeConfigSnapshot({paletteMode: "harmony", paletteSize: 20, generatedTintShadeFamilies: true});
 
   assert.equal(direct.paletteSize, 20);
   assert.equal(family.paletteSize, 21);
+  assert.equal(harmony.paletteSize, 20);
 });
 
 test("palette swatch scale normalizes and cycles through allowed sizes", () => {

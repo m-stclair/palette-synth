@@ -125,10 +125,15 @@ const CONDITIONAL_PANEL_KEYS = new Set([
   "generatedTintShadeFamilies"
 ]);
 
+function generatedPaletteUsesFamilySizes(config) {
+  return ["generated", "generatedReference"].includes(config?.paletteMode)
+    && config?.generatedTintShadeFamilies !== false;
+}
+
 export function syncGeneratedPaletteSizeControl(config, {root = document, setOutputText = null, snapToFamilies = false} = {}) {
   const el = $("paletteSize", root);
   if (!el || !config) return false;
-  const usesFamilies = config.generatedTintShadeFamilies !== false;
+  const usesFamilies = generatedPaletteUsesFamilySizes(config);
   el.step = usesFamilies ? "3" : "1";
   el.min = usesFamilies ? "3" : "2";
 
@@ -187,8 +192,9 @@ export function bindControls({
       const changed = !Object.is(config[key], nextValue);
       config[key] = nextValue;
 
-      const sizeChanged = key === "generatedTintShadeFamilies"
-        ? syncGeneratedPaletteSizeControl(config, {setOutputText, snapToFamilies: config.generatedTintShadeFamilies !== false})
+      const syncsPaletteSize = key === "generatedTintShadeFamilies" || key === "paletteMode";
+      const sizeChanged = syncsPaletteSize
+        ? syncGeneratedPaletteSizeControl(config, {setOutputText, snapToFamilies: generatedPaletteUsesFamilySizes(config)})
         : false;
 
       setOutputText(key, out, config[key]);

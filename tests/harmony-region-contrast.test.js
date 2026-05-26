@@ -64,3 +64,89 @@ test("seed harmony ramp steepness reaches the first relationship group after the
     assert.ok(Math.abs(recordForFamilyVariant(steepRecords, 2, variant).lab[0] - recordForFamilyVariant(flatRecords, 2, variant).lab[0]) > 0.5);
   }
 });
+
+test("seed harmony returns the requested non-multiple-of-three palette sizes", () => {
+  for (const size of [4, 5, 7, 8, 10, 11, 13, 14, 41]) {
+    const config = cloneDefaultConfig();
+    config.paletteSize = size;
+    config.harmonyRelationship = "splitComplement";
+    config.seedSwatch = "#6f84c8";
+
+    const records = createHarmonyPalette(config);
+    assert.equal(records.length, size, `paletteSize ${size}`);
+  }
+});
+
+test("seed harmony balances remainder colors across tonal bands", () => {
+  const countsForSize = size => {
+    const config = cloneDefaultConfig();
+    config.paletteSize = size;
+    config.harmonyRelationship = "splitComplement";
+    config.seedSwatch = "#6f84c8";
+    return createHarmonyPalette(config).reduce((counts, record) => {
+      counts[record.variant] = (counts[record.variant] || 0) + 1;
+      return counts;
+    }, {});
+  };
+
+  assert.deepEqual(countsForSize(10), {shade: 3, base: 4, tint: 3});
+  assert.deepEqual(countsForSize(11), {shade: 4, base: 3, tint: 4});
+});
+
+test("larger seed harmony palettes fill each tonal band with a wider lightness ramp", () => {
+  const narrow = cloneDefaultConfig();
+  narrow.paletteSize = 9;
+  narrow.harmonyRelationship = "splitComplement";
+  narrow.harmonyRampSteepness = 1.5;
+  narrow.seedSwatch = "#6f84c8";
+
+  const wide = cloneDefaultConfig();
+  wide.paletteSize = 42;
+  wide.harmonyRelationship = narrow.harmonyRelationship;
+  wide.harmonyRampSteepness = narrow.harmonyRampSteepness;
+  wide.seedSwatch = narrow.seedSwatch;
+
+  const rangeForVariant = (records, variant) => {
+    const lightness = records.filter(record => record.variant === variant).map(record => record.lab[0]);
+    return Math.max(...lightness) - Math.min(...lightness);
+  };
+
+  for (const variant of ["shade", "base", "tint"]) {
+    assert.ok(rangeForVariant(createHarmonyPalette(wide), variant) > rangeForVariant(createHarmonyPalette(narrow), variant) + 16, variant);
+  }
+});
+
+test("seed harmony seed applies local hue and chroma jitter instead of a uniform hue rotation", () => {
+  const seedA = cloneDefaultConfig();
+  seedA.paletteSize = 42;
+  seedA.harmonyRelationship = "splitComplement";
+  seedA.seedSwatch = "#6f84c8";
+  seedA.seed = 7;
+
+  const seedB = cloneDefaultConfig();
+  seedB.paletteSize = seedA.paletteSize;
+  seedB.harmonyRelationship = seedA.harmonyRelationship;
+  seedB.seedSwatch = seedA.seedSwatch;
+  seedB.seed = 19;
+
+  const baseA = createHarmonyPalette(seedA)
+    .filter(record => record.variant === "base")
+    .sort((a, b) => a.familyIndex - b.familyIndex);
+  const baseB = createHarmonyPalette(seedB)
+    .filter(record => record.variant === "base")
+    .sort((a, b) => a.familyIndex - b.familyIndex);
+
+  const signedHueDelta = (a, b) => ((a - b + 540) % 360) - 180;
+  const hueDeltasAfterFirstRelationshipRing = baseA
+    .slice(3)
+    .map((record, index) => signedHueDelta(hueDegrees(baseB[index + 3]), hueDegrees(record)));
+  const roundedHueDeltas = new Set(hueDeltasAfterFirstRelationshipRing.map(value => value.toFixed(1)));
+  const chromaDeltas = baseA.map((record, index) => {
+    const chromaA = labToOklch(record.seedLab)[1];
+    const chromaB = labToOklch(baseB[index].seedLab)[1];
+    return Math.abs(chromaB - chromaA);
+  });
+
+  assert.ok(roundedHueDeltas.size >= 3);
+  assert.ok(Math.max(...chromaDeltas) > 0.5);
+});

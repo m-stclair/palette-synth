@@ -368,17 +368,26 @@ export function sortVariantBandRecords(records) {
       family[record.variant] = record;
       family.records.push(record);
     }
-    const completeFamilies = [];
-    for (const family of families.values()) {
-      if (family.base && family.tint && family.shade) completeFamilies.push(family);
-      else singles.push(...family.records);
-    }
-    if (!completeFamilies.length) return [...records].sort((a, b) => compareLightness(a.lab, b.lab));
-    const orderedFamilies = sortLabWalkRecords(completeFamilies, family => family.base.lab);
+    const bandFamilies = [...families.values()].filter(family => family.records.length);
+    if (!bandFamilies.length) return [...records].sort((a, b) => compareLightness(a.lab, b.lab));
+    const familyAnchorLab = family => {
+      if (family.base) return family.base.lab;
+      const sum = [0, 0, 0];
+      for (const record of family.records) {
+        sum[0] += record.lab[0];
+        sum[1] += record.lab[1];
+        sum[2] += record.lab[2];
+      }
+      return sum.map(value => value / family.records.length);
+    };
+    const orderedFamilies = sortLabWalkRecords(bandFamilies, familyAnchorLab);
+    const byBand = variant => orderedFamilies
+      .map(family => family[variant])
+      .filter(Boolean);
     return [
-      ...orderedFamilies.map(family => family.shade),
-      ...orderedFamilies.map(family => family.base),
-      ...orderedFamilies.map(family => family.tint),
+      ...byBand("shade"),
+      ...byBand("base"),
+      ...byBand("tint"),
       ...singles.sort((a, b) => compareLightness(a.lab, b.lab))
     ];
   }

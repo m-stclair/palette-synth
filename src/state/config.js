@@ -263,6 +263,11 @@ export function sanitizePaletteSize(value, {tintShadeFamilies = true} = {}) {
   return tintShadeFamilies ? snapPaletteSizeToFamilyMultiple(size) : size;
 }
 
+function generatedPaletteUsesFamilySizes(config) {
+  return ["generated", "generatedReference"].includes(config?.paletteMode)
+    && config?.generatedTintShadeFamilies !== false;
+}
+
 export function normalizeCosineCustomVectors(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   return Object.fromEntries(COSINE_VECTOR_KEYS.map(key => {
@@ -294,7 +299,7 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.showPaletteRegion = !!base.showPaletteRegion;
   base.paletteSwatchScale = normalizePaletteSwatchScale(base.paletteSwatchScale);
   base.generatedTintShadeFamilies = base.generatedTintShadeFamilies !== false;
-  base.paletteSize = sanitizePaletteSize(base.paletteSize, {tintShadeFamilies: base.generatedTintShadeFamilies});
+  base.paletteSize = sanitizePaletteSize(base.paletteSize, {tintShadeFamilies: generatedPaletteUsesFamilySizes(base)});
   base.seedSwatch = normalizeHexColor(base.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   base.harmonyRelationship = Object.prototype.hasOwnProperty.call(HARMONY_RELATIONSHIPS, base.harmonyRelationship) ? base.harmonyRelationship : DEFAULT_CONFIG.harmonyRelationship;
   base.harmonyRegionContrast = Object.prototype.hasOwnProperty.call(HARMONY_REGION_CONTRASTS, base.harmonyRegionContrast) ? base.harmonyRegionContrast : DEFAULT_CONFIG.harmonyRegionContrast;
