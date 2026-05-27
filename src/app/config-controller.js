@@ -4,6 +4,7 @@ import { syncColorPickerInput } from "../ui/color-picker.js";
 import { syncPaletteSwatchScaleUi } from "../ui/palette-swatch-scale.js";
 import {
   cloneConfigSnapshot as cloneConfigSnapshotFrom,
+  preserveMissingTransientConfigState,
   sanitizeConfigSnapshot as sanitizeConfigSnapshotBase
 } from "../state/config.js";
 
@@ -76,7 +77,7 @@ export function createConfigController({
   }
 
   function replaceConfigSnapshot(snapshot, {cancelPendingHistory: shouldCancelPendingHistory = true} = {}) {
-    const clean = sanitizeConfigSnapshot(snapshot);
+    const clean = sanitizeConfigSnapshot(preserveMissingTransientConfigState(snapshot, config));
     safeStopCyclePreview();
     if (shouldCancelPendingHistory) safeCancelPendingHistory();
     Object.keys(config).forEach(key => delete config[key]);

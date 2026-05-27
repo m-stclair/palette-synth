@@ -1,3 +1,4 @@
+import { stripTransientConfigState } from "../state/config.js";
 import { readJsonStorage, writeJsonStorage } from "./local-storage.js";
 
 export const RECIPE_FILE_KIND = "palette-synth-recipe";
@@ -26,11 +27,15 @@ export function slugifyRecipeName(name) {
     .slice(0, 80) || "palette-synth-recipe";
 }
 
+export function recipeConfigForStorage(config, {sanitizeConfigSnapshot}) {
+  return stripTransientConfigState(sanitizeConfigSnapshot(config));
+}
+
 export function recipeConfigFromUnknown(value, {sanitizeConfigSnapshot}) {
   if (!value || typeof value !== "object") throw new Error("Recipe JSON must be an object.");
-  if (value.config && typeof value.config === "object") return sanitizeConfigSnapshot(value.config);
-  if (value.recipe?.config && typeof value.recipe.config === "object") return sanitizeConfigSnapshot(value.recipe.config);
-  return sanitizeConfigSnapshot(value);
+  if (value.config && typeof value.config === "object") return recipeConfigForStorage(value.config, {sanitizeConfigSnapshot});
+  if (value.recipe?.config && typeof value.recipe.config === "object") return recipeConfigForStorage(value.recipe.config, {sanitizeConfigSnapshot});
+  return recipeConfigForStorage(value, {sanitizeConfigSnapshot});
 }
 
 export function normalizeRecipeRecord(raw, {sanitizeConfigSnapshot, fallbackName = "Imported recipe"}) {
@@ -72,7 +77,10 @@ export function saveRecipes(recipes) {
     kind: RECIPE_FILE_KIND,
     version: 1,
     savedAt: new Date().toISOString(),
-    recipes: Array.isArray(recipes) ? recipes : []
+    recipes: (Array.isArray(recipes) ? recipes : []).map(recipe => ({
+      ...recipe,
+      config: stripTransientConfigState(recipe?.config)
+    }))
   });
 }
 
@@ -83,7 +91,7 @@ export function recipeFileFor(record, {sanitizeConfigSnapshot}) {
     version: 1,
     exportedAt: new Date().toISOString(),
     name: record.name,
-    config: sanitizeConfigSnapshot(record.config)
+    config: recipeConfigForStorage(record.config, {sanitizeConfigSnapshot})
   };
 }
 

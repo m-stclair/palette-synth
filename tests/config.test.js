@@ -4,12 +4,15 @@ import {
   DEFAULT_CONFIG,
   cloneConfigSnapshot,
   cloneDefaultConfig,
+  cloneStoredConfigSnapshot,
   normalizeCosineCustomVectors,
   normalizeCycleManualKeys,
   normalizeManualSwatches,
   normalizePaletteSwatchScale,
   nextPaletteSwatchScale,
-  sanitizeConfigSnapshot
+  preserveMissingTransientConfigState,
+  sanitizeConfigSnapshot,
+  stripTransientConfigState
 } from "../src/state/config.js";
 
 test("default config clones are deep copies", () => {
@@ -23,6 +26,43 @@ test("default config clones are deep copies", () => {
   const snapshot = cloneConfigSnapshot(a);
   snapshot.manualPalette[1].hex = "#000000";
   assert.notEqual(snapshot.manualPalette[1].hex, a.manualPalette[1].hex);
+});
+
+
+
+test("stored config snapshots omit transient view-only state", () => {
+  const config = {
+    ...cloneDefaultConfig(),
+    paletteSize: 18,
+    paletteSwatchScale: 3,
+    compareEnabled: true,
+    compareSplit: 0.25
+  };
+
+  const stored = cloneStoredConfigSnapshot(config);
+
+  assert.equal(stored.paletteSize, 18);
+  assert.equal(Object.hasOwn(stored, "paletteSwatchScale"), false);
+  assert.equal(Object.hasOwn(stored, "compareEnabled"), false);
+  assert.equal(Object.hasOwn(stored, "compareSplit"), false);
+  assert.deepEqual(stripTransientConfigState(config), stored);
+});
+
+test("missing transient config values can be preserved while applying stored snapshots", () => {
+  const incoming = {paletteSize: 21};
+  const current = {paletteSwatchScale: 3, compareEnabled: true, compareSplit: 0.35};
+
+  assert.deepEqual(preserveMissingTransientConfigState(incoming, current), {
+    paletteSize: 21,
+    paletteSwatchScale: 3,
+    compareEnabled: true,
+    compareSplit: 0.35
+  });
+  assert.deepEqual(preserveMissingTransientConfigState({compareEnabled: false}, current), {
+    compareEnabled: false,
+    paletteSwatchScale: 3,
+    compareSplit: 0.35
+  });
 });
 
 test("manual swatches normalize IDs, aliases, locks, mutes, and duplicates", () => {

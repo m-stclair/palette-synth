@@ -74,6 +74,9 @@ test("config controller formats output labels", () => {
 
 test("config controller replaces snapshots and syncs the app surface", () => {
   const config = cloneDefaultConfig();
+  config.compareEnabled = true;
+  config.compareSplit = 0.25;
+  config.paletteSwatchScale = 3;
   const elements = {
     paletteSize: makeElement({type: "range"}),
     paletteSizeValue: makeElement(),
@@ -121,6 +124,9 @@ test("config controller replaces snapshots and syncs the app surface", () => {
 
   assert.equal(config.paletteSize, 21);
   assert.equal(config.pixelPerfect, true);
+  assert.equal(config.compareEnabled, true);
+  assert.equal(config.compareSplit, 0.25);
+  assert.equal(config.paletteSwatchScale, 3);
   assert.equal(elements.paletteSize.value, 21);
   assert.equal(elements.paletteSizeValue.textContent, "21");
   assert.equal(elements.pixelPerfect.checked, true);

@@ -279,6 +279,38 @@ test("shortcut snapshots save without history and load with history", () => {
 });
 
 
+
+
+test("shortcut snapshots omit transient view-only state", () => {
+  const root = makeRoot();
+  const calls = [];
+  const config = {
+    seed: 10,
+    paletteMode: "manual",
+    paletteSwatchScale: 3,
+    compareEnabled: true,
+    compareSplit: 0.2
+  };
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const dispatcher = createShortcutDispatcher({
+    root,
+    config,
+    cloneConfigSnapshot: () => clone(config),
+    defaultConfigSnapshot: () => ({seed: 1, paletteMode: "generated", paletteSwatchScale: 2, compareEnabled: true, compareSplit: 0.9}),
+    replaceConfigSnapshot: snapshot => calls.push(["replace", clone(snapshot)]),
+    withHistory: (_label, mutator) => mutator()
+  });
+
+  dispatcher.handleKeydown(keyEvent("A", {shiftKey: true, code: "KeyA"}));
+  config.seed = 42;
+  config.paletteSwatchScale = 1;
+  config.compareEnabled = false;
+  config.compareSplit = 0.8;
+  dispatcher.handleKeydown(keyEvent("a", {code: "KeyA"}));
+
+  assert.deepEqual(calls, [["replace", {seed: 10, paletteMode: "manual"}]]);
+});
+
 test("empty snapshot slots load the default config", () => {
   const root = makeRoot();
   const config = {seed: 42, paletteMode: "manual"};

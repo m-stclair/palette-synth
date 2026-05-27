@@ -5,6 +5,7 @@ import {
   loadRecipes,
   recipeCollectionFileFor,
   recipeFileFor,
+  recipeConfigForStorage,
   recipeRecordsFromUnknown,
   sanitizeRecipeName,
   saveRecipes,
@@ -97,7 +98,7 @@ export function createRecipeController({
 
     recipe.name = shouldUpdateSelected ? existing.name : recipe.name;
     recipe.updatedAt = now;
-    recipe.config = sanitizeConfigSnapshot(cloneConfigSnapshot());
+    recipe.config = recipeConfigForStorage(cloneConfigSnapshot(), {sanitizeConfigSnapshot});
 
     if (!shouldUpdateSelected) state.recipes.push(recipe);
 

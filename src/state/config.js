@@ -150,6 +150,33 @@ export function cloneConfigSnapshot(config) {
   return cloneJson(config);
 }
 
+export const TRANSIENT_CONFIG_KEYS = ["paletteSwatchScale", "compareEnabled", "compareSplit"];
+
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+export function stripTransientConfigState(snapshot = {}) {
+  const clean = cloneJson(snapshot && typeof snapshot === "object" ? snapshot : {});
+  for (const key of TRANSIENT_CONFIG_KEYS) delete clean[key];
+  return clean;
+}
+
+export function cloneStoredConfigSnapshot(config) {
+  return stripTransientConfigState(cloneConfigSnapshot(config));
+}
+
+export function preserveMissingTransientConfigState(snapshot = {}, current = {}) {
+  const clean = cloneJson(snapshot && typeof snapshot === "object" ? snapshot : {});
+  const source = current && typeof current === "object" ? current : {};
+  for (const key of TRANSIENT_CONFIG_KEYS) {
+    if (!hasOwn(clean, key) && hasOwn(source, key)) {
+      clean[key] = cloneJson(source[key]);
+    }
+  }
+  return clean;
+}
+
 export function normalizeManualSwatches(value, legacyAliases = []) {
   const raw = Array.isArray(value) && value.length ? value.slice(0, 42) : DEFAULT_CONFIG.manualPalette;
   const aliases = Array.isArray(legacyAliases) ? legacyAliases : [];

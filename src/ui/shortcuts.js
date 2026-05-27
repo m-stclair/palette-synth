@@ -1,4 +1,4 @@
-import { cloneDefaultConfig, cloneConfigSnapshot as cloneConfigSnapshotValue } from "../state/config.js";
+import { cloneDefaultConfig, cloneConfigSnapshot as cloneConfigSnapshotValue, cloneStoredConfigSnapshot as cloneStoredConfigSnapshotValue } from "../state/config.js";
 import { $ } from "./dom.js";
 import { cyclePaletteSwatchScale, PALETTE_SWATCH_SCALE_HOTKEY } from "./palette-swatch-scale.js";
 
@@ -472,10 +472,10 @@ export function createShortcutDispatcher({
   setStatus = () => {}
 } = {}) {
   const context = {els, root, config, setOutputText};
-  const snapshotSlots = SNAPSHOT_SLOT_KEYS.map(() => cloneConfigSnapshotValue(defaultConfigSnapshot()));
+  const snapshotSlots = SNAPSHOT_SLOT_KEYS.map(() => cloneStoredConfigSnapshotValue(defaultConfigSnapshot()));
 
   function currentConfigSnapshot() {
-    return cloneConfigSnapshotValue(cloneConfigSnapshot());
+    return cloneStoredConfigSnapshotValue(cloneConfigSnapshot());
   }
 
   function syncDirtyControl(key, value) {

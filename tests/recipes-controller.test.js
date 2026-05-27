@@ -149,6 +149,24 @@ test("saving without a selected recipe never updates by name collision", () => {
   assert.deepEqual(created.config, {version: 2});
 });
 
+
+
+test("saving recipes strips transient view-only state", () => {
+  const {controller, state} = createHarness({
+    name: "Viewless look",
+    snapshot: {
+      version: 2,
+      paletteSwatchScale: 3,
+      compareEnabled: true,
+      compareSplit: 0.2
+    }
+  });
+
+  controller.saveCurrentRecipe();
+
+  assert.deepEqual(state.recipes[0].config, {version: 2});
+});
+
 test("recipe controller exposes the full binding surface used by runtime controls", () => {
   const {controller} = createHarness();
   for (const method of [
