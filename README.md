@@ -2,7 +2,7 @@
 
 Palette Synth is a local-first WebGL tool for extracting, editing, remapping, cycling, and exporting limited-color palettes from images.
 
-It can be used for practical colorist work, but it is also very much a synthetic limited-color media instrument: a palette-space transformation machine, an emulator for imaginary media, a color toy with a sharp little engine inside.
+You can use it for utilitarian colorist work,  but it is primarily intended as a synthetic limited-color media instrument, emulator for imaginary media, and color toy. 
 
 It is a standalone extraction and expansion of the **Palette Synth** effect from [`vandal`](https://github.com/m-stclair/vandal), packaged as plain HTML, CSS, JavaScript modules, and GLSL shaders.
 
@@ -50,7 +50,7 @@ Or use the live version: <https://m-stclair.github.io/palette-synth/>
 
 Palette Synth runs entirely in the browser. Images are not uploaded and there is no server-side processing.
 
-Saved recipes, captured manual presets, and workbench preferences are stored in `localStorage`. Source images are not persisted. Clear site data and the saved recipes/presets go with it — that is not a cloud sync failure; there is no cloud.
+Saved recipes, captured manual presets, and workbench preferences are stored in `localStorage`. Source images are not persisted. Clear site data and the saved recipes/presets go with it. That is not a cloud sync failure. There is no cloud.
 
 ## Core features
 
@@ -70,9 +70,11 @@ Saved recipes, captured manual presets, and workbench preferences are stored in 
 
 1. Load an image.
 2. Set **Mode** to **Generated from main image**.
-3. Adjust **Size**, **Sample width**, **Selection spacing**, and **Hue spread**.
-4. Check the diagnostics if colors are clumping or fighting.
-5. Export the palette as `.hex`, GPL, CSS variables, JSON, PNG LUT, or another supported format.
+3. Adjust **Size** to make it as chunky or un-chunky as you want. 
+4. Hit the [Left] and [Right] arrows to cycle between different versions of the palette.
+5. Open the Generation panel [3] to adjust parameters for finer control.
+6. Check the diagnostics [I] if colors are clumping or fighting too much.
+7. Export the palette as `.hex`, GPL, CSS variables, JSON, PNG LUT, or another supported format.
 
 ### Borrow the mood of another image
 
