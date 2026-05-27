@@ -8,6 +8,8 @@ It is a standalone extraction and expansion of the **Palette Synth** effect from
 
 [Live demo](https://m-stclair.github.io/palette-synth/) · [User guide](docs/user-guide.md) · [X-Ray editing](docs/x-ray-editing.md) · [Architecture](docs/architecture.md) · [Contributing](docs/contributing.md)
 
+[Screenshot](screenshot.png)
+
 ## What it does
 
 Palette Synth takes an input image and renders a recolored version through a configurable palette pipeline:
