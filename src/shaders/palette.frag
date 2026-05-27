@@ -303,19 +303,23 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
 
 vec2 safeHueUnit(vec2 ab, vec2 fallback) {
     float c = length(ab);
-    return c > 1e-6 ? ab / c : fallback;
+    return c >= NEUTRAL_CHROMA_EPSILON ? ab / c : fallback;
+}
+
+float meaningfulChroma(float chroma) {
+    return chroma >= NEUTRAL_CHROMA_EPSILON ? chroma : 0.0;
 }
 
 vec3 applyOutputMode(vec3 sourceLab, vec3 paletteLab) {
 #if OUTPUT_MODE == OUTPUT_PRESERVE_LUMA
     return vec3(sourceLab.x, paletteLab.yz);
 #elif OUTPUT_MODE == OUTPUT_PRESERVE_CHROMA
-    float sourceChroma = length(sourceLab.yz);
+    float sourceChroma = meaningfulChroma(length(sourceLab.yz));
     vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
     vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
     return vec3(paletteLab.x, paletteHue * sourceChroma);
 #elif OUTPUT_MODE == OUTPUT_HUE_WASH
-    float sourceChroma = length(sourceLab.yz);
+    float sourceChroma = meaningfulChroma(length(sourceLab.yz));
     vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
     vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
     return vec3(sourceLab.x, paletteHue * sourceChroma);

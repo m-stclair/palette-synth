@@ -8,19 +8,34 @@ import {
   linear2SRGB,
   rgb8ToLab
 } from "../color-utils.js";
+import { NEUTRAL_CHROMA_EPSILON } from "../constants.js";
+
+function meaningfulChroma(chroma) {
+  return chroma >= NEUTRAL_CHROMA_EPSILON ? chroma : 0;
+}
+
+function safeHueUnit(lab, chroma, fallback) {
+  return chroma >= NEUTRAL_CHROMA_EPSILON
+    ? [lab[1] / chroma, lab[2] / chroma]
+    : fallback;
+}
 
 export function applyOutputModeCpu(sourceLab, paletteLab, config = {}) {
   if (config.outputMode === "preserveLuma") return [sourceLab[0], paletteLab[1], paletteLab[2]];
   if (config.outputMode === "preserveChroma") {
-    const sourceC = Math.hypot(sourceLab[1], sourceLab[2]);
+    const rawSourceC = Math.hypot(sourceLab[1], sourceLab[2]);
+    const sourceC = meaningfulChroma(rawSourceC);
     const paletteC = Math.hypot(paletteLab[1], paletteLab[2]);
-    const hue = paletteC > 1e-6 ? [paletteLab[1] / paletteC, paletteLab[2] / paletteC] : (sourceC > 1e-6 ? [sourceLab[1] / sourceC, sourceLab[2] / sourceC] : [1, 0]);
+    const sourceHue = safeHueUnit(sourceLab, rawSourceC, [1, 0]);
+    const hue = safeHueUnit(paletteLab, paletteC, sourceHue);
     return [paletteLab[0], hue[0] * sourceC, hue[1] * sourceC];
   }
   if (config.outputMode === "hueWash") {
-    const sourceC = Math.hypot(sourceLab[1], sourceLab[2]);
+    const rawSourceC = Math.hypot(sourceLab[1], sourceLab[2]);
+    const sourceC = meaningfulChroma(rawSourceC);
     const paletteC = Math.hypot(paletteLab[1], paletteLab[2]);
-    const hue = paletteC > 1e-6 ? [paletteLab[1] / paletteC, paletteLab[2] / paletteC] : (sourceC > 1e-6 ? [sourceLab[1] / sourceC, sourceLab[2] / sourceC] : [1, 0]);
+    const sourceHue = safeHueUnit(sourceLab, rawSourceC, [1, 0]);
+    const hue = safeHueUnit(paletteLab, paletteC, sourceHue);
     return [sourceLab[0], hue[0] * sourceC, hue[1] * sourceC];
   }
   if (config.outputMode === "shadowHighlight") {

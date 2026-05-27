@@ -31,6 +31,14 @@ test("applyOutputModeCpu mirrors preserve luma/chroma/hue-wash modes", () => {
   assert.equal(applyOutputModeCpu(sourceLab, paletteLab, {outputMode: "quantized"}), paletteLab);
 });
 
+test("applyOutputModeCpu keeps neutral source chroma neutral in chroma-preserving modes", () => {
+  const nearGraySourceLab = [50, 1.1, 1.1];
+  const yellowPaletteLab = [70, 0, 40];
+
+  assert.deepEqual(applyOutputModeCpu(nearGraySourceLab, yellowPaletteLab, {outputMode: "preserveChroma"}), [70, 0, 0]);
+  assert.deepEqual(applyOutputModeCpu(nearGraySourceLab, yellowPaletteLab, {outputMode: "hueWash"}), [50, 0, 0]);
+});
+
 test("applyOutputModeCpu uses source color inside shadow/highlight band", () => {
   const sourceLab = [50, 3, 4];
   const paletteLab = [60, 0, 10];
