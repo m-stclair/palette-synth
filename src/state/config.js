@@ -66,7 +66,7 @@ export const DEFAULT_CONFIG = {
   lumaWeight: 1,
   chromaWeight: 1,
   hueWeight: 1,
-  monotoneBlendDither: false,
+  monotoneBlendDither: true,
   maxDistanceEnabled: false,
   maxDistance: 30,
   // Generated-image candidate appeal nudges. These are independent, secondary
@@ -94,7 +94,7 @@ export const DEFAULT_CONFIG = {
   cyclePreviewSpeed: 4,
   ditherPattern: "ordered4",
   ditherAngle: 45,
-  ditherLumaAmount: 0,
+  ditherLumaAmount: 1,
   ditherScale: 1,
   generatedAssist: 0,
   generatedTintShadeFamilies: false,
