@@ -340,7 +340,7 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   }
   for (const key of ["selectionMidtoneWeight", "selectionOutlierWeight", "selectionChromaWeight"]) {
     const value = Number(base[key]);
-    base[key] = clamp(Number.isFinite(value) ? value : DEFAULT_CONFIG[key], 0, 1.5);
+    base[key] = clamp(Number.isFinite(value) ? value : DEFAULT_CONFIG[key], -1, 1);
   }
   {
     const tonalZoneWeight = Number(base.tonalZoneWeight);

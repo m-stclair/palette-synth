@@ -107,25 +107,34 @@ Use **Mode** to choose where the palette comes from.
 
 **Tint/shade** controls how far those light and dark variants move from the base color.
 
-**Sample width** controls how large each sampled block is. Low values catch sharp details; higher values smooth noisy images into broader color averages.
+**Sample width** controls the size of pixel blocks for sampling candidate swatches. Low values can catch colors that only appear in single sharp details or edges; higher values can help avoid
+filling your palette with compression artifacts and detector noise. The default is 3, meaning that samples are the mean of 3x3-pixel squares.
 
-**Sample placement** chooses how samples are distributed. **Random** is loose and organic. **Stratified + jittered** spreads samples more evenly across the image or selected region.
+**Sample placement** chooses how samples are spatially distributed. **Random** is loose and organic. **Stratified + jittered** spreads samples more evenly across the image or selected region.
 
-**Midtone appeal**, **outlier appeal**, and **chroma appeal** are secondary candidate-appeal nudges for image-generated palettes. They are three separate config values: `selectionMidtoneWeight`, `selectionOutlierWeight`, and `selectionChromaWeight`. Historically these lived together as one bundled config value; now they just bias the preliminary score before the stronger selection forces take over.
+**Tonal zone weight** multiplies both tonal need pressure and tonal crowding pressure. `1` keeps the default behavior, `0` disables both forces, and `2` doubles both. These pressures
+encourage distribution across coarsely-defined lightness regions while ignoring small-scale clumping.
 
-- **Midtone appeal** favors colors that sit away from pure shadow or pure highlight.
-- **Outlier appeal** favors colors that stand apart from the image average. Good for pulling accents out of the noise.
-- **Chroma appeal** favors stronger, more saturated colors.
+**Width bonus** multiplies both the novelty bonus and the range expansion bonus. `1` keeps the default behavior, `0` disables those width-seeking bonuses, and `2` doubles them. These factors
+tend to encourage less-clumped palettes and in particular a wider shadow/highlight range, but aren't a strict cap like selection spacing.
 
-**Tonal zone weight** multiplies both tonal need pressure and tonal crowding pressure. `1` keeps the default behavior, `0` disables both forces, and `2` doubles both.
+**Hue spread** is pushes the palette toward a wider variety of hues without directly encouraging or discouraging clumping in other dimensions.
 
-**Width bonus** multiplies both the novelty bonus and the range expansion bonus. `1` keeps the default behavior, `0` disables those width-seeking bonuses, and `2` doubles them.
+**Selection spacing** controls how different selected colors need to be. Higher spacing avoids similar colors when possible; lower spacing allows tighter, subtler color groupings. At its 
+lowest value, 1, it is essentially just a "de-dupe". Selection spacing takes precedence over all other factors. On large palettes, particularly for relatively homogeneous 
+images, it can easily dominate the effects of other settings, because later picks are forced to spread away from early high-scoring picks, and there are only so many meaningfully
+different ways to arrange swatches across the color surface while keeping far from one another.
 
-**Hue spread** pushes the palette toward broader hue variety.
+**Midtone appeal**, **outlier appeal**, and **chroma appeal** are intended primarily as secondary 'nudges' to swaatch selection. However, at high values 
+or if other factors are suppressed, they can dominate. Because they are flat per-swatch bonuses (not dependent on prior picks), when their effects dominate, they can produce
+very repetitive palettes.
 
-**Selection spacing** controls how different selected colors need to be. Higher spacing avoids near-duplicates; lower spacing allows tighter, subtler color families.
-Selection spacing takes precedence over the candidate-appeal nudges. On large palettes it can easily overwhelm midtone/outlier/chroma appeal, because later picks
-are forced to spread away from early high-appeal picks.
+- **Midtone appeal** favors candidates away from pure shadow or highlight when positive, and favors more extreme brightness/darkness when negative. 
+- **Outlier appeal** favors colors far away from image average when positive, and close to image average when negative. This can be good for highlighting
+  or suppressing accents and noise.
+- **Chroma appeal** favors stronger, more saturated colors when positive, and more muted colors when negative.
+
+
 
 ### Harmony controls
 
