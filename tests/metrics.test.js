@@ -75,6 +75,16 @@ function distanceBreakdownForLabs(sourceLab, targetLab, config) {
   );
 }
 
+test("categorical neutral mode gives neutral-vs-chromatic matches hue distance", () => {
+  const continuous = distanceBreakdownForLabs([50, 10, 0], [50, 0, 0], {...baseConfig, hueWeight: 1});
+  const categorical = distanceBreakdownForLabs([50, 10, 0], [50, 0, 0], {...baseConfig, hueWeight: 1, neutralIsCategory: true});
+
+  assert.equal(continuous.hue, 0);
+  assert.equal(continuous.raw.hueSuppressed, true);
+  assert.ok(categorical.hue > 0);
+  assert.equal(categorical.raw.hueSuppressed, false);
+});
+
 test("topPaletteMatches sorts by weighted distance and carries display metadata", () => {
   const records = [record([50, 0, 0], 0), record([10, 0, 0], 1), record([20, 0, 0], 2)];
   const matches = topPaletteMatches([18, 0, 0], records.map(entry), {config: baseConfig, records, limit: 2});
@@ -106,7 +116,6 @@ test("assignmentWeights follows nearest, blend, and dither contribution rules", 
   assertApproximatelyEqual(dither[1], 0.5, 1e-4);
 });
 
-
 test("monotone blend/dither collapses same-side assignments that worsen fidelity", () => {
   const matches = [
     {distance: 10, displayIndex: 0, renderLab: [90, 0, 0]},
@@ -131,8 +140,6 @@ test("monotone blend/dither collapses same-side assignments that worsen fidelity
     monotoneBlendDither: true
   }), [1, 0]);
 });
-
-
 
 test("monotone dither checks the implied average instead of each chosen pixel", () => {
   const matches = [
@@ -319,7 +326,6 @@ test("source chroma histogram uses chroma bins with tonal stacks", () => {
   assert.ok(Number.isFinite(stats.histogram.stats.mean));
 });
 
-
 test("source hue histogram omits near-neutral pixels and bins chromatic hue", () => {
   const records = [record([50, 0, 0], 0)];
   const imageData = {
@@ -346,7 +352,6 @@ test("source hue histogram omits near-neutral pixels and bins chromatic hue", ()
   assert.equal(stats.histogram.segments.midtone.length, 72);
   assert.ok(Number.isFinite(stats.histogram.stats.mean));
 });
-
 
 test("output histogram diagnostics estimate output from source samples without GPU readback", () => {
   const records = [record([50, 0, 0], 0)];
@@ -376,7 +381,6 @@ test("output histogram diagnostics estimate output from source samples without G
   assert.ok(output.histogram.stats.mean < source.histogram.stats.mean);
 });
 
-
 test("paired chroma histograms share a single comparison axis", () => {
   const records = [record([50, 0, 0], 0)];
   const imageData = {
@@ -401,7 +405,6 @@ test("paired chroma histograms share a single comparison axis", () => {
   assert.ok(source.histogram.stats.max > output.histogram.stats.max);
   assert.ok(source.histogram.domain.max >= source.histogram.stats.max);
 });
-
 
 test("computePaletteCollisions anchors threshold to config and reports close pairs", () => {
   const records = [record([0, 0, 0], 0), record([1, 0, 0], 1), record([30, 0, 0], 2)];

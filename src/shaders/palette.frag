@@ -55,6 +55,7 @@ const float OKLAB_SCALE = 100.0;
 const float NEUTRAL_CHROMA_EPSILON = 2.0;
 const float CLEAR_HUE_CHROMA = 6.0;
 const float HUE_DISTANCE_SCALE = 10.0;
+const float NEUTRAL_CATEGORY_HUE_SEPARATION = 1.41421356237;
 
 // OKLab is stored in the legacy palette slots as [L*100, a*100, b*100].
 // That keeps existing lightness sliders, thresholds, and palette records on a 0–100-ish scale.
@@ -145,6 +146,10 @@ vec3 blendWithColorSpace(vec3 baseRGB, vec3 fxRGB, float blendAmount) {
 
 #ifndef DITHER_PATTERN
 #define DITHER_PATTERN DITHER_ORDERED_4
+#endif
+
+#ifndef NEUTRAL_IS_CATEGORY
+#define NEUTRAL_IS_CATEGORY 0
 #endif
 
 #ifndef FIDELITY_GUARD
@@ -276,16 +281,26 @@ float deltaE_bias_fast(float labL, float labC, vec2 labHue, vec4 q) {
     float dL = labL - L;
     float dC = labC - C;
 
-    // Hue is undefined for neutral / near-neutral colors. Chroma should act as
-    // a reliability gate, not a saturation amplifier: once both colors are
-    // clearly non-neutral, the hue penalty is fixed-scale unit-hue separation.
+    // In continuous mode, hue is undefined for neutral / near-neutral colors,
+    // so either side being neutral suppresses hue pressure. In categorical
+    // neutral mode, the achromatic axis is lifted off the hue plane: a neutral
+    // matched against a colored point has a real, fixed hue/category distance.
     float hueBias = 0.0;
-    if (labC >= NEUTRAL_CHROMA_EPSILON && C >= NEUTRAL_CHROMA_EPSILON) {
+    bool labHasHue = labC >= NEUTRAL_CHROMA_EPSILON;
+    bool candidateHasHue = C >= NEUTRAL_CHROMA_EPSILON;
+    if (labHasHue && candidateHasHue) {
         float theta = clamp(dot(labHue, hue), -1.0, 1.0);
         float hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, min(labC, C));
         float hueSeparation = sqrt(max(0.0, 2.0 - 2.0 * theta));
         hueBias = HUE_DISTANCE_SCALE * hueGate * hueSeparation;
     }
+#if NEUTRAL_IS_CATEGORY
+    else if (labHasHue != candidateHasHue) {
+        float coloredC = labHasHue ? labC : C;
+        float hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, coloredC);
+        hueBias = HUE_DISTANCE_SCALE * hueGate * NEUTRAL_CATEGORY_HUE_SEPARATION;
+    }
+#endif
 
     return (
         u_lumaWeight   * abs(dL) +
@@ -324,6 +339,12 @@ vec3 applyOutputMode(vec3 sourceLab, vec3 paletteLab) {
     return vec3(paletteLab.x, paletteHue * sourceChroma);
 #elif OUTPUT_MODE == OUTPUT_HUE_WASH
     float sourceChroma = meaningfulChroma(length(sourceLab.yz));
+    float paletteChroma = length(paletteLab.yz);
+#if NEUTRAL_IS_CATEGORY
+    if (paletteChroma < NEUTRAL_CHROMA_EPSILON) {
+        return vec3(sourceLab.x, vec2(0.0));
+    }
+#endif
     vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
     vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
     return vec3(sourceLab.x, paletteHue * sourceChroma);

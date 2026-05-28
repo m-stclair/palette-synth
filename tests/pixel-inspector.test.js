@@ -13,7 +13,6 @@ function assertLabApproximatelyEqual(actual, expected, epsilon = 1e-6) {
   for (let i = 0; i < expected.length; i++) assertApproximatelyEqual(actual[i], expected[i], epsilon);
 }
 
-
 test("snapPixelBlockPoint samples the same source texel for a whole pixel-art block", () => {
   assert.deepEqual(snapPixelBlockPoint(0, 0, 10, 10, 4), {x: 2, y: 2});
   assert.deepEqual(snapPixelBlockPoint(3, 3, 10, 10, 4), {x: 2, y: 2});
@@ -29,6 +28,14 @@ test("applyOutputModeCpu mirrors preserve luma/chroma/hue-wash modes", () => {
   assertLabApproximatelyEqual(applyOutputModeCpu(sourceLab, paletteLab, {outputMode: "preserveChroma"}), [60, 0, 5]);
   assertLabApproximatelyEqual(applyOutputModeCpu(sourceLab, paletteLab, {outputMode: "hueWash"}), [20, 0, 5]);
   assert.equal(applyOutputModeCpu(sourceLab, paletteLab, {outputMode: "quantized"}), paletteLab);
+});
+
+test("categorical neutral hue-wash turns neutral palette matches into neutral output", () => {
+  const sourceLab = [42, 8, 6];
+  const grayPaletteLab = [60, 1, 1];
+
+  assertLabApproximatelyEqual(applyOutputModeCpu(sourceLab, grayPaletteLab, {outputMode: "hueWash"}), [42, 8, 6]);
+  assert.deepEqual(applyOutputModeCpu(sourceLab, grayPaletteLab, {outputMode: "hueWash", neutralIsCategory: true}), [42, 0, 0]);
 });
 
 test("applyOutputModeCpu keeps neutral source chroma neutral in chroma-preserving modes", () => {
@@ -95,7 +102,6 @@ test("analyzePixelAtImagePoint clamps coordinates and reports weighted mapped co
   assert.equal(result.assigned, matches[0]);
 });
 
-
 test("analyzePixelAtImagePoint reads palette records after ensurePalette refreshes them", () => {
   const staleRecords = [{id: "stale", lab: [0, 0, 0]}];
   const freshRecords = [{id: "fresh", lab: [80, 0, 0]}];
@@ -122,7 +128,6 @@ test("analyzePixelAtImagePoint reads palette records after ensurePalette refresh
   assert.equal(seenRecords, freshRecords);
   assert.equal(result.matches[0].sourceRecord.id, "fresh");
 });
-
 
 test("samplePixelBlockColor can report linear-light mean block color", () => {
   const imageData = {
@@ -183,7 +188,6 @@ test("analyzePixelAtImagePoint reports the snapped source color when pixel block
   assert.equal(result.sourceHex, "#090807");
 });
 
-
 test("analyzePixelAtImagePoint keeps source color when max-distance gate rejects assignment", () => {
   const sourceLab = [50, 0, 0];
   const matches = [{renderLab: [80, 20, 0], distance: 40, displayIndex: 0}];
@@ -204,7 +208,6 @@ test("analyzePixelAtImagePoint keeps source color when max-distance gate rejects
   assert.equal(result.finalHex, result.sourceHex);
   assert.equal(result.assigned, null);
 });
-
 
 test("analyzePixelAtImagePoint reports fx delta in the same weighted metric as the winning nearest swatch", () => {
   const records = [

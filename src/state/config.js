@@ -66,6 +66,7 @@ export const DEFAULT_CONFIG = {
   lumaWeight: 1,
   chromaWeight: 1,
   hueWeight: 1,
+  neutralIsCategory: false,
   monotoneBlendDither: true,
   maxDistanceEnabled: false,
   maxDistance: 30,
@@ -359,6 +360,7 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.lumaWeight = clamp(Number(base.lumaWeight) || 0, 0, 3);
   base.chromaWeight = clamp(Number(base.chromaWeight) || 0, 0, 3);
   base.hueWeight = clamp(Number(base.hueWeight) || 0, 0, 3);
+  base.neutralIsCategory = !!base.neutralIsCategory;
   base.monotoneBlendDither = !!base.monotoneBlendDither;
   base.maxDistanceEnabled = !!base.maxDistanceEnabled;
   {

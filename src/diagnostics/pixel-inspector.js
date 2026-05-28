@@ -23,18 +23,21 @@ import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabFor
 
 export { applyOutputModeCpu, blendHexes };
 
-export function labDeltaParts(aLab, bLab) {
+export function labDeltaParts(aLab, bLab, config = {}) {
   const aC = Math.hypot(aLab?.[1] || 0, aLab?.[2] || 0);
   const bC = Math.hypot(bLab?.[1] || 0, bLab?.[2] || 0);
   const aHue = aC > 1e-6 ? [(aLab[1] || 0) / aC, (aLab[2] || 0) / aC] : [1, 0];
   const bHue = bC > 1e-6 ? [(bLab[1] || 0) / bC, (bLab[2] || 0) / bC] : [1, 0];
   const theta = clamp(aHue[0] * bHue[0] + aHue[1] * bHue[1], -1, 1);
-  const hueSuppressed = aC < NEUTRAL_CHROMA_EPSILON || bC < NEUTRAL_CHROMA_EPSILON;
+  const aHasHue = aC >= NEUTRAL_CHROMA_EPSILON;
+  const bHasHue = bC >= NEUTRAL_CHROMA_EPSILON;
+  const hueSuppressed = !(aHasHue && bHasHue) && !(config.neutralIsCategory && aHasHue !== bHasHue);
   const hue = hueSuppressed
     ? 0
     : HUE_DISTANCE_SCALE
-      * smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, Math.min(aC, bC))
-      * Math.sqrt(Math.max(0, 2 - 2 * theta));
+      * (aHasHue && bHasHue
+        ? smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, Math.min(aC, bC)) * Math.sqrt(Math.max(0, 2 - 2 * theta))
+        : smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, aHasHue ? aC : bC) * Math.SQRT2);
   return {
     luma: Math.abs((aLab?.[0] || 0) - (bLab?.[0] || 0)),
     chroma: Math.abs(aC - bC),

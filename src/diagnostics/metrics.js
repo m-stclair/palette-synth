@@ -84,16 +84,22 @@ export function cpuDistanceBreakdown(labLightness, labChroma, labHue, featureLig
   const dL = labLightness - featureLightness;
   const dC = labChroma - featureChroma;
 
-  // Hue is undefined for neutral / near-neutral colors. Chroma should act as
-  // a reliability gate, not a saturation amplifier: once both colors are
-  // clearly non-neutral, the hue penalty is fixed-scale unit-hue separation.
-  const hueSuppressed = labChroma < NEUTRAL_CHROMA_EPSILON || featureChroma < NEUTRAL_CHROMA_EPSILON;
+  // Continuous mode suppresses hue when either side is neutral. Categorical
+  // neutral mode lifts the achromatic axis off the hue plane, so neutral-vs-
+  // chromatic has a real category distance instead of collapsing to zero.
+  const labHasHue = labChroma >= NEUTRAL_CHROMA_EPSILON;
+  const featureHasHue = featureChroma >= NEUTRAL_CHROMA_EPSILON;
+  const hueSuppressed = !(labHasHue && featureHasHue) && !(config.neutralIsCategory && labHasHue !== featureHasHue);
   let hueBias = 0;
-  if (!hueSuppressed) {
+  if (labHasHue && featureHasHue) {
     const theta = clamp(labHue[0] * featureHue[0] + labHue[1] * featureHue[1], -1, 1);
     const hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, Math.min(labChroma, featureChroma));
     const hueSeparation = Math.sqrt(Math.max(0, 2 - 2 * theta));
     hueBias = HUE_DISTANCE_SCALE * hueGate * hueSeparation;
+  } else if (config.neutralIsCategory && labHasHue !== featureHasHue) {
+    const coloredChroma = labHasHue ? labChroma : featureChroma;
+    const hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, coloredChroma);
+    hueBias = HUE_DISTANCE_SCALE * hueGate * Math.SQRT2;
   }
 
   const luma = Math.max(0, Number(config.lumaWeight) || 0) * Math.abs(dL);
@@ -193,6 +199,7 @@ export function diagnosticsSignature({imageData, records = [], entries = [], con
     config.paletteMode,
     config.assignMode,
     config.outputMode,
+    config.neutralIsCategory ? 1 : 0,
     config.monotoneBlendDither ? 1 : 0,
     config.blendK,
     config.softness,

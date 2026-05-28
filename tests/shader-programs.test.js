@@ -17,6 +17,7 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define OUTPUT_MODE 3",
     "#define CYCLE_MODE 3",
     "#define DITHER_PATTERN 2",
+    "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0"
   ]);
 
@@ -28,6 +29,7 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define OUTPUT_MODE 3",
     "#define CYCLE_MODE 0",
     "#define DITHER_PATTERN 2",
+    "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0"
   ]);
 });
@@ -61,6 +63,7 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define OUTPUT_MODE 0",
     "#define CYCLE_MODE 0",
     "#define DITHER_PATTERN 6",
+    "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0"
   ]);
 
@@ -74,6 +77,7 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define OUTPUT_MODE 0",
     "#define CYCLE_MODE 0",
     "#define DITHER_PATTERN 9",
+    "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0"
   ]);
 });
@@ -110,6 +114,7 @@ test("shader program controller builds cached programs with injected defines", (
       "#define OUTPUT_MODE 0",
       "#define CYCLE_MODE 2",
       "#define DITHER_PATTERN 1",
+      "#define NEUTRAL_IS_CATEGORY 0",
       "#define FIDELITY_GUARD 0"
     ],
     linkErrorMessage: "unknown program link error"
@@ -121,9 +126,19 @@ test("shader program controller builds cached programs with injected defines", (
   assert.equal(calls[1].cache, cache);
 });
 
+test("shaderDefineLinesForConfig maps categorical neutral mode", () => {
+  assert.ok(shaderDefineLinesForConfig({
+    assignMode: "nearest",
+    outputMode: "hueWash",
+    CYCLE_MODE: 0,
+    ditherPattern: "ordered4",
+    neutralIsCategory: true
+  }).includes("#define NEUTRAL_IS_CATEGORY 1"));
+});
 
 test("palette shader gates hue pressure for near-neutral colors", () => {
   const source = readFileSync(new URL("../src/shaders/palette.frag", import.meta.url), "utf8");
   assert.match(source, /NEUTRAL_CHROMA_EPSILON = 2\.0/);
-  assert.match(source, /labC >= NEUTRAL_CHROMA_EPSILON && C >= NEUTRAL_CHROMA_EPSILON/);
+  assert.match(source, /bool labHasHue = labC >= NEUTRAL_CHROMA_EPSILON/);
+  assert.match(source, /#if NEUTRAL_IS_CATEGORY/);
 });

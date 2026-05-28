@@ -126,6 +126,7 @@ export interface AppConfig {
   lumaWeight: number;
   chromaWeight: number;
   hueWeight: number;
+  neutralIsCategory: boolean;
   monotoneBlendDither: boolean;
   maxDistanceEnabled: boolean;
   maxDistance: number;

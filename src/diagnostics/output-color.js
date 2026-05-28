@@ -34,6 +34,7 @@ export function applyOutputModeCpu(sourceLab, paletteLab, config = {}) {
     const rawSourceC = Math.hypot(sourceLab[1], sourceLab[2]);
     const sourceC = meaningfulChroma(rawSourceC);
     const paletteC = Math.hypot(paletteLab[1], paletteLab[2]);
+    if (config.neutralIsCategory && paletteC < NEUTRAL_CHROMA_EPSILON) return [sourceLab[0], 0, 0];
     const sourceHue = safeHueUnit(sourceLab, rawSourceC, [1, 0]);
     const hue = safeHueUnit(paletteLab, paletteC, sourceHue);
     return [sourceLab[0], hue[0] * sourceC, hue[1] * sourceC];
