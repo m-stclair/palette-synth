@@ -2,7 +2,7 @@
 
 This guide covers the user-facing controls: palette sources, generation options, rendering modes, diagnostics, export, and persistence.
 
-For swatch editing inside the inspector X-Ray, see [X-Ray editing](x-ray-editing.md). For project internals, see [architecture](architecture.md).
+For a literal inventory of every visible knob and button, see [Control reference](control-reference.md). For swatch editing inside the inspector X-Ray, see [X-Ray editing](x-ray-editing.md). For project internals, see [architecture](architecture.md).
 
 ## Palette pipeline
 
@@ -69,7 +69,7 @@ Use **Mode** to choose where the palette comes from.
 
 **Selection spacing** controls how different selected colors need to be. Higher spacing avoids similar colors when possible; lower spacing allows tighter, subtler color groupings. At its lowest value, 1, it is essentially just a de-dupe.
 
-Selection spacing takes precedence over the other selection factors. On large palettes, particularly for relatively homogeneous images, it can easily dominate. Later picks are forced to spread away from early high-scoring picks, and there are only so many meaningfully different ways to arrange swatches across the color surface while keeping far from one another.
+Selection spacing takes precedence over all other selection factors. On large palettes, particularly for homogeneous images, it can easily dominate. Later picks are forced to spread away from early high-scoring picks, and there are only so many meaningfully different ways to arrange swatches across the color surface while keeping them far from one another.
 
 **Midtone appeal**, **outlier appeal**, and **chroma appeal** are secondary nudges to swatch selection. At high values, or when other factors are suppressed, they can dominate. Because they are flat per-swatch bonuses, not dependent on prior picks, they can produce repetitive palettes when pushed too hard.
 

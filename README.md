@@ -6,7 +6,7 @@ You can use it for utilitarian colorist work,  but it is primarily intended as a
 
 It is a standalone extraction and expansion of the **Palette Synth** effect from [`vandal`](https://github.com/m-stclair/vandal), packaged as plain HTML, CSS, JavaScript modules, and GLSL shaders.
 
-[Live demo](https://m-stclair.github.io/palette-synth/) · [User guide](docs/user-guide.md) · [X-Ray editing](docs/x-ray-editing.md) · [Architecture](docs/architecture.md) · [Contributing](docs/contributing.md)
+[Live demo](https://m-stclair.github.io/palette-synth/) · [User guide](docs/user-guide.md) · [Control reference](docs/control-reference.md) · [X-Ray editing](docs/x-ray-editing.md) · [Architecture](docs/architecture.md) · [Contributing](docs/contributing.md)
 
 ![Screenshot](/assets/screenshot.png)
 
@@ -149,6 +149,7 @@ There are no runtime dependencies. The app is plain browser JavaScript plus GLSL
 ## Documentation
 
 - [User guide](docs/user-guide.md): palette sources, generation controls, rendering controls, diagnostics, export, and persistence.
+- [Control reference](docs/control-reference.md): visible controls, conditional panels, exact mode/knob behavior, inspector controls, recipes, and export controls.
 - [X-Ray editing](docs/x-ray-editing.md): swatch movement, match anchors, marker states, and modifier gestures.
 - [Architecture](docs/architecture.md): runtime graph, project layout, and source map.
 - [Contributing](docs/contributing.md): common maintenance tasks and troubleshooting.
