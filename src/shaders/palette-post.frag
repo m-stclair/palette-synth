@@ -22,6 +22,10 @@ bool colorsEqual(vec3 a, vec3 b, float tolerance) {
     return dot(d, d) <= tolerance * tolerance;
 }
 
+const int minModeCount = 5;
+const int maxCentreCount = 1;
+
+
 // 3x3 mode filter. For each fragment we sample the 9 neighbors (including
 // self), then for each neighbor count how many of the other neighbors match
 // it (within tolerance). The neighbor with the highest count wins. If two
@@ -59,13 +63,16 @@ void main() {
         }
     }
 
-    // Only replace if the mode is actually a majority cue (count >= 5 in a 3x3
-    // window) OR if the centre is genuinely outvoted (count of centre < 3).
     int centreCount = 0;
     for (int m = 0; m < 9; ++m) {
         if (colorsEqual(samples[4], samples[m], u_tolerance)) centreCount++;
     }
 
-    vec3 result = (bestCount >= 5 || centreCount < 3) ? bestColor : samples[4];
+    bool centreIsIsolated = centreCount <= maxCentreCount;
+    bool replacementIsDominant = bestCount >= minModeCount;
+
+    vec3 result = (centreIsIsolated && replacementIsDominant)
+        ? bestColor
+        : samples[4];
     outColor = vec4(result, 1.0);
 }
