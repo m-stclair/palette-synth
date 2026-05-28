@@ -555,6 +555,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // another grafxkid special, sharply muted but weirdly versatile
     dusty11: {
+        category: "Art + mood",
         colors: [
             "#93476d", "#dd8b6f", "#f5db68", "#7cba40",
             "#326599", "#69a7f4", "#9ddffd", "#f9f6eb",

@@ -20,6 +20,18 @@ export function createManualSwatchesList({
     return entry?.state?.swatch ? entry.state : null;
   }
 
+  function clearManualEditorSelection() {
+    if (!state.manualEditor) state.manualEditor = {};
+    state.manualEditor.swatchId = null;
+    state.manualEditor.sourceIndex = null;
+    state.manualEditor.colorInputActive = false;
+    state.manualEditor.aliasPickActive = false;
+    state.manualEditor.aliasPickSwatchId = null;
+    if (els.paletteEditor) els.paletteEditor.hidden = true;
+    els.palettePreview?.querySelectorAll?.(".chip.is-editing")
+      .forEach(chip => chip.classList?.remove?.("is-editing"));
+  }
+
   function syncSwatchRow(entry, swatch, index, swatches) {
     const color = swatch.hex;
     const label = `Swatch ${index + 1}`;
@@ -116,11 +128,10 @@ export function createManualSwatchesList({
       if (!swatchState) return;
       const {swatch, index} = swatchState;
       withHistory("Remove manual swatch", () => {
-        const next = removeManualSwatchAt(index);
-        if (state.manualEditor.swatchId === swatch.id) {
-          state.manualEditor.swatchId = next?.id ?? null;
-          state.manualEditor.sourceIndex = next ? manualSwatchIndexForId(next.id) : null;
-        }
+        const removedSelectedSwatch = state.manualEditor?.swatchId === swatch.id;
+        removeManualSwatchAt(index);
+        if (removedSelectedSwatch) clearManualEditorSelection();
+        else if (state.manualEditor?.swatchId) state.manualEditor.sourceIndex = manualSwatchIndexForId(state.manualEditor.swatchId);
         renderManualSwatches();
         markPaletteDirty();
         queueRender();

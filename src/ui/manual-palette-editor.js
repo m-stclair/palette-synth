@@ -258,10 +258,8 @@ export function createManualPaletteEditor({
     removeButton.textContent = "Remove";
     removeButton.disabled = syncManualSwatches().length <= 1;
     removeButton.addEventListener("click", () => withHistory?.("Remove manual swatch", () => {
-      const next = onRemoveSwatch?.({index, swatchId: swatch.id});
-      const nextEditor = editorState();
-      nextEditor.swatchId = next?.id ?? next?.swatchId ?? null;
-      nextEditor.sourceIndex = nextEditor.swatchId ? manualSwatchIndexForId(nextEditor.swatchId) : null;
+      onRemoveSwatch?.({index, swatchId: swatch.id});
+      closeManualPaletteEditor();
     }));
 
     const closeButton = document.createElement("button");

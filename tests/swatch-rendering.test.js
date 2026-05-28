@@ -168,8 +168,8 @@ test("manual swatch list renders edits, locks, and removal through callbacks", (
 
     removeButton.dispatchEvent("click");
     assert.equal(config.manualPalette.length, 1);
-    assert.equal(state.manualEditor.swatchId, "swatch-b");
-    assert.equal(state.manualEditor.sourceIndex, 0);
+    assert.equal(state.manualEditor.swatchId, null);
+    assert.equal(state.manualEditor.sourceIndex, null);
   } finally {
     restore();
   }

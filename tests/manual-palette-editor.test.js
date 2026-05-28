@@ -489,6 +489,69 @@ function setupOpenManualPaletteEditor() {
   return {editor, els, state, chip};
 }
 
+
+test("manual palette editor clears selection after removing the selected swatch", () => {
+  const restore = installFakeDocument();
+  try {
+    const palettePreview = makeElement("div");
+    const chipA = makeElement("button");
+    chipA.classList.add("chip");
+    chipA.dataset.swatchId = "swatch-a";
+    const chipB = makeElement("button");
+    chipB.classList.add("chip");
+    chipB.dataset.swatchId = "swatch-b";
+    palettePreview.append(chipA, chipB);
+
+    const els = {palettePreview};
+    const config = {paletteMode: "manual", generatedAssist: 0};
+    const state = {
+      manualEditor: {sourceIndex: null, swatchId: null, colorInputActive: false},
+      paletteRecords: []
+    };
+    const swatches = [
+      {id: "swatch-a", hex: "#112233"},
+      {id: "swatch-b", hex: "#445566"}
+    ];
+    const record = {source: "manual", swatchId: "swatch-a", sourceIndex: 0, hex: "#112233", lab: [20, 0, 0]};
+    state.paletteRecords = [record];
+
+    const editor = createManualPaletteEditor({
+      els,
+      getConfig: () => config,
+      getState: () => state,
+      syncManualSwatches: () => swatches,
+      manualSwatchAt: identifier => typeof identifier === "number" ? swatches[identifier] : swatches.find(swatch => swatch.id === identifier),
+      manualSwatchIndexForId: id => swatches.findIndex(swatch => swatch.id === id),
+      manualSourceHex: identifier => (typeof identifier === "number" ? swatches[identifier] : swatches.find(swatch => swatch.id === identifier))?.hex || "#000000",
+      manualMatchAliasHex: () => null,
+      setManualMatchAlias: () => {},
+      manualSwatchEditable: candidate => candidate?.source === "manual",
+      paletteRecordForManualSwatchId: id => state.paletteRecords.find(candidate => candidate.swatchId === id) || null,
+      withHistory: (label, fn) => fn(),
+      onRemoveSwatch: ({index}) => {
+        swatches.splice(index, 1);
+        return swatches[index] ?? swatches[index - 1] ?? null;
+      },
+      copyPaletteHex: () => {}
+    });
+
+    editor.openManualPaletteEditor(record);
+    assert.equal(state.manualEditor.swatchId, "swatch-a");
+    assert.equal(chipA.classList.contains("is-editing"), true);
+
+    findButton(els.paletteEditor, "Remove").dispatchEvent("click");
+
+    assert.deepEqual(swatches.map(swatch => swatch.id), ["swatch-b"]);
+    assert.equal(state.manualEditor.swatchId, null);
+    assert.equal(state.manualEditor.sourceIndex, null);
+    assert.equal(els.paletteEditor.hidden, true);
+    assert.equal(chipA.classList.contains("is-editing"), false);
+    assert.equal(chipB.classList.contains("is-editing"), false);
+  } finally {
+    restore();
+  }
+});
+
 test("manual palette editor closes on Escape", () => {
   const restore = installFakeDocument();
   try {
