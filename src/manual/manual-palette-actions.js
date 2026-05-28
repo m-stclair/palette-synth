@@ -1,5 +1,10 @@
 import {DEFAULT_CONFIG} from "../state/config.js";
-import {MAX_PALETTE_SIZE, PALETTE_PRESETS} from "../constants.js";
+import {
+    MAX_PALETTE_SIZE,
+    PALETTE_PRESET_CATALOG,
+    PALETTE_PRESET_CATEGORY_ORDER,
+    PALETTE_PRESETS
+} from "../constants.js";
 import {byteRgbToHex, clamp, labToHex, normalizeHexColor, normalizeManualLab} from "../color-utils.js";
 import {createManualSwatch, manualSwatchesFromColors, normalizeCapturedPaletteEntry} from "./swatches.js";
 import {
@@ -15,111 +20,7 @@ export function humanizePresetName(name) {
         .replace(/^./, ch => ch.toUpperCase());
 }
 
-export const PRESET_CATEGORY_ORDER = [
-    "Computer hardware",
-    "Consoles + handhelds",
-    "Fantasy consoles",
-    "Operating systems + terminals",
-    "Game worlds",
-    "Art + mood",
-    "Other presets"
-];
-
-const PRESET_CATEGORY_BY_NAME = {
-    amigaWorkbench: "Computer hardware",
-    amigaDemoscene: "Computer hardware",
-    amigaCopperSunset: "Computer hardware",
-    appleIIHgr: "Computer hardware",
-    atariST: "Computer hardware",
-    cgaBright: "Computer hardware",
-    cgaMode4Cyan: "Computer hardware",
-    cgaMode4Green: "Computer hardware",
-    commodore64: "Computer hardware",
-    lotus123: "Computer hardware",
-    msxTms9918: "Computer hardware",
-    pc98VisualNovel: "Computer hardware",
-    tandy1000: "Computer hardware",
-    x68000Cyber: "Computer hardware",
-    zxSpectrum: "Computer hardware",
-
-    gameBoyDmg: "Consoles + handhelds",
-    gameBoyPocket: "Consoles + handhelds",
-    neoGeoFighter: "Consoles + handhelds",
-    nes: "Consoles + handhelds",
-    saturnArcade: "Consoles + handhelds",
-    virtualBoy: "Consoles + handhelds",
-
-    pico8: "Fantasy consoles",
-    tic80Sweetie16: "Fantasy consoles",
-
-    dosMidnightCommander: "Operating systems + terminals",
-    greenPhosphor: "Operating systems + terminals",
-    irixDesktop: "Operating systems + terminals",
-    macintoshClassic: "Operating systems + terminals",
-    solarisCde: "Operating systems + terminals",
-    terminalAmber: "Operating systems + terminals",
-    win32: "Operating systems + terminals",
-    win95Teal: "Operating systems + terminals",
-
-    arcadeNeon: "Game worlds",
-    castlevania: "Game worlds",
-    doomMars: "Game worlds",
-    egaDungeon: "Game worlds",
-    poisonDamage: "Game worlds",
-    snesRpgTown: "Game worlds",
-    quakeBrown: "Game worlds",
-    swampRpg: "Game worlds",
-    vgaDungeon: "Game worlds",
-
-    "1bit": "Art + mood",
-    agedSilk: "Art + mood",
-    alpineClouds: "Art + mood",
-    bauhaus: "Art + mood",
-    cassette: "Art + mood",
-    coldSun: "Art + mood",
-    coolPortrait: "Art + mood",
-    cyberNight: "Art + mood",
-    desertCRT: "Art + mood",
-    forestStaircase: "Art + mood",
-    geocitiesNight: "Art + mood",
-    hauntedMonitor: "Art + mood",
-    jungleDawn: "Art + mood",
-    lakeNight: "Art + mood",
-    liminalWater: "Art + mood",
-    lospec: "Art + mood",
-    mint: "Art + mood",
-    moroccanTile: "Art + mood",
-    nanGoldin: "Art + mood",
-    nightLake: "Art + mood",
-    noir: "Art + mood",
-    playaDusk: "Art + mood",
-    retrofuture: "Art + mood",
-    roseGlass: "Art + mood",
-    sepiaType: "Art + mood",
-    smokeBreak: "Art + mood",
-    softGoth: "Art + mood",
-    synthwaveBbs: "Art + mood",
-    vaporwaveDos: "Art + mood",
-    victorianAutumn: "Art + mood",
-    witchLuxe: "Art + mood",
-    zuhanden: "Art + mood",
-    clinicGlow: "Art + mood",
-    tidalCave: "Art + mood",
-    greenScreen: "Art + mood",
-    concreteRust: "Art + mood",
-    resortGhost: "Art + mood",
-    vhsFern: "Art + mood",
-    scriptorium: "Art + mood",
-    dockLight: "Art + mood",
-    powderRoom: "Art + mood",
-    brassLichen: "Art + mood",
-    rainMotel: "Art + mood",
-    arcadeCarpet: "Art + mood",
-    chapelVelvet: "Art + mood",
-    paperWitch: "Art + mood",
-    blackIce: "Art + mood",
-    mallFountain: "Art + mood"
-};
+export const PRESET_CATEGORY_ORDER = PALETTE_PRESET_CATEGORY_ORDER;
 
 function comparePresetLabels(a, b) {
     return humanizePresetName(a).localeCompare(humanizePresetName(b), undefined, {sensitivity: "base", numeric: true});
@@ -130,7 +31,7 @@ function compareManualPresetLabels(a, b) {
 }
 
 export function presetCategoryForName(name) {
-    return PRESET_CATEGORY_BY_NAME[name] || "Other presets";
+    return PALETTE_PRESET_CATALOG[name]?.category || "Other presets";
 }
 
 export function groupedBuiltInPresetNames(presets = PALETTE_PRESETS) {

@@ -49,7 +49,7 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 | `index.html` | Declares the app shell, canvas, toolbar, palette controls, diagnostics panels, recipe panel, and animation export panel. |
 | `style.css` | Defines the responsive workbench, dockable controls pane, preview canvas, swatch UI, diagnostics, and panel styling. |
 | `app.js` | Starts the app and reports startup errors into the page. |
-| `palette-presets.js` | Provides the original built-in palette preset table as `globalThis.PALETTE_PRESETS`. |
+| `palette-presets.js` | Owns the built-in palette preset catalog, including categories and colors, and derives the legacy `globalThis.PALETTE_PRESETS` color lookup. |
 | `package.json` | Enables ES modules and exposes start/test/check scripts. |
 | `LICENSE` | Project license. |
 

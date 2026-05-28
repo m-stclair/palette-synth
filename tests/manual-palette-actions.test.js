@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import "../palette-presets.js";
 import { cloneDefaultConfig } from "../src/state/config.js";
 import {
   createManualPaletteActions,
@@ -188,10 +189,11 @@ test("manual palette actions populate built-in and captured preset options", () 
 
   controller.populatePresetSelect("manualPreset:saved");
 
-  assert.equal(select.children[0].label, "Built-in");
-  assert.equal(select.children[1].label, "Captured manual");
-  assert.equal(select.children[1].children[0].value, "manualPreset:saved");
-  assert.equal(select.children[1].children[0].textContent, "Saved Look (2)");
+  assert.equal(select.children[0].label, "Computer hardware");
+  const manualGroup = select.children.find(child => child.label === "Captured manual");
+  assert.ok(manualGroup);
+  assert.equal(manualGroup.children[0].value, "manualPreset:saved");
+  assert.equal(manualGroup.children[0].textContent, "Saved Look (2)");
   assert.equal(config.presetName, "manualPreset:saved");
 });
 
