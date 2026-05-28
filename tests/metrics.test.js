@@ -224,6 +224,14 @@ test("non-neutral colors still carry hue pressure", () => {
   assert.equal(parts.hueSuppressed, false);
 });
 
+test("hue pressure gates on chroma but does not amplify saturated colors", () => {
+  const clearMuted = distanceBreakdownForLabs([50, 8, 0], [50, 0, 8], {...baseConfig, lumaWeight: 0, chromaWeight: 0, hueWeight: 1});
+  const saturated = distanceBreakdownForLabs([50, 30, 0], [50, 0, 30], {...baseConfig, lumaWeight: 0, chromaWeight: 0, hueWeight: 1});
+
+  assertApproximatelyEqual(clearMuted.hue, saturated.hue);
+  assertApproximatelyEqual(saturated.hue, 10 * Math.sqrt(2));
+});
+
 test("neutral colors suppress hue without inspecting unsafe hue vectors", () => {
   const parts = cpuDistanceBreakdown(50, 0, null, 50, 3, [1, 0], {...baseConfig, lumaWeight: 0, chromaWeight: 0, hueWeight: 1});
 

@@ -53,6 +53,8 @@ out vec4 outColor;
 
 const float OKLAB_SCALE = 100.0;
 const float NEUTRAL_CHROMA_EPSILON = 2.0;
+const float CLEAR_HUE_CHROMA = 6.0;
+const float HUE_DISTANCE_SCALE = 10.0;
 
 // OKLab is stored in the legacy palette slots as [L*100, a*100, b*100].
 // That keeps existing lightness sliders, thresholds, and palette records on a 0–100-ish scale.
@@ -274,13 +276,15 @@ float deltaE_bias_fast(float labL, float labC, vec2 labHue, vec4 q) {
     float dL = labL - L;
     float dC = labC - C;
 
-    // Hue is undefined for neutral / near-neutral colors. Keeping hue pressure
-    // active at tiny chroma lets CPU/GPU precision residue decide which hue a
-    // gray pixel supposedly has, which can flip blend-mode top-k choices.
+    // Hue is undefined for neutral / near-neutral colors. Chroma should act as
+    // a reliability gate, not a saturation amplifier: once both colors are
+    // clearly non-neutral, the hue penalty is fixed-scale unit-hue separation.
     float hueBias = 0.0;
     if (labC >= NEUTRAL_CHROMA_EPSILON && C >= NEUTRAL_CHROMA_EPSILON) {
         float theta = clamp(dot(labHue, hue), -1.0, 1.0);
-        hueBias = 0.5 * (labC + C) * (1.0 - theta);
+        float hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, min(labC, C));
+        float hueSeparation = sqrt(max(0.0, 2.0 - 2.0 * theta));
+        hueBias = HUE_DISTANCE_SCALE * hueGate * hueSeparation;
     }
 
     return (

@@ -1,8 +1,9 @@
-import { MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON } from "../constants.js";
+import { CLEAR_HUE_CHROMA, HUE_DISTANCE_SCALE, MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON } from "../constants.js";
 import {
   byteRgbToHex,
   clamp,
   clamp01,
+  smoothstep,
   labDistanceComponents,
   labToHex,
   paletteHue,
@@ -83,16 +84,16 @@ export function cpuDistanceBreakdown(labLightness, labChroma, labHue, featureLig
   const dL = labLightness - featureLightness;
   const dC = labChroma - featureChroma;
 
-  // Hue is undefined for neutral / near-neutral colors. By contract callers
-  // pass already-normalized hue vectors, and this function does not inspect
-  // those vectors unless both chroma values are meaningful. That keeps neutral
-  // colors from inventing a fake hue and keeps the hot path free of duplicate
-  // hue normalization work.
+  // Hue is undefined for neutral / near-neutral colors. Chroma should act as
+  // a reliability gate, not a saturation amplifier: once both colors are
+  // clearly non-neutral, the hue penalty is fixed-scale unit-hue separation.
   const hueSuppressed = labChroma < NEUTRAL_CHROMA_EPSILON || featureChroma < NEUTRAL_CHROMA_EPSILON;
   let hueBias = 0;
   if (!hueSuppressed) {
     const theta = clamp(labHue[0] * featureHue[0] + labHue[1] * featureHue[1], -1, 1);
-    hueBias = 0.5 * (labChroma + featureChroma) * (1 - theta);
+    const hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, Math.min(labChroma, featureChroma));
+    const hueSeparation = Math.sqrt(Math.max(0, 2 - 2 * theta));
+    hueBias = HUE_DISTANCE_SCALE * hueGate * hueSeparation;
   }
 
   const luma = Math.max(0, Number(config.lumaWeight) || 0) * Math.abs(dL);
