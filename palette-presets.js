@@ -523,7 +523,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
-    // Large Lospec-style pixel art palette.
+    // Large Lospec community-curated pixel art palette.
     // Broad, flexible ramps for characters, terrain, UI, foliage, skies, metals, and candy highlights.
     lospec: {
         category: "Art + mood",
@@ -542,6 +542,15 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
+    // another grafxkid special, sharply muted but weirdly versatile
+    dusty11: {
+        colors: [
+            "#93476d", "#dd8b6f", "#f5db68", "#7cba40",
+            "#326599", "#69a7f4", "#9ddffd", "#f9f6eb",
+            "#a4b2b6", "#676c7e", "#2e2831"
+        ]
+    },
+    
     // 1-bit palette, slightly toned. e-reader energy.
     "1bit": {
         category: "Art + mood",
