@@ -262,6 +262,17 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
+    // the thought of an impossibly beautiful microworld sunset over water
+    sunsetKingdom: {
+        category: "Game worlds",
+        colors: [
+          "#080510", "#0e1e38", "#1a3a58", "#1e6878",
+          "#1a1035", "#3d1a68", "#6e3a8a", "#b078c0",
+          "#8a2050", "#c43060", "#c45c50", "#e05030",
+          "#e8875a", "#f0a830", "#f5d868", "#c45c28",
+        ]
+    },
+
     // DOS Midnight Commander-inspired palette.
     // Blue panels, cyan highlights, gray text, warning reds.
     dosMidnightCommander: {
