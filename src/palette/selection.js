@@ -33,9 +33,7 @@ export function meanLab(samples) {
   return [sum[0] / n, sum[1] / n, sum[2] / n];
 }
 
-// Preliminary generated-image appeal. These knobs are intentionally small,
-// independent candidate nudges now; the later tonal, spacing, range/novelty,
-// and hue-spread forces are the primary selection machinery.
+// constant-per-swatch factors, most often used as "nudges"
 export function candidateAppealBreakdown(lab, center, candidateAppealWeights = {chroma: 1, outlier: 0.7, midtone: 0.25}, chromaCap = OKLAB_CHROMA_REF, outlierCap = 80) {
   const [L, a, b] = lab;
   const C = Math.hypot(a, b);
