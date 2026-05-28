@@ -210,6 +210,9 @@ Visible in **Assignment: Dither**.
 | **Block sample: Representative** | Chooses a representative color for the block rather than a straight center sample or mean. Useful when the mean muddies distinct colors. |
 | **Despeckle** | Runs a 3×3 mode filter on the paletted output to remove isolated stray art-pixels. |
 | **Despeckle passes** | Number of despeckle passes, from 1 to 4. More passes are stronger and can eat intentional detail. |
+| **Dither protection** | Prevents despeckle and edge tighten from replacing pixels that look like intentional two-color dither. In Dither assignment mode it also uses the active dither pattern, scale, and angle as a phase hint; otherwise it falls back to small checker/stripe neighborhood evidence. |
+| **Edge tighten** | Runs one conservative post-palette pass after despeckle. It repairs weak one-pixel gaps and chipped corners when neighboring art-pixels form a clearer edge. |
+| **Tighten strength** | Edge-tighten strength, from 1 to 2. `1` only accepts strong opposite-pair evidence; `2` also accepts small corner-block repairs. |
 
 ## Cycle panel
 

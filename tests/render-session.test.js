@@ -82,6 +82,7 @@ function makeSession(overrides = {}) {
     buildProgram: () => "program",
     vertexSource: overrides.vertexSource ?? "",
     postProcessFragmentSource: overrides.postProcessFragmentSource ?? "",
+    edgeTightenFragmentSource: overrides.edgeTightenFragmentSource ?? "",
     viewCompositeFragmentSource: overrides.viewCompositeFragmentSource ?? "",
     updatePaletteRegionOverlay: () => calls.push("overlay"),
     updateDiagnostics: options => calls.push(["diagnostics", options]),
@@ -476,6 +477,36 @@ test("draw runs the post-process pipeline when enabled and overlay is off", () =
     Array.isArray(call) && call[0] === "render" && call[1].viewport && call[1].viewport.w === 180
   );
   assert.equal(directRender, undefined);
+});
+
+
+test("draw runs edge tighten without requiring the despeckle shader", () => {
+  const state = makeState({
+    diagnostics: {signature: "", pixel: null, overlay: {mode: "none"}},
+    gl: {canvas: {width: 10, height: 10}, NEAREST: "NEAREST", LINEAR: "LINEAR"}
+  });
+  const config = makeConfig({
+    despeckleEnabled: false,
+    edgeTightenEnabled: true,
+    edgeTightenStrength: 2,
+    pixelBlockSize: 3
+  });
+  const {session, calls} = makeSession({
+    state,
+    config,
+    vertexSource: "v",
+    edgeTightenFragmentSource: "edge",
+    viewCompositeFragmentSource: "comp"
+  });
+
+  session.draw();
+
+  const postPasses = calls.find(call => Array.isArray(call) && call[0] === "postPasses");
+  assert.ok(postPasses, "post-process passes should run");
+  assert.equal(postPasses[1].settings.despeckleEnabled, false);
+  assert.equal(postPasses[1].settings.edgeTightenEnabled, true);
+  assert.equal(postPasses[1].settings.edgeTightenStrength, 2);
+  assert.equal(postPasses[1].pixelBlockSize, 3);
 });
 
 test("draw keeps compare split on the direct palette path without despeckle", () => {

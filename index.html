@@ -391,6 +391,12 @@
           <label for="despeckleStrength">Despeckle passes <output id="despeckleStrengthValue"></output></label>
           <input id="despeckleStrength" type="range" min="1" max="4" step="1" />
         </div>
+        <label class="field checkbox-field" for="ditherProtectionEnabled" title="Keeps despeckle and edge tighten from eating intentional two-color dither texture. Uses the active dither pattern when available, with a small neighborhood fallback for pre-dithered texture."><span>Dither protection</span><input id="ditherProtectionEnabled" type="checkbox" /></label>
+        <label class="field checkbox-field" for="edgeTightenEnabled" title="Conservative source-resolution cleanup that repairs one-pixel edge gaps and chipped corners without sharpening."><span>Edge tighten</span><input id="edgeTightenEnabled" type="checkbox" /></label>
+        <div class="field">
+          <label for="edgeTightenStrength">Tighten strength <output id="edgeTightenStrengthValue"></output></label>
+          <input id="edgeTightenStrength" type="range" min="1" max="2" step="1" />
+        </div>
       </section>
 
       <section class="panel">

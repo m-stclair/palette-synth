@@ -34,6 +34,7 @@ export function createExportDomain({
     renderPaletteProgram: render.renderPaletteProgram,
     vertexSource: shaders.VERTEX_SHADER,
     postProcessFragmentSource: shaders.PALETTE_POST_FRAGMENT_SHADER,
+    edgeTightenFragmentSource: shaders.PALETTE_EDGE_TIGHTEN_FRAGMENT_SHADER,
     viewCompositeFragmentSource: shaders.VIEW_COMPOSITE_FRAGMENT_SHADER
   });
 

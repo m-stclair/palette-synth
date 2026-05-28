@@ -113,6 +113,9 @@ export const DEFAULT_CONFIG = {
   pixelBlockSampleMode: "center",
   despeckleEnabled: false,
   despeckleStrength: 1,
+  ditherProtectionEnabled: true,
+  edgeTightenEnabled: false,
+  edgeTightenStrength: 1,
   compareEnabled: false,
   compareSplit: 0.5
 };
@@ -435,6 +438,11 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.pixelBlockSampleMode = ["center", "mean", "representative"].includes(base.pixelBlockSampleMode) ? base.pixelBlockSampleMode : DEFAULT_CONFIG.pixelBlockSampleMode;
   base.despeckleEnabled = !!base.despeckleEnabled;
   base.despeckleStrength = clamp(Math.round(Number(base.despeckleStrength) || DEFAULT_CONFIG.despeckleStrength), 1, 4);
+  base.ditherProtectionEnabled = hasOwn(base, "ditherProtectionEnabled")
+    ? !!base.ditherProtectionEnabled
+    : DEFAULT_CONFIG.ditherProtectionEnabled;
+  base.edgeTightenEnabled = !!base.edgeTightenEnabled;
+  base.edgeTightenStrength = clamp(Math.round(Number(base.edgeTightenStrength) || DEFAULT_CONFIG.edgeTightenStrength), 1, 2);
   base.compareEnabled = !!base.compareEnabled;
   base.compareSplit = clamp01(Number.isFinite(Number(base.compareSplit)) ? Number(base.compareSplit) : DEFAULT_CONFIG.compareSplit);
   return base;

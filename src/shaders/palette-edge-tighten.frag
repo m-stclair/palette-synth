@@ -2,18 +2,16 @@
 precision highp float;
 precision highp int;
 
-// Source-resolution post-processor for the paletted image. The host invokes
-// this shader once per despeckle iteration.
-//
-// u_step is the kernel step in source-texture texels. When the palette pass
-// runs with pixelBlockSize > 1 the paletted texture has constant blocks, so
-// the host sets u_step = pixelBlockSize so each kernel sample lands in a
-// different art-pixel block.
+// Source-resolution edge cleanup for paletted pixel-art output. The pass is
+// intentionally conservative: it only replaces a weakly-supported centre pixel
+// when neighboring art pixels form a clearer opposite-pair seam or 2x2 corner
+// block. This is edge repair, not sharpening.
 
 uniform sampler2D u_image;
 uniform vec2 u_texelSize;
 uniform float u_step;
 uniform float u_tolerance;
+uniform int u_strength;
 uniform int u_ditherProtectionEnabled;
 uniform int u_ditherKnown;
 uniform int u_ditherPattern;
@@ -25,6 +23,10 @@ out vec4 outColor;
 bool colorsEqual(vec3 a, vec3 b, float tolerance) {
     vec3 d = a - b;
     return dot(d, d) <= tolerance * tolerance;
+}
+
+int same(vec3 a, vec3 b) {
+    return colorsEqual(a, b, u_tolerance) ? 1 : 0;
 }
 
 const int DITHER_ORDERED_2 = 0;
@@ -247,58 +249,83 @@ bool ditherProtectedSamples(vec3 samples[9], vec2 artCoord) {
     return checkerOrStripeEvidence || knownPatternEvidence;
 }
 
-const int minModeCount = 5;
-const int maxCentreCount = 1;
+int oppositePairs(vec3 x, vec3 n, vec3 w, vec3 e, vec3 s) {
+    int pairs = 0;
+    if (colorsEqual(x, w, u_tolerance) && colorsEqual(x, e, u_tolerance)) pairs += 1;
+    if (colorsEqual(x, n, u_tolerance) && colorsEqual(x, s, u_tolerance)) pairs += 1;
+    return pairs;
+}
 
+int cornerBlocks(vec3 x, vec3 nw, vec3 n, vec3 ne, vec3 w, vec3 e, vec3 sw, vec3 s, vec3 se) {
+    int blocks = 0;
+    if (colorsEqual(x, nw, u_tolerance) && colorsEqual(x, n, u_tolerance) && colorsEqual(x, w, u_tolerance)) blocks += 1;
+    if (colorsEqual(x, ne, u_tolerance) && colorsEqual(x, n, u_tolerance) && colorsEqual(x, e, u_tolerance)) blocks += 1;
+    if (colorsEqual(x, sw, u_tolerance) && colorsEqual(x, s, u_tolerance) && colorsEqual(x, w, u_tolerance)) blocks += 1;
+    if (colorsEqual(x, se, u_tolerance) && colorsEqual(x, s, u_tolerance) && colorsEqual(x, e, u_tolerance)) blocks += 1;
+    return blocks;
+}
 
-// 3x3 mode filter. For each fragment we sample the 9 neighbors (including
-// self), then for each neighbor count how many of the other neighbors match
-// it (within tolerance). The neighbor with the highest count wins. If two
-// neighbors tie, the centre pixel wins (preserving the original value
-// whenever the mode is ambiguous).
+int scoreCandidate(vec3 x, vec3 nw, vec3 n, vec3 ne, vec3 w, vec3 e, vec3 sw, vec3 s, vec3 se) {
+    int cardinal = same(x, n) + same(x, e) + same(x, s) + same(x, w);
+    int diagonal = same(x, nw) + same(x, ne) + same(x, sw) + same(x, se);
+    int pairs = oppositePairs(x, n, w, e, s);
+    int blocks = cornerBlocks(x, nw, n, ne, w, e, sw, s, se);
+    return cardinal * 2 + diagonal + pairs * 3 + blocks * 2;
+}
+
 void main() {
-    vec2 uv = (gl_FragCoord.xy) * u_texelSize;
+    vec2 uv = gl_FragCoord.xy * u_texelSize;
     vec2 off = u_texelSize * max(u_step, 1.0);
 
-    vec3 samples[9];
-    int idx = 0;
-    for (int j = -1; j <= 1; ++j) {
-        for (int i = -1; i <= 1; ++i) {
-            vec2 sampleUv = clamp(uv + vec2(float(i), float(j)) * off, vec2(0.0), vec2(1.0));
-            samples[idx] = texture(u_image, sampleUv).rgb;
-            idx++;
-        }
-    }
+    vec3 nw = texture(u_image, clamp(uv + vec2(-1.0, -1.0) * off, vec2(0.0), vec2(1.0))).rgb;
+    vec3 n  = texture(u_image, clamp(uv + vec2( 0.0, -1.0) * off, vec2(0.0), vec2(1.0))).rgb;
+    vec3 ne = texture(u_image, clamp(uv + vec2( 1.0, -1.0) * off, vec2(0.0), vec2(1.0))).rgb;
+    vec3 w  = texture(u_image, clamp(uv + vec2(-1.0,  0.0) * off, vec2(0.0), vec2(1.0))).rgb;
+    vec3 c  = texture(u_image, uv).rgb;
+    vec3 e  = texture(u_image, clamp(uv + vec2( 1.0,  0.0) * off, vec2(0.0), vec2(1.0))).rgb;
+    vec3 sw = texture(u_image, clamp(uv + vec2(-1.0,  1.0) * off, vec2(0.0), vec2(1.0))).rgb;
+    vec3 s  = texture(u_image, clamp(uv + vec2( 0.0,  1.0) * off, vec2(0.0), vec2(1.0))).rgb;
+    vec3 se = texture(u_image, clamp(uv + vec2( 1.0,  1.0) * off, vec2(0.0), vec2(1.0))).rgb;
 
-    int bestCount = 0;
-    vec3 bestColor = samples[4]; // centre by default
-    for (int k = 0; k < 9; ++k) {
-        int count = 0;
-        for (int m = 0; m < 9; ++m) {
-            if (colorsEqual(samples[k], samples[m], u_tolerance)) {
-                count++;
+    vec3 samples[9] = vec3[9](nw, n, ne, w, c, e, sw, s, se);
+
+    int centerCardinal = same(c, n) + same(c, e) + same(c, s) + same(c, w);
+    int centerAll = same(c, nw) + same(c, n) + same(c, ne)
+        + same(c, w) + same(c, e)
+        + same(c, sw) + same(c, s) + same(c, se);
+
+    bool centerProtected = centerCardinal >= 2 || centerAll >= 4 || ditherProtectedSamples(samples, ditherCoordForFrag());
+    vec3 result = c;
+
+    if (!centerProtected) {
+        vec3 candidates[8] = vec3[8](nw, n, ne, w, e, sw, s, se);
+        vec3 best = c;
+        int bestScore = 0;
+        int bestPairs = 0;
+        int bestBlocks = 0;
+
+        for (int i = 0; i < 8; ++i) {
+            vec3 x = candidates[i];
+            if (colorsEqual(x, c, u_tolerance)) continue;
+            int candidateScore = scoreCandidate(x, nw, n, ne, w, e, sw, s, se);
+            if (candidateScore > bestScore) {
+                bestScore = candidateScore;
+                bestPairs = oppositePairs(x, n, w, e, s);
+                bestBlocks = cornerBlocks(x, nw, n, ne, w, e, sw, s, se);
+                best = x;
             }
         }
-        // Prefer the centre pixel on ties so non-speckled areas are stable.
-        bool strictlyBetter = count > bestCount;
-        bool tieFavoringCentre = (count == bestCount) && (k == 4);
-        if (strictlyBetter || tieFavoringCentre) {
-            bestCount = count;
-            bestColor = samples[k];
+
+        bool hasOppositePairEvidence = bestPairs > 0;
+        bool hasCornerBlockEvidence = bestBlocks > 0;
+        bool strengthOneReplace = hasOppositePairEvidence && bestScore >= 7;
+        bool strengthTwoReplace = (hasOppositePairEvidence || hasCornerBlockEvidence) && bestScore >= 7;
+        bool shouldReplace = (u_strength <= 1) ? strengthOneReplace : strengthTwoReplace;
+
+        if (shouldReplace) {
+            result = best;
         }
     }
 
-    int centreCount = 0;
-    for (int m = 0; m < 9; ++m) {
-        if (colorsEqual(samples[4], samples[m], u_tolerance)) centreCount++;
-    }
-
-    bool centreIsIsolated = centreCount <= maxCentreCount;
-    bool replacementIsDominant = bestCount >= minModeCount;
-    bool centreIsDitherProtected = ditherProtectedSamples(samples, ditherCoordForFrag());
-
-    vec3 result = (centreIsIsolated && replacementIsDominant && !centreIsDitherProtected)
-        ? bestColor
-        : samples[4];
     outColor = vec4(result, 1.0);
 }

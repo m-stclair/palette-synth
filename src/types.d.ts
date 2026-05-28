@@ -170,6 +170,9 @@ export interface AppConfig {
   pixelBlockSampleMode: LooseString<"center" | "average" | "dominant">;
   despeckleEnabled: boolean;
   despeckleStrength: number;
+  ditherProtectionEnabled: boolean;
+  edgeTightenEnabled: boolean;
+  edgeTightenStrength: number;
   compareEnabled: boolean;
   compareSplit: number;
 }
@@ -260,6 +263,13 @@ export interface RenderSettings {
 export interface PostProcessSettings {
   despeckleEnabled: boolean;
   despeckleStrength: number;
+  edgeTightenEnabled: boolean;
+  edgeTightenStrength: number;
+  ditherProtectionEnabled: boolean;
+  ditherKnown: boolean;
+  ditherPattern: number;
+  ditherScale: number;
+  ditherAngle: number;
 }
 
 /**
@@ -911,6 +921,7 @@ export interface ShaderSources {
   CLARITY_FRAGMENT_SHADER: string;
   BLOCK_SAMPLE_FRAGMENT_SHADER: string;
   PALETTE_POST_FRAGMENT_SHADER: string;
+  PALETTE_EDGE_TIGHTEN_FRAGMENT_SHADER: string;
   VIEW_COMPOSITE_FRAGMENT_SHADER: string;
 }
 

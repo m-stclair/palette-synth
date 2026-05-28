@@ -155,7 +155,7 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 | `src/gl/levels-renderer.js` | Runs the source-levels pass. |
 | `src/gl/palette-renderer.js` | Uploads uniforms and runs the palette remapping pass. |
 | `src/gl/offscreen-palette-target.js` | Source-sized framebuffer and texture used as the palette pass target when post-process is active. |
-| `src/gl/post-process-renderer.js` | Manages ping-pong textures and runs the despeckle iterations. |
+| `src/gl/post-process-renderer.js` | Manages ping-pong textures, normalizes post-process settings, and runs the post-palette despeckle and edge-tighten passes with dither-protection uniforms. |
 | `src/gl/view-composite-renderer.js` | Final viewport pass used for post-processing and compare. |
 
 ### `src/shaders/`
@@ -171,7 +171,8 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 | `src/shaders/clarity.frag` | Final clarity pass: blends clarity-adjusted OKLab lightness back into the source image. |
 | `src/shaders/block-sample.frag` | Block sampling pass for center, mean, and representative source sampling modes. |
 | `src/shaders/palette.frag` | Main palette remapping shader: matching, output modes, dithering, cycle regions, and palette strip display. |
-| `src/shaders/palette-post.frag` | Post-palette despeckle pass using a 3×3 mode filter. |
+| `src/shaders/palette-post.frag` | Post-palette despeckle pass using a 3×3 mode filter plus dither-pattern vetoes. |
+| `src/shaders/palette-edge-tighten.frag` | Conservative post-palette edge cleanup pass for one-pixel gaps and chipped corners, guarded against intentional dither texture. |
 | `src/shaders/view-composite.frag` | Final viewport blit for post-processing and compare; applies view transform and compare split. |
 
 ### `src/diagnostics/`

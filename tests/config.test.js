@@ -263,13 +263,19 @@ test("config sanitization falls back when preset lookup rejects a preset", () =>
   assert.equal(clean.presetName, DEFAULT_CONFIG.presetName);
 });
 
-test("config sanitization clamps post-process despeckle values", () => {
+test("config sanitization clamps post-process values", () => {
   const clean = sanitizeConfigSnapshot({
     despeckleEnabled: "yes",
-    despeckleStrength: 99
+    despeckleStrength: 99,
+    ditherProtectionEnabled: false,
+    edgeTightenEnabled: "yes",
+    edgeTightenStrength: 99
   });
   assert.equal(clean.despeckleEnabled, true);
   assert.equal(clean.despeckleStrength, 4);
+  assert.equal(clean.ditherProtectionEnabled, false);
+  assert.equal(clean.edgeTightenEnabled, true);
+  assert.equal(clean.edgeTightenStrength, 2);
 });
 
 test("removed outline config keys are ignored during sanitization", () => {
@@ -288,4 +294,7 @@ test("removed outline config keys are ignored during sanitization", () => {
 test("post-process defaults are off and well-defined", () => {
   assert.equal(DEFAULT_CONFIG.despeckleEnabled, false);
   assert.equal(DEFAULT_CONFIG.despeckleStrength, 1);
+  assert.equal(DEFAULT_CONFIG.ditherProtectionEnabled, true);
+  assert.equal(DEFAULT_CONFIG.edgeTightenEnabled, false);
+  assert.equal(DEFAULT_CONFIG.edgeTightenStrength, 1);
 });

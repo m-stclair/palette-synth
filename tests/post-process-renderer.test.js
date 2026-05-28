@@ -16,6 +16,12 @@ test("postProcessActive treats despeckle with zero strength as inactive", () => 
   assert.equal(postProcessActive({despeckleEnabled: true, despeckleStrength: 1}), true);
 });
 
+test("postProcessActive treats edge tighten as an independent post-process", () => {
+  assert.equal(postProcessActive({edgeTightenEnabled: false, edgeTightenStrength: 2}), false);
+  assert.equal(postProcessActive({edgeTightenEnabled: true, edgeTightenStrength: 0}), false);
+  assert.equal(postProcessActive({edgeTightenEnabled: true, edgeTightenStrength: 1}), true);
+});
+
 test("postProcessActive is false while a diagnostic overlay is active", () => {
   const active = {despeckleEnabled: true, despeckleStrength: 2};
   assert.equal(postProcessActive(active, {mode: "none"}), true);
@@ -23,21 +29,52 @@ test("postProcessActive is false while a diagnostic overlay is active", () => {
   assert.equal(postProcessActive(active, {mode: "swatch"}), false);
 });
 
-test("postProcessSettingsFromConfig clamps and normalizes despeckle values", () => {
+test("postProcessSettingsFromConfig clamps and normalizes post-process values", () => {
   const settings = postProcessSettingsFromConfig({
     despeckleEnabled: 1,
-    despeckleStrength: 99
+    despeckleStrength: 99,
+    edgeTightenEnabled: 1,
+    edgeTightenStrength: 99,
+    ditherProtectionEnabled: true,
+    assignMode: "dither",
+    ditherPattern: "ordered8",
+    ditherScale: 99,
+    ditherAngle: -999
   });
   assert.equal(settings.despeckleEnabled, true);
   assert.equal(settings.despeckleStrength, 4);
+  assert.equal(settings.edgeTightenEnabled, true);
+  assert.equal(settings.edgeTightenStrength, 2);
+  assert.equal(settings.ditherProtectionEnabled, true);
+  assert.equal(settings.ditherKnown, true);
+  assert.equal(settings.ditherPattern, 2);
+  assert.equal(settings.ditherScale, 12);
+  assert.equal(settings.ditherAngle, -180);
 });
 
 test("postProcessSettingsFromConfig uses safe defaults for missing keys", () => {
   const settings = postProcessSettingsFromConfig({});
   assert.equal(settings.despeckleEnabled, false);
   assert.equal(settings.despeckleStrength, 0);
+  assert.equal(settings.edgeTightenEnabled, false);
+  assert.equal(settings.edgeTightenStrength, 0);
+  assert.equal(settings.ditherProtectionEnabled, true);
+  assert.equal(settings.ditherKnown, false);
+  assert.equal(settings.ditherPattern, 1);
+  assert.equal(settings.ditherScale, 1);
+  assert.equal(settings.ditherAngle, 0);
 });
 
+
+test("postProcessSettingsFromConfig can disable the dither protection veto", () => {
+  const settings = postProcessSettingsFromConfig({
+    ditherProtectionEnabled: false,
+    assignMode: "dither",
+    ditherPattern: "hash"
+  });
+  assert.equal(settings.ditherProtectionEnabled, false);
+  assert.equal(settings.ditherKnown, false);
+});
 
 test("renderPostProcessPasses reallocates ping-pong textures when cache is dirty", () => {
   const calls = [];

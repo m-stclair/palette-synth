@@ -89,6 +89,7 @@ export function createRenderSession({
   vertexSource = "",
   blockSampleFragmentSource = "",
   postProcessFragmentSource = "",
+  edgeTightenFragmentSource = "",
   viewCompositeFragmentSource = "",
   updatePaletteRegionOverlay,
   updateMaskOverlay = () => {},
@@ -339,6 +340,7 @@ export function createRenderSession({
           textureB: {texture: null, width: 0, height: 0},
           framebuffer: null,
           despeckleProgram: {program: null},
+          edgeTightenProgram: {program: null},
           dirty: true
         },
         composite: {program: null, programKey: ""}
@@ -348,7 +350,10 @@ export function createRenderSession({
   }
 
   function drawWithCompositePass(gl, program, {canvas, viewRect, runPostProcess}) {
-    if (!viewCompositeFragmentSource || !vertexSource || (runPostProcess && !postProcessFragmentSource)) {
+    const postSettings = postProcessSettingsFromConfig(config);
+    const needsDespeckleShader = runPostProcess && postSettings.despeckleStrength > 0;
+    const needsEdgeTightenShader = runPostProcess && postSettings.edgeTightenStrength > 0;
+    if (!viewCompositeFragmentSource || !vertexSource || (needsDespeckleShader && !postProcessFragmentSource) || (needsEdgeTightenShader && !edgeTightenFragmentSource)) {
       throw new Error("Composite shader source is missing.");
     }
     const caches = ensurePostProcessCaches();
@@ -375,14 +380,14 @@ export function createRenderSession({
     // Step 2: optionally despeckle at source resolution.
     let processedTexture = target.texture;
     if (runPostProcess) {
-      const settings = postProcessSettingsFromConfig(config);
       processedTexture = renderPostProcessPassesFn(gl, caches.pipeline, {
         inputTexture: target.texture,
         width: target.width,
         height: target.height,
         vertexSource,
         fragmentSource: postProcessFragmentSource,
-        settings,
+        edgeTightenFragmentSource,
+        settings: postSettings,
         pixelBlockSize: Math.max(1, Math.round(Number(config.pixelBlockSize) || 1))
       });
     }

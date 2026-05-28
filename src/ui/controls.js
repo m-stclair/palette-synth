@@ -113,6 +113,9 @@ export const SIMPLE_CONTROL_KEYS = [
   "pixelBlockSampleMode",
   "despeckleEnabled",
   "despeckleStrength",
+  "ditherProtectionEnabled",
+  "edgeTightenEnabled",
+  "edgeTightenStrength",
   "dynamicSkin"
 ];
 

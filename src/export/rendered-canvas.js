@@ -62,6 +62,7 @@ export function createRenderedCanvasController({
   renderPaletteProgram,
   vertexSource = "",
   postProcessFragmentSource = "",
+  edgeTightenFragmentSource = "",
   viewCompositeFragmentSource = "",
   createWebgl2ContextFn = createWebgl2Context,
   createTextureFn = createTexture,
@@ -133,11 +134,15 @@ export function createRenderedCanvasController({
     const resolvedCycleOffset = manualCycleEnabled ? 0 : normalizedCycleOffset(cycleOffset, safeRecords);
 
     const exportPostProcess = postProcessActive(config, {mode: "none"});
+    const exportPostSettings = postProcessSettingsFromConfig(config);
+    const needsDespeckleShader = exportPostProcess && exportPostSettings.despeckleStrength > 0;
+    const needsEdgeTightenShader = exportPostProcess && exportPostSettings.edgeTightenStrength > 0;
     const exportCompareSplit = Number.isFinite(Number(compareSplit)) && Number(compareSplit) >= 0;
     const exportComposite = (exportPostProcess || exportCompareSplit)
       && viewCompositeFragmentSource
       && vertexSource
-      && (!exportPostProcess || postProcessFragmentSource);
+      && (!needsDespeckleShader || postProcessFragmentSource)
+      && (!needsEdgeTightenShader || edgeTightenFragmentSource);
 
     let offscreenCache = null;
     let postProcessCache = null;
@@ -151,7 +156,8 @@ export function createRenderedCanvasController({
           textureA: {texture: null, width: 0, height: 0},
           textureB: {texture: null, width: 0, height: 0},
           framebuffer: null,
-          despeckleProgram: {program: null}
+          despeckleProgram: {program: null},
+          edgeTightenProgram: {program: null}
         };
         viewCompositeCache = {program: null, programKey: ""};
 
@@ -187,14 +193,14 @@ export function createRenderedCanvasController({
         // Pass 2: optional despeckle at source resolution.
         let processedTexture = target.texture;
         if (exportPostProcess) {
-          const settings = postProcessSettingsFromConfig(config);
           processedTexture = renderPostProcessPassesFn(gl, postProcessCache, {
             inputTexture: target.texture,
             width: target.width,
             height: target.height,
             vertexSource,
             fragmentSource: postProcessFragmentSource,
-            settings,
+            edgeTightenFragmentSource,
+            settings: exportPostSettings,
             pixelBlockSize: Math.max(1, Math.round(Number(config.pixelBlockSize) || 1))
           });
         }
