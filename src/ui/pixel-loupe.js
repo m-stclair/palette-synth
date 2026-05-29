@@ -9,6 +9,114 @@ const DEFAULT_PATCH_SIZE = 15;
 const EXPANDED_PATCH_SIZE = 31;
 const DEFAULT_CANVAS_SIZE = 112;
 const EXPANDED_CANVAS_SIZE = 186;
+const LOUPE_OUTPUT_SAMPLE_CACHE_LIMIT = 8192;
+
+const loupeObjectIds = new WeakMap();
+let nextLoupeObjectId = 1;
+
+function loupeObjectId(value) {
+  if (!value || (typeof value !== "object" && typeof value !== "function")) return "";
+  let id = loupeObjectIds.get(value);
+  if (!id) {
+    id = nextLoupeObjectId++;
+    loupeObjectIds.set(value, id);
+  }
+  return id;
+}
+
+function signatureNumber(value, digits = 4) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(digits) : "";
+}
+
+function signatureBool(value) {
+  return value ? "1" : "0";
+}
+
+function loupePaletteSignature(state = {}) {
+  const records = Array.isArray(state.paletteRecords) ? state.paletteRecords : [];
+  return records.map(record => [
+    record?.id ?? "",
+    record?.hex ?? "",
+    Array.isArray(record?.lab) ? record.lab.map(value => signatureNumber(value, 3)).join(",") : "",
+    record?.locked ? 1 : 0,
+    record?.variant ?? "",
+    record?.displayIndex ?? "",
+    record?.swatchId ?? ""
+  ].join(":")).join("|");
+}
+
+function loupeOutputConfigSignature(config = {}) {
+  return [
+    config.paletteMode ?? "",
+    config.assignMode ?? "",
+    config.outputMode ?? "",
+    signatureBool(config.neutralIsCategory),
+    signatureBool(config.monotoneBlendDither),
+    signatureNumber(config.lumaWeight),
+    signatureNumber(config.chromaWeight),
+    signatureNumber(config.hueWeight),
+    signatureNumber(config.blendK, 3),
+    signatureNumber(config.softness),
+    signatureNumber(config.blendAmount),
+    signatureBool(config.maxDistanceEnabled),
+    signatureNumber(config.maxDistance),
+    signatureNumber(config.shadowCutoff),
+    signatureNumber(config.highlightCutoff),
+    signatureNumber(config.ditherLumaAmount),
+    signatureNumber(config.ditherScale),
+    signatureNumber(config.ditherAngle),
+    Math.max(1, Math.round(Number(config.pixelBlockSize) || 1)),
+    config.pixelBlockSampleMode ?? "center"
+  ].join("~");
+}
+
+function loupeOutputSampleCacheKey({imageData, state = {}, config = {}} = {}) {
+  return [
+    "loupe-output-samples-v1",
+    loupeObjectId(imageData),
+    imageData?.width || 0,
+    imageData?.height || 0,
+    imageData?.version ?? "",
+    state.originalSourceVersion ?? "",
+    state.previewSourceVersion ?? "",
+    state.textureVersion ?? "",
+    state.paletteVersion ?? "",
+    state.paletteDirty ? "dirty" : "clean",
+    loupePaletteSignature(state),
+    loupeOutputConfigSignature(config)
+  ].join("~");
+}
+
+function rememberLoupeSample(cache, key, value) {
+  if (cache.has(key)) cache.delete(key);
+  else if (cache.size >= LOUPE_OUTPUT_SAMPLE_CACHE_LIMIT) {
+    const firstKey = cache.keys().next().value;
+    cache.delete(firstKey);
+  }
+  cache.set(key, value);
+  return value;
+}
+
+function fallbackLoupeOutputSampleCacheKey(imageData, samplePixel) {
+  return [
+    "loupe-output-samples-adhoc",
+    loupeObjectId(imageData),
+    imageData?.width || 0,
+    imageData?.height || 0,
+    imageData?.version ?? "",
+    loupeObjectId(samplePixel)
+  ].join("~");
+}
+
+function getLoupeOutputSampleCache(signature, imageData, samplePixel) {
+  const safeSignature = String(signature || fallbackLoupeOutputSampleCacheKey(imageData, samplePixel));
+  const existing = drawLoupeCanvas.outputSampleCache;
+  if (existing?.signature === safeSignature) return existing.samples;
+  const next = {signature: safeSignature, samples: new Map()};
+  drawLoupeCanvas.outputSampleCache = next;
+  return next.samples;
+}
 
 function patchSizeForExpanded(expanded) {
   return expanded ? EXPANDED_PATCH_SIZE : DEFAULT_PATCH_SIZE;
@@ -196,7 +304,7 @@ function drawActiveArtPixelFrame(ctx, {
   ctx.strokeRect(Math.round(left) + 1.5, Math.round(top) + 1.5, Math.max(1, width - 2), Math.max(1, height - 2));
 }
 
-function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", samplePixel = null, patchSize = DEFAULT_PATCH_SIZE, pixelBlockSize = 1} = {}) {
+function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", samplePixel = null, sampleCacheKey = "", patchSize = DEFAULT_PATCH_SIZE, pixelBlockSize = 1} = {}) {
   if (!canvas?.getContext) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -221,7 +329,7 @@ function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", sampleP
   const patchOriginY = centerY - patchRadius;
   const blockSize = Math.max(1, Math.round(Number(pixelBlockSize) || 1));
   const needsOutputSample = ["final", "diff"].includes(viewMode) && typeof samplePixel === "function";
-  const sampleCache = needsOutputSample ? new Map() : null;
+  const sampleCache = needsOutputSample ? getLoupeOutputSampleCache(sampleCacheKey, imageData, samplePixel) : null;
   for (let yy = 0; yy < patchSize; yy++) {
     const sourceY = clamp(centerY + yy - patchRadius, 0, imageData.height - 1);
     for (let xx = 0; xx < patchSize; xx++) {
@@ -235,11 +343,12 @@ function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", sampleP
       ];
       let rgb = null;
       if (sampleCache) {
-        const key = sourceOffset;
-        if (sampleCache.has(key)) rgb = sampleCache.get(key);
-        else {
-          rgb = rgbFromPatchSample(samplePixel(sourceX, sourceY));
-          sampleCache.set(key, rgb);
+        const key = sourceOffset >> 2;
+        if (sampleCache.has(key)) {
+          rgb = sampleCache.get(key);
+          rememberLoupeSample(sampleCache, key, rgb);
+        } else {
+          rgb = rememberLoupeSample(sampleCache, key, rgbFromPatchSample(samplePixel(sourceX, sourceY)));
         }
       }
       if (viewMode === "diff") {
@@ -303,7 +412,7 @@ function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", sampleP
   ctx.strokeRect(Math.round(centerLeft) + 1.5, Math.round(centerTop) + 1.5, Math.max(1, Math.round(cell) - 3), Math.max(1, Math.round(cell) - 3));
 }
 
-function renderLoupe({els, state, config, samplePixel = null}, pixel) {
+function renderLoupe({els, state, config, samplePixel = null, sampleCacheKey = ""}, pixel) {
   if (!pixel) {
     setText(els.pixelLoupeCoord, "x —, y —");
     setText(els.pixelLoupeSource, "—");
@@ -348,6 +457,7 @@ function renderLoupe({els, state, config, samplePixel = null}, pixel) {
   drawLoupeCanvas(els.pixelLoupeCanvas, state.imageData, pixel, {
     viewMode,
     samplePixel,
+    sampleCacheKey,
     patchSize: patchSizeForExpanded(expanded),
     pixelBlockSize: config?.pixelBlockSize
   });
@@ -414,8 +524,10 @@ export function bindPixelLoupe({
   }
 
   function renderCurrent(pixel = state.diagnostics?.pixelLoupe || null) {
-    const samplePixel = pixel && ["final", "diff"].includes(loupeCanvasMode()) ? createOutputSamplerForPatch() : null;
-    renderLoupe({els, state, config, samplePixel}, pixel);
+    const needsOutputSample = pixel && ["final", "diff"].includes(loupeCanvasMode());
+    const samplePixel = needsOutputSample ? createOutputSamplerForPatch() : null;
+    const sampleCacheKey = samplePixel ? loupeOutputSampleCacheKey({imageData: state.imageData, state, config}) : "";
+    renderLoupe({els, state, config, samplePixel, sampleCacheKey}, pixel);
   }
 
   function syncLoupeModeUi({render = true} = {}) {

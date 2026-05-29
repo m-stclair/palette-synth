@@ -152,6 +152,7 @@ function bindTestLoupe(overrides = {}) {
     diagnostics: {pixelLoupeOpen: true},
     imageData: {width: 4, height: 4, data: new Uint8ClampedArray(4 * 4 * 4).fill(255)}
   };
+  const config = {blendAmount: 1, manualPalette: [], ...configOverrides};
   const statuses = [];
   const inspected = [];
   const analyzed = [];
@@ -177,7 +178,7 @@ function bindTestLoupe(overrides = {}) {
       pixelLoupeFxSwatch: makeEventTarget()
     },
     state,
-    config: {blendAmount: 1, manualPalette: [], ...configOverrides},
+    config,
     inspectLoupePixel: (clientX, clientY) => {
       inspected.push([clientX, clientY]);
       const pixel = {
@@ -202,7 +203,7 @@ function bindTestLoupe(overrides = {}) {
     setStatus: value => statuses.push(value),
     ...bindingOverrides
   });
-  return {oldDocument, doc, pane, canvas, pixelLoupeCanvas, pin, view, addSource, diff, expand, deltaRow, delta, coord, state, statuses, inspected, analyzed, added, binding};
+  return {oldDocument, doc, pane, canvas, pixelLoupeCanvas, pin, view, addSource, diff, expand, deltaRow, delta, coord, state, config, statuses, inspected, analyzed, added, binding};
 }
 
 function cleanup(oldDocument) {
@@ -308,6 +309,38 @@ test("pixel loupe final patch prepares one sampler for the canvas render", () =>
     cleanup(t.oldDocument);
   }
 });
+
+test("pixel loupe final patch reuses cached output samples across overlapping drags", () => {
+  let sampleCalls = 0;
+  const t = bindTestLoupe({
+    createLoupePatchSampler: () => (x, y) => {
+      sampleCalls += 1;
+      return {r: x % 256, g: y % 256, b: (x + y) % 256};
+    }
+  });
+  try {
+    t.state.imageData = {width: 64, height: 64, data: new Uint8ClampedArray(64 * 64 * 4).fill(255)};
+    t.view.dispatch("click", {});
+
+    t.canvas.dispatch("pointermove", {clientX: 10, clientY: 10});
+    assert.equal(sampleCalls, 15 * 15);
+
+    t.canvas.dispatch("pointermove", {clientX: 11, clientY: 10});
+    assert.equal(sampleCalls, 15 * 15 + 15);
+
+    t.state.paletteVersion = 1;
+    t.canvas.dispatch("pointermove", {clientX: 11, clientY: 10});
+    assert.equal(sampleCalls, 15 * 15 + 15 + 15 * 15);
+
+    t.config.blendAmount = 0.5;
+    t.canvas.dispatch("pointermove", {clientX: 11, clientY: 10});
+    assert.equal(sampleCalls, 15 * 15 + 15 + 15 * 15 + 15 * 15);
+  } finally {
+    t.binding.destroy();
+    cleanup(t.oldDocument);
+  }
+});
+
 
 test("pixel loupe add button adds the source color from the current loupe sample", () => {
   const t = bindTestLoupe();
