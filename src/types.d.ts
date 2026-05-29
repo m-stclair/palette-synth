@@ -643,6 +643,8 @@ export interface DiagnosticsState {
   pixelLoupePinMode?: boolean;
   pixelLoupePinned?: boolean;
   pixelLoupeView?: LooseString<"source" | "final">;
+  pixelLoupeDiff?: boolean; // True when the loupe patch renders source-to-final difference heatmap mode.
+  pixelLoupeExpanded?: boolean; // True when the loupe patch uses the expanded 31×31 pixel neighborhood.
   overlay: {
     mode: string;
     swatchIndex: number | null;

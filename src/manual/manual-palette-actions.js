@@ -543,8 +543,8 @@ export function createManualPaletteActions({
         });
     }
 
-    function addPixelSourceToManualPalette() {
-        const pixel = state.diagnostics?.pixel;
+    function addPixelSourceToManualPalette(pixelOverride = null, {sourceLabel = "inspected pixel"} = {}) {
+        const pixel = normalizeHexColor(pixelOverride?.sourceHex, "") ? pixelOverride : state.diagnostics?.pixel;
         const sourceHex = normalizeHexColor(pixel?.sourceHex, "");
         if (!sourceHex) {
             setStatus("Inspect a pixel first.");
@@ -573,7 +573,7 @@ export function createManualPaletteActions({
             markPaletteDirty();
             updateConditionalPanels();
             queueRender();
-            setStatus(`Added ${sourceHex} from the inspected pixel to the manual palette.`);
+            setStatus(`Added ${sourceHex} from the ${sourceLabel} to the manual palette.`);
         });
     }
 

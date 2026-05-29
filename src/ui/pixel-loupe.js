@@ -1,12 +1,28 @@
 import { hexToByteRgb, hexToLab, labToOklch, normalizeHexColor } from "../color-utils.js";
-import { NEUTRAL_CHROMA_EPSILON, TAU } from "../constants.js";
+import { MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON, TAU } from "../constants.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-const PATCH_RADIUS = 7;
-const PATCH_SIZE = PATCH_RADIUS * 2 + 1;
+const DEFAULT_PATCH_SIZE = 15;
+const EXPANDED_PATCH_SIZE = 31;
+const DEFAULT_CANVAS_SIZE = 112;
+const EXPANDED_CANVAS_SIZE = 186;
+const RGB_UNIT_DISTANCE = Math.sqrt(3) * 255;
+
+function patchSizeForExpanded(expanded) {
+  return expanded ? EXPANDED_PATCH_SIZE : DEFAULT_PATCH_SIZE;
+}
+
+function normalizePatchSize(patchSize) {
+  return patchSize === EXPANDED_PATCH_SIZE ? EXPANDED_PATCH_SIZE : DEFAULT_PATCH_SIZE;
+}
+
+function canvasSizeForExpanded(expanded) {
+  return expanded ? EXPANDED_CANVAS_SIZE : DEFAULT_CANVAS_SIZE;
+}
+
 
 function requestFrame(callback) {
   const raf = globalThis.window?.requestAnimationFrame || globalThis.requestAnimationFrame;
@@ -24,6 +40,9 @@ function setText(el, value) {
   if (el) el.textContent = value;
 }
 
+function setHidden(el, hidden) {
+  if (el) el.hidden = !!hidden;
+}
 
 function formatLoupeLch(hex) {
   const safeHex = normalizeHexColor(hex, "");
@@ -31,6 +50,40 @@ function formatLoupeLch(hex) {
   const [L, C, h] = labToOklch(hexToLab(safeHex));
   const degrees = C < NEUTRAL_CHROMA_EPSILON ? 0 : h * 360 / TAU;
   return `${L.toFixed(1)} / ${C.toFixed(1)} / ${degrees.toFixed(0)}°`;
+}
+
+function formatDistance(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  if (n >= 100) return n.toFixed(0);
+  if (n >= 10) return n.toFixed(1);
+  return n.toFixed(2);
+}
+
+function normalizeDeltaParts(parts) {
+  if (!parts) return null;
+  const luma = Number(parts.luma ?? parts.deltaL ?? parts.dL);
+  const chroma = Number(parts.chroma ?? parts.deltaC ?? parts.dC);
+  const hue = Number(parts.hue ?? parts.deltaH ?? parts.dH);
+  if (![luma, chroma, hue].every(Number.isFinite)) return null;
+  return {luma, chroma, hue, hueSuppressed: !!(parts.hueSuppressed ?? parts.raw?.hueSuppressed)};
+}
+
+function formatHueDistance(parts) {
+  return parts?.hueSuppressed ? "~" : formatDistance(parts?.hue);
+}
+
+function deltaFromLoupePixel(pixel, {blendActive = false} = {}) {
+  const stored = blendActive
+    ? (pixel?.blendDelta || pixel?.finalDelta || pixel?.outputDelta)
+    : (pixel?.fxDelta || pixel?.outputDelta || pixel?.finalDelta || pixel?.blendDelta);
+  return normalizeDeltaParts(stored);
+}
+
+function formatLoupeDelta(pixel, {blendActive = false} = {}) {
+  const delta = deltaFromLoupePixel(pixel, {blendActive});
+  if (!delta) return "ΔL — · ΔC — · ΔH —";
+  return `ΔL ${formatDistance(delta.luma)} · ΔC ${formatDistance(delta.chroma)} · ΔH ${formatHueDistance(delta)}`;
 }
 
 function setSwatch(el, hex) {
@@ -51,38 +104,129 @@ function rgbFromPatchSample(sample) {
   return safeHex ? hexToByteRgb(safeHex) : null;
 }
 
-function makeScratchCanvas(canvas) {
+function makeScratchCanvas(canvas, patchSize = DEFAULT_PATCH_SIZE) {
   const doc = canvas?.ownerDocument || globalThis.document;
   const scratch = doc?.createElement?.("canvas");
   if (!scratch) return null;
-  scratch.width = PATCH_SIZE;
-  scratch.height = PATCH_SIZE;
+  scratch.width = patchSize;
+  scratch.height = patchSize;
   return scratch;
 }
 
-function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", samplePixel = null} = {}) {
+function differenceByteForRgb(sourceRgb, finalRgb) {
+  if (!sourceRgb || !finalRgb) return 0;
+  const dr = Number(finalRgb[0]) - Number(sourceRgb[0]);
+  const dg = Number(finalRgb[1]) - Number(sourceRgb[1]);
+  const db = Number(finalRgb[2]) - Number(sourceRgb[2]);
+  const amount = clamp(Math.hypot(dr, dg, db) / RGB_UNIT_DISTANCE, 0, 1);
+  return Math.round(amount * 255);
+}
+
+function positiveModulo(value, modulus) {
+  if (!(modulus > 0)) return 0;
+  const remainder = value % modulus;
+  return remainder < 0 ? remainder + modulus : remainder;
+}
+
+function drawBlockBoundaryGrid(ctx, {
+  canvasWidth,
+  canvasHeight,
+  cell,
+  patchSize,
+  patchOriginX,
+  patchOriginY,
+  blockSize
+}) {
+  if (!(blockSize > 1)) return;
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(255,255,255,.34)";
+  ctx.beginPath();
+  for (let i = 0; i <= patchSize; i++) {
+    if (positiveModulo(patchOriginX + i, blockSize) === 0) {
+      const pos = Math.round(i * cell) + 0.5;
+      ctx.moveTo(pos, 0);
+      ctx.lineTo(pos, canvasHeight);
+    }
+    if (positiveModulo(patchOriginY + i, blockSize) === 0) {
+      const pos = Math.round(i * cell) + 0.5;
+      ctx.moveTo(0, pos);
+      ctx.lineTo(canvasWidth, pos);
+    }
+  }
+  ctx.stroke();
+}
+
+function drawActiveArtPixelFrame(ctx, {
+  cell,
+  patchSize,
+  patchOriginX,
+  patchOriginY,
+  centerX,
+  centerY,
+  imageWidth,
+  imageHeight,
+  blockSize
+}) {
+  if (!(blockSize > 1)) return;
+  const blockOriginX = Math.floor(centerX / blockSize) * blockSize;
+  const blockOriginY = Math.floor(centerY / blockSize) * blockSize;
+  const blockEndX = Math.min(blockOriginX + blockSize, imageWidth);
+  const blockEndY = Math.min(blockOriginY + blockSize, imageHeight);
+  const leftIndex = clamp(blockOriginX - patchOriginX, 0, patchSize);
+  const topIndex = clamp(blockOriginY - patchOriginY, 0, patchSize);
+  const rightIndex = clamp(blockEndX - patchOriginX, 0, patchSize);
+  const bottomIndex = clamp(blockEndY - patchOriginY, 0, patchSize);
+  if (!(rightIndex > leftIndex) || !(bottomIndex > topIndex)) return;
+
+  const left = leftIndex * cell;
+  const top = topIndex * cell;
+  const width = Math.max(1, Math.round((rightIndex - leftIndex) * cell) - 1);
+  const height = Math.max(1, Math.round((bottomIndex - topIndex) * cell) - 1);
+  ctx.strokeStyle = "rgba(255,255,255,.96)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(Math.round(left) + 0.5, Math.round(top) + 0.5, width, height);
+  ctx.strokeStyle = "rgba(0,0,0,.82)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(Math.round(left) + 1.5, Math.round(top) + 1.5, Math.max(1, width - 2), Math.max(1, height - 2));
+}
+
+function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", samplePixel = null, patchSize = DEFAULT_PATCH_SIZE, pixelBlockSize = 1} = {}) {
   if (!canvas?.getContext) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!imageData?.data || !pixel) return;
 
-  const scratch = drawLoupeCanvas.scratch && drawLoupeCanvas.scratch.ownerDocument === canvas.ownerDocument
+  patchSize = normalizePatchSize(patchSize);
+  const patchRadius = Math.floor(patchSize / 2);
+  const scratch = drawLoupeCanvas.scratch
+    && drawLoupeCanvas.scratch.ownerDocument === canvas.ownerDocument
+    && drawLoupeCanvas.scratch.width === patchSize
+    && drawLoupeCanvas.scratch.height === patchSize
     ? drawLoupeCanvas.scratch
-    : (drawLoupeCanvas.scratch = makeScratchCanvas(canvas));
+    : (drawLoupeCanvas.scratch = makeScratchCanvas(canvas, patchSize));
   const scratchCtx = scratch?.getContext?.("2d");
   if (!scratchCtx) return;
 
-  const patch = scratchCtx.createImageData(PATCH_SIZE, PATCH_SIZE);
+  const patch = scratchCtx.createImageData(patchSize, patchSize);
   const centerX = clamp(Math.floor(pixel.x), 0, imageData.width - 1);
   const centerY = clamp(Math.floor(pixel.y), 0, imageData.height - 1);
-  const sampleCache = viewMode === "final" && typeof samplePixel === "function" ? new Map() : null;
-  for (let yy = 0; yy < PATCH_SIZE; yy++) {
-    const sourceY = clamp(centerY + yy - PATCH_RADIUS, 0, imageData.height - 1);
-    for (let xx = 0; xx < PATCH_SIZE; xx++) {
-      const sourceX = clamp(centerX + xx - PATCH_RADIUS, 0, imageData.width - 1);
+  const patchOriginX = centerX - patchRadius;
+  const patchOriginY = centerY - patchRadius;
+  const blockSize = Math.max(1, Math.round(Number(pixelBlockSize) || 1));
+  const needsOutputSample = ["final", "diff"].includes(viewMode) && typeof samplePixel === "function";
+  const sampleCache = needsOutputSample ? new Map() : null;
+  for (let yy = 0; yy < patchSize; yy++) {
+    const sourceY = clamp(centerY + yy - patchRadius, 0, imageData.height - 1);
+    for (let xx = 0; xx < patchSize; xx++) {
+      const sourceX = clamp(centerX + xx - patchRadius, 0, imageData.width - 1);
       const sourceOffset = (sourceY * imageData.width + sourceX) * 4;
-      const targetOffset = (yy * PATCH_SIZE + xx) * 4;
+      const targetOffset = (yy * patchSize + xx) * 4;
+      const sourceRgb = [
+        imageData.data[sourceOffset],
+        imageData.data[sourceOffset + 1],
+        imageData.data[sourceOffset + 2]
+      ];
       let rgb = null;
       if (sampleCache) {
         const key = sourceOffset;
@@ -92,10 +236,18 @@ function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", sampleP
           sampleCache.set(key, rgb);
         }
       }
-      patch.data[targetOffset] = rgb ? rgb[0] : imageData.data[sourceOffset];
-      patch.data[targetOffset + 1] = rgb ? rgb[1] : imageData.data[sourceOffset + 1];
-      patch.data[targetOffset + 2] = rgb ? rgb[2] : imageData.data[sourceOffset + 2];
-      patch.data[targetOffset + 3] = imageData.data[sourceOffset + 3];
+      if (viewMode === "diff") {
+        const diff = differenceByteForRgb(sourceRgb, rgb || sourceRgb);
+        patch.data[targetOffset] = diff;
+        patch.data[targetOffset + 1] = diff;
+        patch.data[targetOffset + 2] = diff;
+        patch.data[targetOffset + 3] = 255;
+      } else {
+        patch.data[targetOffset] = rgb ? rgb[0] : sourceRgb[0];
+        patch.data[targetOffset + 1] = rgb ? rgb[1] : sourceRgb[1];
+        patch.data[targetOffset + 2] = rgb ? rgb[2] : sourceRgb[2];
+        patch.data[targetOffset + 3] = imageData.data[sourceOffset + 3];
+      }
     }
   }
 
@@ -103,11 +255,11 @@ function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", sampleP
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(scratch, 0, 0, canvas.width, canvas.height);
 
-  const cell = canvas.width / PATCH_SIZE;
+  const cell = canvas.width / patchSize;
   ctx.lineWidth = 1;
   ctx.strokeStyle = "rgba(255,255,255,.16)";
   ctx.beginPath();
-  for (let i = 1; i < PATCH_SIZE; i++) {
+  for (let i = 1; i < patchSize; i++) {
     const pos = Math.round(i * cell) + 0.5;
     ctx.moveTo(pos, 0);
     ctx.lineTo(pos, canvas.height);
@@ -115,10 +267,31 @@ function drawLoupeCanvas(canvas, imageData, pixel, {viewMode = "source", sampleP
     ctx.lineTo(canvas.width, pos);
   }
   ctx.stroke();
+  drawBlockBoundaryGrid(ctx, {
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    cell,
+    patchSize,
+    patchOriginX,
+    patchOriginY,
+    blockSize
+  });
+  drawActiveArtPixelFrame(ctx, {
+    cell,
+    patchSize,
+    patchOriginX,
+    patchOriginY,
+    centerX,
+    centerY,
+    imageWidth: imageData.width,
+    imageHeight: imageData.height,
+    blockSize
+  });
 
-  const centerLeft = PATCH_RADIUS * cell;
-  const centerTop = PATCH_RADIUS * cell;
+  const centerLeft = patchRadius * cell;
+  const centerTop = patchRadius * cell;
   ctx.strokeStyle = "rgba(255,255,255,.96)";
+  ctx.lineWidth = 1;
   ctx.strokeRect(Math.round(centerLeft) + 0.5, Math.round(centerTop) + 0.5, Math.max(1, Math.round(cell) - 1), Math.max(1, Math.round(cell) - 1));
   ctx.strokeStyle = "rgba(0,0,0,.82)";
   ctx.strokeRect(Math.round(centerLeft) + 1.5, Math.round(centerTop) + 1.5, Math.max(1, Math.round(cell) - 3), Math.max(1, Math.round(cell) - 3));
@@ -131,6 +304,8 @@ function renderLoupe({els, state, config, samplePixel = null}, pixel) {
     setText(els.pixelLoupeFx, "—");
     setText(els.pixelLoupeSourceLch, "— / — / —°");
     setText(els.pixelLoupeFxLch, "— / — / —°");
+    setText(els.pixelLoupeDelta, "ΔL — · ΔC — · ΔH —");
+    setHidden(els.pixelLoupeDeltaRow, false);
     setSwatch(els.pixelLoupeSourceSwatch, null);
     setSwatch(els.pixelLoupeFxSwatch, null);
     drawLoupeCanvas(els.pixelLoupeCanvas, null, null);
@@ -138,7 +313,8 @@ function renderLoupe({els, state, config, samplePixel = null}, pixel) {
   }
 
   const diagnostic = state.diagnostics || {};
-  const viewMode = diagnostic.pixelLoupeView === "final" ? "final" : "source";
+  const expanded = !!diagnostic.pixelLoupeExpanded;
+  const viewMode = diagnostic.pixelLoupeDiff ? "diff" : (diagnostic.pixelLoupeView === "final" ? "final" : "source");
   const lockSuffix = diagnostic.pixelLoupeFrozen
     ? " · frozen"
     : (diagnostic.pixelLoupePinMode && diagnostic.pixelLoupePinned)
@@ -147,7 +323,8 @@ function renderLoupe({els, state, config, samplePixel = null}, pixel) {
         ? " · click to pin"
         : "";
   const blendAmount = Number(config?.blendAmount);
-  const fxHex = Math.abs((Number.isFinite(blendAmount) ? blendAmount : 1) - 1) > 1e-6
+  const blendActive = Math.abs((Number.isFinite(blendAmount) ? blendAmount : 1) - 1) > 1e-6;
+  const fxHex = blendActive
     ? pixel.finalHex
     : (pixel.fxHex || pixel.finalHex);
   setText(els.pixelLoupeCoord, `x ${pixel.x}, y ${pixel.y}${lockSuffix}`);
@@ -155,9 +332,19 @@ function renderLoupe({els, state, config, samplePixel = null}, pixel) {
   setText(els.pixelLoupeFx, fxHex || "—");
   setText(els.pixelLoupeSourceLch, formatLoupeLch(pixel.sourceHex));
   setText(els.pixelLoupeFxLch, formatLoupeLch(fxHex));
+  setText(els.pixelLoupeDelta, formatLoupeDelta(pixel, {blendActive}));
+  setHidden(els.pixelLoupeDeltaRow, false);
+  if (els.pixelLoupeDelta) {
+    els.pixelLoupeDelta.title = blendActive ? "Blended output delta from source" : "Mapped fx delta from source";
+  }
   setSwatch(els.pixelLoupeSourceSwatch, pixel.sourceHex);
   setSwatch(els.pixelLoupeFxSwatch, fxHex);
-  drawLoupeCanvas(els.pixelLoupeCanvas, state.imageData, pixel, {viewMode, samplePixel});
+  drawLoupeCanvas(els.pixelLoupeCanvas, state.imageData, pixel, {
+    viewMode,
+    samplePixel,
+    patchSize: patchSizeForExpanded(expanded),
+    pixelBlockSize: config?.pixelBlockSize
+  });
 }
 
 export function bindPixelLoupe({
@@ -170,6 +357,7 @@ export function bindPixelLoupe({
   analyzeLoupeImagePixel = () => null,
   createLoupePatchSampler = null,
   clearLoupePixel = () => {},
+  addPixelSourceToManualPalette = () => {},
   setStatus = () => {}
 } = {}) {
   const pane = els.pixelLoupePane;
@@ -182,6 +370,9 @@ export function bindPixelLoupe({
   const close = els.closePixelLoupe;
   const pin = els.pixelLoupePin;
   const view = els.pixelLoupeView;
+  const addSource = els.pixelLoupeAdd;
+  const diff = els.pixelLoupeDiff;
+  const expand = els.pixelLoupeExpand;
   const canvas = els.canvas;
   const doc = pane.ownerDocument || globalThis.document;
   const listeners = [];
@@ -196,13 +387,19 @@ export function bindPixelLoupe({
   const diagnostics = () => state.diagnostics || (state.diagnostics = {});
   const isOpen = () => !!state.diagnostics?.pixelLoupeOpen;
   const loupeViewMode = () => diagnostics().pixelLoupeView === "final" ? "final" : "source";
+  const diffModeEnabled = () => !!diagnostics().pixelLoupeDiff;
+  const expandedModeEnabled = () => !!diagnostics().pixelLoupeExpanded;
   const isFrozen = () => !!diagnostics().pixelLoupeFrozen;
   const isPinMode = () => !!diagnostics().pixelLoupePinMode;
   const isPinned = () => !!diagnostics().pixelLoupePinned;
   const trackingLocked = () => isFrozen() || (isPinMode() && isPinned());
 
-  function createSamplePixelForPatch() {
-    if (loupeViewMode() !== "final") return null;
+  function loupeCanvasMode() {
+    return diffModeEnabled() ? "diff" : loupeViewMode();
+  }
+
+  function createOutputSamplerForPatch() {
+    if (!["final", "diff"].includes(loupeCanvasMode())) return null;
     if (typeof createLoupePatchSampler === "function") {
       const sampler = createLoupePatchSampler();
       if (typeof sampler === "function") return sampler;
@@ -211,7 +408,7 @@ export function bindPixelLoupe({
   }
 
   function renderCurrent(pixel = state.diagnostics?.pixelLoupe || null) {
-    const samplePixel = pixel && loupeViewMode() === "final" ? createSamplePixelForPatch() : null;
+    const samplePixel = pixel && ["final", "diff"].includes(loupeCanvasMode()) ? createOutputSamplerForPatch() : null;
     renderLoupe({els, state, config, samplePixel}, pixel);
   }
 
@@ -221,6 +418,8 @@ export function bindPixelLoupe({
     pane.classList.toggle("is-frozen", isFrozen());
     pane.classList.toggle("is-pin-mode", isPinMode());
     pane.classList.toggle("is-pinned", isPinMode() && isPinned());
+    pane.classList.toggle("is-diff", diffModeEnabled());
+    pane.classList.toggle("is-expanded", expandedModeEnabled());
     pin?.classList?.toggle?.("is-active", isPinMode());
     pin?.setAttribute?.("aria-pressed", String(isPinMode()));
     if (pin) {
@@ -236,13 +435,45 @@ export function bindPixelLoupe({
       view.title = viewMode === "final" ? "Loupe patch: final blended output" : "Loupe patch: source image";
       view.setAttribute?.("aria-label", `Loupe patch view: ${viewMode === "final" ? "final blended output" : "source image"}`);
     }
-    els.pixelLoupeCanvas?.setAttribute?.("aria-label", viewMode === "final" ? "Magnified final blended pixels" : "Magnified source pixels");
+    const pixel = diagnostic.pixelLoupe;
+    const manualCount = Array.isArray(config?.manualPalette) ? config.manualPalette.length : 0;
+    const manualFull = manualCount >= MAX_PALETTE_SIZE;
+    if (addSource) {
+      addSource.disabled = !pixel || manualFull;
+      addSource.title = !pixel
+        ? "Sample a loupe pixel first"
+        : (manualFull ? "Manual palette is already full" : `Add ${pixel.sourceHex || "source color"} to the manual palette`);
+    }
+    diff?.classList?.toggle?.("is-active", diffModeEnabled());
+    diff?.setAttribute?.("aria-pressed", String(diffModeEnabled()));
+    if (diff) {
+      diff.title = diffModeEnabled() ? "Hide loupe difference heatmap" : "Show loupe difference heatmap";
+      diff.setAttribute?.("aria-label", diffModeEnabled() ? "Hide loupe difference heatmap" : "Show loupe difference heatmap");
+    }
+    if (expand) {
+      const expanded = expandedModeEnabled();
+      expand.textContent = expanded ? "▢" : "⛶";
+      expand.title = expanded ? "Restore loupe to 15×15" : "Expand loupe to 31×31";
+      expand.setAttribute?.("aria-label", expanded ? "Restore loupe to 15 by 15 pixels" : "Expand loupe to 31 by 31 pixels");
+      expand.setAttribute?.("aria-pressed", String(expanded));
+    }
+    const canvasSize = canvasSizeForExpanded(expandedModeEnabled());
+    if (els.pixelLoupeCanvas && (els.pixelLoupeCanvas.width !== canvasSize || els.pixelLoupeCanvas.height !== canvasSize)) {
+      els.pixelLoupeCanvas.width = canvasSize;
+      els.pixelLoupeCanvas.height = canvasSize;
+    }
+    setHidden(els.pixelLoupeDeltaRow, false);
+    const canvasMode = loupeCanvasMode();
+    els.pixelLoupeCanvas?.setAttribute?.("aria-label", canvasMode === "diff"
+      ? "Magnified source-to-final difference heatmap"
+      : (canvasMode === "final" ? "Magnified final blended pixels" : "Magnified source pixels"));
     if (render && diagnostic.pixelLoupe) renderCurrent(diagnostic.pixelLoupe);
   }
 
   function sampleAtClientPoint(clientX, clientY) {
     const pixel = inspectLoupePixel(clientX, clientY);
     renderCurrent(pixel);
+    syncLoupeModeUi({render: false});
     return pixel;
   }
 
@@ -299,6 +530,30 @@ export function bindPixelLoupe({
     setStatus(loupeViewMode() === "final" ? "Loupe showing final blended output." : "Loupe showing source image.");
   }
 
+  function toggleDiffMode() {
+    const diagnostic = diagnostics();
+    diagnostic.pixelLoupeDiff = !diagnostic.pixelLoupeDiff;
+    syncLoupeModeUi();
+    setStatus(diagnostic.pixelLoupeDiff ? "Loupe showing source-to-final difference heatmap." : `Loupe difference heatmap off. Showing ${loupeViewMode() === "final" ? "final blended output" : "source image"}.`);
+  }
+
+  function toggleExpandedMode() {
+    const diagnostic = diagnostics();
+    diagnostic.pixelLoupeExpanded = !diagnostic.pixelLoupeExpanded;
+    syncLoupeModeUi();
+    setStatus(diagnostic.pixelLoupeExpanded ? "Loupe expanded to 31×31 pixels." : "Loupe restored to 15×15 pixels.");
+  }
+
+  function addLoupeSourceToManualPalette() {
+    const pixel = diagnostics().pixelLoupe;
+    if (!pixel) {
+      setStatus("Sample a loupe pixel first.");
+      return;
+    }
+    addPixelSourceToManualPalette(pixel, {sourceLabel: "loupe sample"});
+    syncLoupeModeUi();
+  }
+
   function targetConsumesSpace(event) {
     if (event?.ctrlKey || event?.metaKey || event?.altKey) return true;
     const target = event?.target;
@@ -325,13 +580,14 @@ export function bindPixelLoupe({
   });
   add(pin, "click", togglePinMode);
   add(view, "click", toggleViewMode);
+  add(addSource, "click", addLoupeSourceToManualPalette);
+  add(diff, "click", toggleDiffMode);
+  add(expand, "click", toggleExpandedMode);
   add(doc, "keydown", handleKeydown);
   add(canvas, "pointermove", scheduleSample);
   add(canvas, "click", event => {
     if (!isOpen() || !isPinMode()) return;
     event.preventDefault?.();
-    event.stopImmediatePropagation?.();
-    event.stopPropagation?.();
     const diagnostic = diagnostics();
     diagnostic.pixelLoupePinned = true;
     diagnostic.pixelLoupeFrozen = false;
@@ -384,6 +640,10 @@ export function bindPixelLoupe({
   renderCurrent(state.diagnostics?.pixelLoupe || null);
 
   return {
+    render(pixel = state.diagnostics?.pixelLoupe || null) {
+      syncLoupeModeUi({render: false});
+      renderCurrent(pixel);
+    },
     destroy() {
       if (sampleFrame !== null) cancelFrame(sampleFrame);
       sampleFrame = null;

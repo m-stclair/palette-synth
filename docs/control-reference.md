@@ -296,6 +296,10 @@ Animation export renders repeated frames while advancing cycle offset. It is mai
 | **Copy source** | Copies the inspected source pixel color. Enabled after a pixel is selected. |
 | **Copy fx** | Copies the inspected final/effect pixel color. Enabled after a pixel is selected. |
 | **Add source** | Adds the inspected source pixel to the manual palette. Enabled after a pixel is selected. |
+| **Loupe: Expand/Restore** | Expands the floating loupe patch from 15×15 to 31×31 pixels, then restores it back to 15×15. |
+| **Loupe: Src/Final** | Switches the floating loupe patch between source pixels and final blended output pixels. |
+| **Loupe: +** | Adds the current loupe sample's source color to the manual palette. This always uses the source color, regardless of the Src/Final patch view. |
+| **Loupe: Δ** | Toggles the loupe patch into a source-to-final difference heatmap. The numeric source-to-fx delta readout stays visible. |
 | **Diagnostics overlay: Off** | Clears the diagnostic overlay. |
 | **Diagnostics overlay: Difference heatmap** | Shows a heatmap of how far processed output moved from the source. Contribution swatches can also enable per-swatch overlays. |
 

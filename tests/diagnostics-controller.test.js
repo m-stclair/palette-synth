@@ -480,3 +480,62 @@ test("diagnostics controller loupe patch sampler reuses palette uniform entries"
 
   assert.equal(uniformBuilds, 1);
 });
+
+
+test("diagnostics controller rerenders saved loupe pixels during diagnostics refresh", () => {
+  const rendered = [];
+  const state = {
+    imageData: {width: 1, height: 1, data: new Uint8ClampedArray([32, 64, 96, 255])},
+    paletteRecords: [{}],
+    paletteDirty: false,
+    diagnostics: {
+      pixelLoupeOpen: true,
+      pixelLoupeFrozen: true,
+      pixelLoupeProbe: {x: 0, y: 0}
+    }
+  };
+  const controller = createDiagnosticsController({
+    els: {},
+    state,
+    config: {blendAmount: 1},
+    ensurePalette: () => {},
+    renderPaletteLabs: () => [[0, 0, 0]],
+    paletteUniformEntries: () => [{renderLab: [0, 0, 0], featureLab: [0, 0, 0], sourceRecord: state.paletteRecords[0]}],
+    topPaletteMatches: (_lab, entries) => [{...entries[0], displayIndex: 0}],
+    assignmentWeights: () => [1],
+    renderPixelLoupe: pixel => rendered.push(pixel)
+  });
+
+  controller.updateDiagnostics({immediate: true});
+
+  assert.equal(rendered.length, 1);
+  assert.equal(rendered[0], state.diagnostics.pixelLoupe);
+  assert.equal(rendered[0].sourceHex, "#204060");
+  assert.deepEqual(state.diagnostics.pixelLoupeProbe, {x: 0, y: 0});
+  assert.equal(state.diagnostics.pixelLoupeFrozen, true);
+});
+
+test("diagnostics controller can attach a loupe renderer after creation", () => {
+  const rendered = [];
+  const state = {
+    imageData: {width: 1, height: 1, data: new Uint8ClampedArray([0, 0, 0, 255])},
+    paletteRecords: [{}],
+    diagnostics: {pixelLoupeOpen: true, pixelLoupeProbe: {x: 0, y: 0}}
+  };
+  const controller = createDiagnosticsController({
+    els: {},
+    state,
+    config: {blendAmount: 1},
+    ensurePalette: () => {},
+    renderPaletteLabs: () => [[0, 0, 0]],
+    paletteUniformEntries: () => [{renderLab: [0, 0, 0], featureLab: [0, 0, 0], sourceRecord: state.paletteRecords[0]}],
+    topPaletteMatches: (_lab, entries) => [{...entries[0], displayIndex: 0}],
+    assignmentWeights: () => [1]
+  });
+
+  controller.setPixelLoupeRenderer(pixel => rendered.push(pixel));
+  controller.updateDiagnostics({immediate: true});
+
+  assert.equal(rendered.length, 2);
+  assert.equal(rendered.at(-1), state.diagnostics.pixelLoupe);
+});

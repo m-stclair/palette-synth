@@ -140,6 +140,7 @@ The diagnostics panels explain why the current palette behaves the way it does:
 - palette collision warnings
 - OKLCh hue/lightness X-Ray
 - click-to-inspect pixel readouts for source, matched palette colors, weighted assignments, and output color
+- a floating loupe with 15×15/31×31 patch sizing, source/final patch view, source-color add, numeric source-to-fx delta readout, and a source-to-final difference heatmap toggle
 
 ## Export options
 

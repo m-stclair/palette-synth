@@ -577,14 +577,19 @@
   <section id="pixelLoupePane" class="pixel-loupe-pane" hidden aria-labelledby="pixelLoupeTitle">
     <div id="pixelLoupeHandle" class="pixel-loupe-titlebar">
       <h2 id="pixelLoupeTitle">Loupe</h2>
-      <button id="closePixelLoupe" type="button" class="ghost mini-control" aria-label="Close loupe" title="Close loupe">×</button>
+      <div class="pixel-loupe-title-actions">
+        <button id="pixelLoupeExpand" type="button" class="ghost mini-control" aria-pressed="false" aria-label="Expand loupe to 31 by 31 pixels" title="Expand loupe to 31×31">⛶</button>
+        <button id="closePixelLoupe" type="button" class="ghost mini-control" aria-label="Close loupe" title="Close loupe">×</button>
+      </div>
     </div>
     <div class="pixel-loupe-body">
       <div class="pixel-loupe-stage">
         <canvas id="pixelLoupeCanvas" class="pixel-loupe-canvas" width="112" height="112" aria-label="Magnified source pixels"></canvas>
         <div class="pixel-loupe-rail" aria-label="Loupe controls">
-          <button id="pixelLoupePin" type="button" class="ghost mini-control" aria-pressed="false" aria-label="Turn on loupe pin mode" title="Pin loupe sample by clicking the preview">⌖</button>
+          <button id="pixelLoupePin" type="button" class="ghost mini-control" aria-pressed="false" aria-label="Turn on loupe pin mode" title="Pin loupe sample by clicking the preview">⚑</button>
           <button id="pixelLoupeView" type="button" class="ghost mini-control" aria-pressed="false" aria-label="Loupe patch view: source image" title="Loupe patch: source image">Src</button>
+          <button id="pixelLoupeAdd" type="button" class="ghost mini-control" aria-label="Add source color to manual palette" title="Add source color to manual palette">+</button>
+          <button id="pixelLoupeDiff" type="button" class="ghost mini-control" aria-pressed="false" aria-label="Show loupe difference heatmap" title="Show loupe difference heatmap">Δ</button>
         </div>
       </div>
       <div class="pixel-loupe-readout" aria-live="polite">
@@ -600,6 +605,11 @@
           <span id="pixelLoupeFxSwatch" class="pixel-loupe-swatch"></span>
           <code id="pixelLoupeFx">—</code>
           <code id="pixelLoupeFxLch" class="pixel-loupe-lch" title="L / C / h">— / — / —°</code>
+        </div>
+        <div id="pixelLoupeDeltaRow" class="pixel-loupe-row pixel-loupe-diff-row">
+          <span class="pixel-loupe-label">Δ</span>
+          <span class="pixel-loupe-diff-mark" aria-hidden="true">↯</span>
+          <code id="pixelLoupeDelta" class="pixel-loupe-delta" title="Source-to-fx delta">ΔL — · ΔC — · ΔH —</code>
         </div>
       </div>
     </div>

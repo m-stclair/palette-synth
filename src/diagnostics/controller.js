@@ -45,6 +45,7 @@ export function createDiagnosticsController({
   renderHistogramPanel = () => {},
   renderDiagnosticsSelection = () => {},
   updateDiagnosticsPixel = () => {},
+  renderPixelLoupe = () => {},
   clientPointToImagePixel,
   getDisplayViewRect = () => null,
   getViewSpan = () => [1, 1],
@@ -179,6 +180,14 @@ export function createDiagnosticsController({
     els.canvas?.classList?.toggle?.("is-louping", open);
   }
 
+  function notifyPixelLoupeRender(pixel = diagnosticsState().pixelLoupe || null) {
+    renderPixelLoupe?.(pixel);
+  }
+
+  function setPixelLoupeRenderer(renderer) {
+    renderPixelLoupe = typeof renderer === "function" ? renderer : () => {};
+    notifyPixelLoupeRender();
+  }
 
   function pixelClientPoint(x, y) {
     if (!state.imageData) return null;
@@ -354,6 +363,7 @@ export function createDiagnosticsController({
     const diagnostic = diagnosticsState();
     if (!diagnostic.pixelLoupeProbe || !ensureImageData()) return null;
     diagnostic.pixelLoupe = analyzeDiagnosticPixel(diagnostic.pixelLoupeProbe.x, diagnostic.pixelLoupeProbe.y);
+    notifyPixelLoupeRender(diagnostic.pixelLoupe);
     return diagnostic.pixelLoupe;
   }
 
@@ -361,6 +371,7 @@ export function createDiagnosticsController({
     const diagnostic = diagnosticsState();
     diagnostic.pixelLoupeProbe = null;
     diagnostic.pixelLoupe = null;
+    notifyPixelLoupeRender(null);
   }
 
   function setPixelLoupeOpen(open, {announce = false} = {}) {
@@ -575,6 +586,7 @@ export function createDiagnosticsController({
     togglePixelInspector,
     setPixelLoupeOpen,
     togglePixelLoupe,
+    setPixelLoupeRenderer,
     refreshDiagnosticPixel,
     inspectDiagnosticPixel,
     inspectLoupePixel,

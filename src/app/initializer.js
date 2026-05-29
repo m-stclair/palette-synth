@@ -94,6 +94,7 @@ function initializerDepsFromGrouped(deps) {
     togglePixelInspector: diagnosticsController.togglePixelInspector,
     setPixelLoupeOpen: diagnosticsController.setPixelLoupeOpen,
     togglePixelLoupe: diagnosticsController.togglePixelLoupe,
+    setPixelLoupeRenderer: diagnosticsController.setPixelLoupeRenderer,
     refreshDiagnosticPixel: diagnosticsController.refreshDiagnosticPixel,
     clearDiagnosticPixel: diagnosticsController.clearDiagnosticPixel,
     inspectDiagnosticPixel: diagnosticsController.inspectDiagnosticPixel,
@@ -208,6 +209,7 @@ export function createAppInitializer(deps = {}) {
     togglePixelInspector,
     setPixelLoupeOpen,
     togglePixelLoupe,
+    setPixelLoupeRenderer,
     refreshDiagnosticPixel,
     clearDiagnosticPixel,
     inspectDiagnosticPixel,
@@ -339,7 +341,7 @@ export function createAppInitializer(deps = {}) {
       setStatus
     });
 
-    bindPixelLoupe({
+    const pixelLoupeBinding = bindPixelLoupe({
       els,
       state,
       config,
@@ -349,8 +351,10 @@ export function createAppInitializer(deps = {}) {
       analyzeLoupeImagePixel,
       createLoupePatchSampler,
       clearLoupePixel,
+      addPixelSourceToManualPalette,
       setStatus
     });
+    setPixelLoupeRenderer?.(pixel => pixelLoupeBinding?.render?.(pixel));
 
     bindCanvasInteractions({
       canvas: els.canvas,

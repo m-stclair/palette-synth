@@ -38,22 +38,27 @@ function makeEventTarget(overrides = {}) {
 }
 
 function makeCanvas(document) {
+  const ctx = {
+    clearRect() {},
+    createImageData(width, height) { return {width, height, data: new Uint8ClampedArray(width * height * 4)}; },
+    putImageData(imageData) { document?.drawnPatches?.push(imageData); },
+    drawImage() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    stroke() {},
+    strokeStyle: "",
+    lineWidth: 1,
+    strokeRect(x, y, width, height) {
+      document?.strokeRects?.push({x, y, width, height, strokeStyle: this.strokeStyle, lineWidth: this.lineWidth});
+    }
+  };
   return makeEventTarget({
     width: 112,
     height: 112,
     ownerDocument: document,
     getContext() {
-      return {
-        clearRect() {},
-        createImageData(width, height) { return {width, height, data: new Uint8ClampedArray(width * height * 4)}; },
-        putImageData() {},
-        drawImage() {},
-        beginPath() {},
-        moveTo() {},
-        lineTo() {},
-        stroke() {},
-        strokeRect() {}
-      };
+      return ctx;
     }
   });
 }
@@ -64,6 +69,8 @@ function makeDocument() {
   });
   const doc = makeEventTarget({
     body,
+    drawnPatches: [],
+    strokeRects: [],
     createElement(tagName) {
       if (tagName === "canvas") return makeCanvas(doc);
       return makeEventTarget({ownerDocument: doc});
@@ -101,6 +108,7 @@ function clickEvent(x = 1, y = 1) {
 }
 
 function bindTestLoupe(overrides = {}) {
+  const {config: configOverrides = {}, ...bindingOverrides} = overrides;
   const oldDocument = globalThis.document;
   const doc = makeDocument();
   globalThis.document = doc;
@@ -109,6 +117,11 @@ function bindTestLoupe(overrides = {}) {
   const pixelLoupeCanvas = makeCanvas(doc);
   const pin = makeEventTarget({ownerDocument: doc});
   const view = makeEventTarget({ownerDocument: doc, textContent: ""});
+  const addSource = makeEventTarget({ownerDocument: doc, disabled: false});
+  const diff = makeEventTarget({ownerDocument: doc});
+  const expand = makeEventTarget({ownerDocument: doc, textContent: ""});
+  const deltaRow = makeEventTarget({ownerDocument: doc, hidden: false});
+  const delta = makeEventTarget({textContent: ""});
   const coord = makeEventTarget({textContent: ""});
   const source = makeEventTarget({textContent: ""});
   const fx = makeEventTarget({textContent: ""});
@@ -119,6 +132,7 @@ function bindTestLoupe(overrides = {}) {
   const statuses = [];
   const inspected = [];
   const analyzed = [];
+  const added = [];
   const binding = bindPixelLoupe({
     els: {
       pixelLoupePane: pane,
@@ -126,19 +140,33 @@ function bindTestLoupe(overrides = {}) {
       pixelLoupeCanvas,
       pixelLoupePin: pin,
       pixelLoupeView: view,
+      pixelLoupeAdd: addSource,
+      pixelLoupeDiff: diff,
+      pixelLoupeExpand: expand,
       pixelLoupeCoord: coord,
       pixelLoupeSource: source,
       pixelLoupeFx: fx,
       pixelLoupeSourceLch: makeEventTarget({textContent: ""}),
       pixelLoupeFxLch: makeEventTarget({textContent: ""}),
+      pixelLoupeDeltaRow: deltaRow,
+      pixelLoupeDelta: delta,
       pixelLoupeSourceSwatch: makeEventTarget(),
       pixelLoupeFxSwatch: makeEventTarget()
     },
     state,
-    config: {blendAmount: 1},
+    config: {blendAmount: 1, manualPalette: [], ...configOverrides},
     inspectLoupePixel: (clientX, clientY) => {
       inspected.push([clientX, clientY]);
-      const pixel = {x: clientX, y: clientY, sourceHex: "#111111", fxHex: "#222222", finalHex: "#333333"};
+      const pixel = {
+        x: clientX,
+        y: clientY,
+        sourceHex: "#111111",
+        sourceLab: [20, 1, 2],
+        fxHex: "#222222",
+        finalHex: "#333333",
+        fxDelta: {luma: 1.234, chroma: 12.34, hue: 123.45},
+        blendDelta: {luma: 2.345, chroma: 23.45, hue: 98.76}
+      };
       state.diagnostics.pixelLoupe = pixel;
       return pixel;
     },
@@ -147,10 +175,11 @@ function bindTestLoupe(overrides = {}) {
       return {x, y, sourceHex: "#111111", fxHex: "#222222", finalHex: "#333333"};
     },
     clearLoupePixel: () => { state.diagnostics.pixelLoupe = null; },
+    addPixelSourceToManualPalette: (pixel, options) => added.push([pixel, options]),
     setStatus: value => statuses.push(value),
-    ...overrides
+    ...bindingOverrides
   });
-  return {oldDocument, doc, pane, canvas, pin, view, coord, state, statuses, inspected, analyzed, binding};
+  return {oldDocument, doc, pane, canvas, pixelLoupeCanvas, pin, view, addSource, diff, expand, deltaRow, delta, coord, state, statuses, inspected, analyzed, added, binding};
 }
 
 function cleanup(oldDocument) {
@@ -191,7 +220,8 @@ test("pixel loupe pin mode changes the sample by clicking", () => {
 
     const firstClick = clickEvent(2, 1);
     t.canvas.dispatch("click", firstClick);
-    assert.equal(firstClick.immediateStopped, true);
+    assert.equal(firstClick.immediateStopped, false);
+    assert.equal(firstClick.propagationStopped, false);
     assert.equal(t.state.diagnostics.pixelLoupePinned, true);
     assert.deepEqual(t.inspected, [[2, 1]]);
 
@@ -250,6 +280,134 @@ test("pixel loupe final patch prepares one sampler for the canvas render", () =>
     assert.equal(samplerFactories, 1);
     assert.equal(sampleCalls, 16);
     assert.deepEqual(t.analyzed, []);
+  } finally {
+    t.binding.destroy();
+    cleanup(t.oldDocument);
+  }
+});
+
+test("pixel loupe add button adds the source color from the current loupe sample", () => {
+  const t = bindTestLoupe();
+  try {
+    assert.equal(t.addSource.disabled, true);
+    t.view.dispatch("click", {});
+    assert.equal(t.state.diagnostics.pixelLoupeView, "final");
+
+    t.canvas.dispatch("pointermove", {clientX: 1, clientY: 2});
+
+    assert.equal(t.addSource.disabled, false);
+    t.addSource.dispatch("click", {});
+    assert.equal(t.added.length, 1);
+    assert.equal(t.added[0][0].sourceHex, "#111111");
+    assert.deepEqual(t.added[0][1], {sourceLabel: "loupe sample"});
+  } finally {
+    t.binding.destroy();
+    cleanup(t.oldDocument);
+  }
+});
+
+test("pixel loupe diff button toggles difference heatmap mode", () => {
+  const t = bindTestLoupe();
+  try {
+    assert.equal(t.deltaRow.hidden, false);
+    t.canvas.dispatch("pointermove", {clientX: 1, clientY: 2});
+    assert.equal(t.delta.textContent, "ΔL 1.23 · ΔC 12.3 · ΔH 123");
+
+    t.diff.dispatch("click", {});
+
+    assert.equal(t.state.diagnostics.pixelLoupeDiff, true);
+    assert.equal(t.diff["aria-pressed"], "true");
+    assert.equal(t.deltaRow.hidden, false);
+    assert.equal(t.pixelLoupeCanvas["aria-label"], "Magnified source-to-final difference heatmap");
+    assert.equal(t.statuses.at(-1), "Loupe showing source-to-final difference heatmap.");
+
+    t.diff.dispatch("click", {});
+
+    assert.equal(t.state.diagnostics.pixelLoupeDiff, false);
+    assert.equal(t.deltaRow.hidden, false);
+    assert.match(t.statuses.at(-1), /Loupe difference heatmap off/);
+  } finally {
+    t.binding.destroy();
+    cleanup(t.oldDocument);
+  }
+});
+
+
+test("pixel loupe diff mode renders source-to-final distance in the patch", () => {
+  let samplerFactories = 0;
+  let sampleCalls = 0;
+  const t = bindTestLoupe({
+    createLoupePatchSampler: () => {
+      samplerFactories += 1;
+      return () => {
+        sampleCalls += 1;
+        return {r: 0, g: 0, b: 0};
+      };
+    }
+  });
+  try {
+    t.canvas.dispatch("pointermove", {clientX: 1, clientY: 2});
+    assert.equal(samplerFactories, 0);
+
+    t.diff.dispatch("click", {});
+
+    assert.equal(samplerFactories, 1);
+    assert.equal(sampleCalls, 16);
+    const patch = t.doc.drawnPatches.at(-1);
+    assert.ok(patch);
+    assert.deepEqual(Array.from(patch.data.slice(0, 4)), [255, 255, 255, 255]);
+  } finally {
+    t.binding.destroy();
+    cleanup(t.oldDocument);
+  }
+});
+
+
+test("pixel loupe shows the snapped art-pixel footprint when block size is larger than one", () => {
+  const t = bindTestLoupe({config: {pixelBlockSize: 4}});
+  try {
+    t.canvas.dispatch("pointermove", {clientX: 1, clientY: 2});
+
+    const wideFrames = t.doc.strokeRects.filter(rect => rect.width >= 25 && rect.height >= 25);
+    assert.ok(wideFrames.length >= 2, "expected a highlighted art-pixel frame larger than the center cell");
+    assert.ok(wideFrames.some(rect => rect.lineWidth === 2), "expected the active art-pixel frame to use the heavier outline");
+  } finally {
+    t.binding.destroy();
+    cleanup(t.oldDocument);
+  }
+});
+
+
+test("pixel loupe expand button toggles a 31 by 31 patch and restores 15 by 15", () => {
+  const t = bindTestLoupe();
+  try {
+    assert.equal(t.expand.textContent, "⛶");
+    assert.equal(t.pixelLoupeCanvas.width, 112);
+    t.canvas.dispatch("pointermove", {clientX: 1, clientY: 2});
+
+    t.expand.dispatch("click", {});
+
+    assert.equal(t.state.diagnostics.pixelLoupeExpanded, true);
+    assert.equal(t.pane.classList.contains("is-expanded"), true);
+    assert.equal(t.expand.textContent, "▢");
+    assert.equal(t.expand["aria-pressed"], "true");
+    assert.equal(t.expand["aria-label"], "Restore loupe to 15 by 15 pixels");
+    assert.equal(t.pixelLoupeCanvas.width, 186);
+    assert.equal(t.pixelLoupeCanvas.height, 186);
+    assert.equal(t.doc.drawnPatches.at(-1).width, 31);
+    assert.equal(t.doc.drawnPatches.at(-1).height, 31);
+    assert.equal(t.statuses.at(-1), "Loupe expanded to 31×31 pixels.");
+
+    t.expand.dispatch("click", {});
+
+    assert.equal(t.state.diagnostics.pixelLoupeExpanded, false);
+    assert.equal(t.pane.classList.contains("is-expanded"), false);
+    assert.equal(t.expand.textContent, "⛶");
+    assert.equal(t.pixelLoupeCanvas.width, 112);
+    assert.equal(t.pixelLoupeCanvas.height, 112);
+    assert.equal(t.doc.drawnPatches.at(-1).width, 15);
+    assert.equal(t.doc.drawnPatches.at(-1).height, 15);
+    assert.equal(t.statuses.at(-1), "Loupe restored to 15×15 pixels.");
   } finally {
     t.binding.destroy();
     cleanup(t.oldDocument);
