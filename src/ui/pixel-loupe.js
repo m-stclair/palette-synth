@@ -1,5 +1,5 @@
-import { hexToByteRgb, hexToLab, labToOklch, normalizeHexColor } from "../color-utils.js";
-import { MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON, TAU } from "../constants.js";
+import { hexToByteRgb, hexToLab, labToOklch, normalizeHexColor, rgb8ToLab } from "../color-utils.js";
+import { MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON, OKLAB_SCALE, TAU } from "../constants.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -9,7 +9,6 @@ const DEFAULT_PATCH_SIZE = 15;
 const EXPANDED_PATCH_SIZE = 31;
 const DEFAULT_CANVAS_SIZE = 112;
 const EXPANDED_CANVAS_SIZE = 186;
-const RGB_UNIT_DISTANCE = Math.sqrt(3) * 255;
 
 function patchSizeForExpanded(expanded) {
   return expanded ? EXPANDED_PATCH_SIZE : DEFAULT_PATCH_SIZE;
@@ -115,10 +114,17 @@ function makeScratchCanvas(canvas, patchSize = DEFAULT_PATCH_SIZE) {
 
 function differenceByteForRgb(sourceRgb, finalRgb) {
   if (!sourceRgb || !finalRgb) return 0;
-  const dr = Number(finalRgb[0]) - Number(sourceRgb[0]);
-  const dg = Number(finalRgb[1]) - Number(sourceRgb[1]);
-  const db = Number(finalRgb[2]) - Number(sourceRgb[2]);
-  const amount = clamp(Math.hypot(dr, dg, db) / RGB_UNIT_DISTANCE, 0, 1);
+  const sourceLab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
+  const finalLab = rgb8ToLab(finalRgb[0], finalRgb[1], finalRgb[2]);
+  const amount = clamp(
+    Math.hypot(
+      finalLab[0] - sourceLab[0],
+      finalLab[1] - sourceLab[1],
+      finalLab[2] - sourceLab[2]
+    ) / OKLAB_SCALE,
+    0,
+    1
+  );
   return Math.round(amount * 255);
 }
 

@@ -142,3 +142,10 @@ test("palette shader gates hue pressure for near-neutral colors", () => {
   assert.match(source, /bool labHasHue = labC >= NEUTRAL_CHROMA_EPSILON/);
   assert.match(source, /#if NEUTRAL_IS_CATEGORY/);
 });
+
+test("palette shader difference overlay measures displayed OKLab output distance", () => {
+  const source = readFileSync(new URL("../src/shaders/palette.frag", import.meta.url), "utf8");
+  assert.match(source, /vec3 finalLab = rgb2lab\(srgb2linear\(finalColor\)\)/);
+  assert.match(source, /length\(finalLab - lab\) \/ OKLAB_SCALE/);
+  assert.doesNotMatch(source, /length\(diff\) \/ 1\.7320508/);
+});

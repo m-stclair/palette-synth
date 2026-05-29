@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { bindPixelLoupe } from "../src/ui/pixel-loupe.js";
+import { rgb8ToLab } from "../src/color-utils.js";
+import { OKLAB_SCALE } from "../src/constants.js";
 
 function makeEventTarget(overrides = {}) {
   const listeners = new Map();
@@ -77,6 +79,27 @@ function makeDocument() {
     }
   });
   return doc;
+}
+
+
+function expectedOklabDiffByte(sourceRgb, finalRgb) {
+  const sourceLab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
+  const finalLab = rgb8ToLab(finalRgb[0], finalRgb[1], finalRgb[2]);
+  const amount = Math.min(1, Math.max(0, Math.hypot(
+    finalLab[0] - sourceLab[0],
+    finalLab[1] - sourceLab[1],
+    finalLab[2] - sourceLab[2]
+  ) / OKLAB_SCALE));
+  return Math.round(amount * 255);
+}
+
+function rawRgbDiffByte(sourceRgb, finalRgb) {
+  const amount = Math.min(1, Math.max(0, Math.hypot(
+    finalRgb[0] - sourceRgb[0],
+    finalRgb[1] - sourceRgb[1],
+    finalRgb[2] - sourceRgb[2]
+  ) / (Math.sqrt(3) * 255)));
+  return Math.round(amount * 255);
 }
 
 function keyEvent(key, options = {}) {
@@ -333,19 +356,28 @@ test("pixel loupe diff button toggles difference heatmap mode", () => {
 });
 
 
-test("pixel loupe diff mode renders source-to-final distance in the patch", () => {
+test("pixel loupe diff mode renders source-to-final OKLab distance in the patch", () => {
   let samplerFactories = 0;
   let sampleCalls = 0;
+  const sourceRgb = [255, 0, 0];
+  const finalRgb = [0, 255, 0];
   const t = bindTestLoupe({
     createLoupePatchSampler: () => {
       samplerFactories += 1;
       return () => {
         sampleCalls += 1;
-        return {r: 0, g: 0, b: 0};
+        return {r: finalRgb[0], g: finalRgb[1], b: finalRgb[2]};
       };
     }
   });
   try {
+    for (let i = 0; i < t.state.imageData.data.length; i += 4) {
+      t.state.imageData.data[i] = sourceRgb[0];
+      t.state.imageData.data[i + 1] = sourceRgb[1];
+      t.state.imageData.data[i + 2] = sourceRgb[2];
+      t.state.imageData.data[i + 3] = 255;
+    }
+
     t.canvas.dispatch("pointermove", {clientX: 1, clientY: 2});
     assert.equal(samplerFactories, 0);
 
@@ -355,7 +387,9 @@ test("pixel loupe diff mode renders source-to-final distance in the patch", () =
     assert.equal(sampleCalls, 16);
     const patch = t.doc.drawnPatches.at(-1);
     assert.ok(patch);
-    assert.deepEqual(Array.from(patch.data.slice(0, 4)), [255, 255, 255, 255]);
+    const expected = expectedOklabDiffByte(sourceRgb, finalRgb);
+    assert.notEqual(expected, rawRgbDiffByte(sourceRgb, finalRgb));
+    assert.deepEqual(Array.from(patch.data.slice(0, 4)), [expected, expected, expected, 255]);
   } finally {
     t.binding.destroy();
     cleanup(t.oldDocument);

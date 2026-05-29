@@ -1102,8 +1102,8 @@ void main() {
     }
 
     if (u_diagnosticOverlayMode == 2) {
-        vec3 diff = abs(finalColor - color);
-        float diffAmount = clamp(length(diff) / 1.7320508, 0.0, 1.0);
+        vec3 finalLab = rgb2lab(srgb2linear(finalColor));
+        float diffAmount = clamp(length(finalLab - lab) / OKLAB_SCALE, 0.0, 1.0);
         outColor = vec4(vec3(diffAmount), 1.0);
         return;
     }
