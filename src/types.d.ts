@@ -636,6 +636,13 @@ export interface DiagnosticsState {
   panelTab: LooseString<"contribution" | "histogram">;
   histogramTab: LooseString<"luma" | "chroma" | "hue">;
   pixel: PixelInspection | null;
+  pixelLoupe?: PixelInspection | null;
+  pixelLoupeProbe?: Point | null;
+  pixelLoupeOpen?: boolean;
+  pixelLoupeFrozen?: boolean;
+  pixelLoupePinMode?: boolean;
+  pixelLoupePinned?: boolean;
+  pixelLoupeView?: LooseString<"source" | "final">;
   overlay: {
     mode: string;
     swatchIndex: number | null;

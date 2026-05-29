@@ -1,4 +1,4 @@
-import { analyzePixelAtImagePoint } from "./pixel-inspector.js";
+import { analyzePixelAtImagePoint, createPixelAnalysisContext, sampleFinalOutputPixelAtImagePoint } from "./pixel-inspector.js";
 import { clamp } from "../color-utils.js";
 
 export function panelIsOpen(panel) {
@@ -251,12 +251,22 @@ export function createDiagnosticsController({
     overlay.hidden = false;
   }
 
-  function analyzeDiagnosticPixel(x, y) {
+  function createPaletteContext() {
+    return createPixelAnalysisContext({
+      paletteRecords: () => state.paletteRecords,
+      ensurePalette,
+      renderPaletteLabs,
+      paletteUniformEntries
+    });
+  }
+
+  function analyzeDiagnosticPixel(x, y, paletteContext = null) {
     return analyzePixelAtImagePoint({
       x,
       y,
       imageData: state.imageData,
       paletteRecords: () => state.paletteRecords,
+      paletteContext,
       config,
       ensurePalette,
       renderPaletteLabs,
@@ -297,6 +307,36 @@ export function createDiagnosticsController({
     return inspectDiagnosticImagePixel(point.x, point.y);
   }
 
+  function analyzeLoupeImagePixel(x, y, paletteContext = null) {
+    if (!ensureImageData()) return null;
+    const width = state.imageData.width || 1;
+    const height = state.imageData.height || 1;
+    const pxX = clamp(Math.floor(Number(x) || 0), 0, width - 1);
+    const pxY = clamp(Math.floor(Number(y) || 0), 0, height - 1);
+    return analyzeDiagnosticPixel(pxX, pxY, paletteContext);
+  }
+
+  function createLoupePatchSampler() {
+    if (!ensureImageData()) return null;
+    const imageData = state.imageData;
+    const paletteContext = createPaletteContext();
+    return (x, y) => {
+      const width = imageData.width || 1;
+      const height = imageData.height || 1;
+      const pxX = clamp(Math.floor(Number(x) || 0), 0, width - 1);
+      const pxY = clamp(Math.floor(Number(y) || 0), 0, height - 1);
+      return sampleFinalOutputPixelAtImagePoint({
+        x: pxX,
+        y: pxY,
+        imageData,
+        paletteContext,
+        config,
+        topPaletteMatches,
+        assignmentWeights
+      });
+    };
+  }
+
   function inspectLoupePixel(clientX, clientY) {
     const point = clientPointToImagePixel?.(clientX, clientY);
     if (!point || !ensureImageData()) return null;
@@ -306,7 +346,7 @@ export function createDiagnosticsController({
     const pxY = clamp(Math.floor(Number(point.y) || 0), 0, height - 1);
     const diagnostic = diagnosticsState();
     diagnostic.pixelLoupeProbe = {x: pxX, y: pxY};
-    diagnostic.pixelLoupe = analyzeDiagnosticPixel(pxX, pxY);
+    diagnostic.pixelLoupe = analyzeLoupeImagePixel(pxX, pxY);
     return diagnostic.pixelLoupe;
   }
 
@@ -538,6 +578,8 @@ export function createDiagnosticsController({
     refreshDiagnosticPixel,
     inspectDiagnosticPixel,
     inspectLoupePixel,
+    analyzeLoupeImagePixel,
+    createLoupePatchSampler,
     refreshLoupePixel,
     clearLoupePixel,
     nudgeDiagnosticPixel,

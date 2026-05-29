@@ -141,6 +141,8 @@ export const UI_ELEMENT_IDS = [
   "pixelLoupePane",
   "pixelLoupeHandle",
   "closePixelLoupe",
+  "pixelLoupePin",
+  "pixelLoupeView",
   "pixelLoupeCanvas",
   "pixelLoupeCoord",
   "pixelLoupeSource",

@@ -98,8 +98,10 @@ function initializerDepsFromGrouped(deps) {
     clearDiagnosticPixel: diagnosticsController.clearDiagnosticPixel,
     inspectDiagnosticPixel: diagnosticsController.inspectDiagnosticPixel,
     inspectLoupePixel: diagnosticsController.inspectLoupePixel,
+    analyzeLoupeImagePixel: diagnosticsController.analyzeLoupeImagePixel,
     clearLoupePixel: diagnosticsController.clearLoupePixel,
     nudgeDiagnosticPixel: diagnosticsController.nudgeDiagnosticPixel,
+    createLoupePatchSampler: diagnosticsController.createLoupePatchSampler,
 
     animationLoopSpan: animationExport.animationLoopSpan,
     syncAnimationExportUi: animationExport.syncAnimationExportUi,
@@ -210,6 +212,8 @@ export function createAppInitializer(deps = {}) {
     clearDiagnosticPixel,
     inspectDiagnosticPixel,
     inspectLoupePixel,
+    analyzeLoupeImagePixel,
+    createLoupePatchSampler,
     clearLoupePixel,
     nudgeDiagnosticPixel,
     updateDiagnostics,
@@ -342,6 +346,8 @@ export function createAppInitializer(deps = {}) {
       setPixelLoupeOpen,
       togglePixelLoupe,
       inspectLoupePixel,
+      analyzeLoupeImagePixel,
+      createLoupePatchSampler,
       clearLoupePixel,
       setStatus
     });

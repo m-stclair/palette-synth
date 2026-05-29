@@ -3478,6 +3478,40 @@ canvas.is-louping:not(.is-panning):not(.is-splitting):not(.is-selecting-region) 
   gap: 6px;
   padding: 6px 7px 7px;
 }
+.pixel-loupe-stage {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 5px;
+}
+.pixel-loupe-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: flex-start;
+  width: 34px;
+}
+.pixel-loupe-rail .mini-control {
+  min-width: 0;
+  min-height: 24px;
+  padding: 2px 4px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+}
+.pixel-loupe-rail .mini-control.is-active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(143,180,223,.16);
+}
+.pixel-loupe-pane.is-frozen .pixel-loupe-canvas,
+.pixel-loupe-pane.is-pinned .pixel-loupe-canvas {
+  border-color: var(--accent);
+}
+.pixel-loupe-pane.is-frozen .pixel-loupe-coord,
+.pixel-loupe-pane.is-pinned .pixel-loupe-coord {
+  color: var(--text);
+}
 .pixel-loupe-canvas {
   width: 112px;
   height: 112px;

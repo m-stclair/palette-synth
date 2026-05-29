@@ -580,7 +580,13 @@
       <button id="closePixelLoupe" type="button" class="ghost mini-control" aria-label="Close loupe" title="Close loupe">×</button>
     </div>
     <div class="pixel-loupe-body">
-      <canvas id="pixelLoupeCanvas" class="pixel-loupe-canvas" width="112" height="112" aria-label="Magnified source pixels"></canvas>
+      <div class="pixel-loupe-stage">
+        <canvas id="pixelLoupeCanvas" class="pixel-loupe-canvas" width="112" height="112" aria-label="Magnified source pixels"></canvas>
+        <div class="pixel-loupe-rail" aria-label="Loupe controls">
+          <button id="pixelLoupePin" type="button" class="ghost mini-control" aria-pressed="false" aria-label="Turn on loupe pin mode" title="Pin loupe sample by clicking the preview">⌖</button>
+          <button id="pixelLoupeView" type="button" class="ghost mini-control" aria-pressed="false" aria-label="Loupe patch view: source image" title="Loupe patch: source image">Src</button>
+        </div>
+      </div>
       <div class="pixel-loupe-readout" aria-live="polite">
         <div id="pixelLoupeCoord" class="pixel-loupe-coord">x —, y —</div>
         <div class="pixel-loupe-row">

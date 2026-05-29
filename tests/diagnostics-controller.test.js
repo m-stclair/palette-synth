@@ -438,3 +438,45 @@ test("diagnostics controller requests procedural traces for harmony and cosine s
     assert.equal(selected, 1, mode);
   }
 });
+
+test("diagnostics controller loupe patch sampler reuses palette uniform entries", () => {
+  let uniformBuilds = 0;
+  const state = {
+    imageData: {width: 2, height: 2, data: new Uint8ClampedArray([
+      0, 0, 0, 255,
+      255, 255, 255, 255,
+      128, 128, 128, 255,
+      64, 64, 64, 255
+    ])},
+    paletteRecords: [{lab: [0, 0, 0]}],
+    diagnostics: {}
+  };
+  const controller = createDiagnosticsController({
+    els: {},
+    state,
+    config: {blendAmount: 1},
+    ensurePalette: () => {},
+    renderPaletteLabs: records => records.map(record => record.lab),
+    paletteUniformEntries: (records, labs) => {
+      uniformBuilds += 1;
+      return records.map((record, index) => ({
+        sourceRecord: record,
+        renderLab: labs[index],
+        featureLab: labs[index],
+        featureLightness: 0,
+        featureChroma: 0,
+        featureHue: [0, 0]
+      }));
+    },
+    topPaletteMatches: (_lab, entries) => [{...entries[0], renderLab: [0, 0, 0], distance: 0, displayIndex: 0}],
+    assignmentWeights: () => [1]
+  });
+
+  const sampler = controller.createLoupePatchSampler();
+  assert.equal(typeof sampler, "function");
+  sampler(0, 0);
+  sampler(1, 0);
+  sampler(0, 1);
+
+  assert.equal(uniformBuilds, 1);
+});

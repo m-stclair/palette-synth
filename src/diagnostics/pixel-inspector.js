@@ -14,7 +14,7 @@ import {
   smoothstep
 } from "../color-utils.js";
 import { cpuDistanceBreakdown, DIAGNOSTIC } from "./metrics.js";
-import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabForLab, outputLabToHex } from "./output-color.js";
+import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabForLab, finalOutputRgbForLab, outputLabToHex } from "./output-color.js";
 
 /** @typedef {import("../types.d.ts").AppConfig} AppConfig */
 /** @typedef {import("../types.d.ts").ImageDataSource} ImageDataSource */
@@ -22,6 +22,40 @@ import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabFor
 /** @typedef {import("../types.d.ts").PixelInspection} PixelInspection */
 
 export { applyOutputModeCpu, blendHexes };
+
+
+export function createPixelAnalysisContext({
+  paletteRecords = [],
+  ensurePalette = () => {},
+  renderPaletteLabs,
+  paletteUniformEntries
+} = {}) {
+  const ensuredPaletteRecords = ensurePalette?.();
+  const resolvedPaletteRecords = typeof paletteRecords === "function"
+    ? paletteRecords()
+    : (Array.isArray(ensuredPaletteRecords) ? ensuredPaletteRecords : paletteRecords);
+  const records = Array.isArray(resolvedPaletteRecords) ? resolvedPaletteRecords : [];
+  const renderLabs = renderPaletteLabs?.(records) || [];
+  const entries = paletteUniformEntries?.(records, renderLabs) || [];
+  return {records, renderLabs, entries};
+}
+
+function resolvePixelAnalysisContext({
+  paletteContext = null,
+  paletteRecords = [],
+  ensurePalette = () => {},
+  renderPaletteLabs,
+  paletteUniformEntries
+} = {}) {
+  if (paletteContext && Array.isArray(paletteContext.entries)) {
+    return {
+      records: Array.isArray(paletteContext.records) ? paletteContext.records : [],
+      renderLabs: Array.isArray(paletteContext.renderLabs) ? paletteContext.renderLabs : [],
+      entries: paletteContext.entries
+    };
+  }
+  return createPixelAnalysisContext({paletteRecords, ensurePalette, renderPaletteLabs, paletteUniformEntries});
+}
 
 export function labDeltaParts(aLab, bLab, config = {}) {
   const aC = Math.hypot(aLab?.[1] || 0, aLab?.[2] || 0);
@@ -183,12 +217,12 @@ export function analyzePixelAtImagePoint({
   ensurePalette = () => {},
   renderPaletteLabs,
   paletteUniformEntries,
+  paletteContext = null,
   topPaletteMatches,
   assignmentWeights,
   matchLimit = DIAGNOSTIC.matchLimit
 } = {}) {
   if (!imageData) return null;
-  const ensuredPaletteRecords = ensurePalette?.();
   const sourceColor = samplePixelBlockColor(imageData, x, y, config.pixelBlockSize, config.pixelBlockSampleMode);
   if (!sourceColor) return null;
   const pxX = sourceColor.x;
@@ -198,12 +232,13 @@ export function analyzePixelAtImagePoint({
   const b = sourceColor.b;
   const sourceHex = byteRgbToHex(r, g, b);
   const sourceLab = rgb8ToLab(r, g, b);
-  const resolvedPaletteRecords = typeof paletteRecords === "function"
-    ? paletteRecords()
-    : (Array.isArray(ensuredPaletteRecords) ? ensuredPaletteRecords : paletteRecords);
-  const records = Array.isArray(resolvedPaletteRecords) ? resolvedPaletteRecords : [];
-  const renderLabs = renderPaletteLabs?.(records) || [];
-  const entries = paletteUniformEntries?.(records, renderLabs) || [];
+  const {records, entries} = resolvePixelAnalysisContext({
+    paletteContext,
+    paletteRecords,
+    ensurePalette,
+    renderPaletteLabs,
+    paletteUniformEntries
+  });
   const matches = topPaletteMatches?.(sourceLab, entries, matchLimit) || [];
   const weights = assignmentWeights?.(matches, sourceLab) || matches.map(() => 0);
 
@@ -270,5 +305,59 @@ export function analyzePixelAtImagePoint({
     finalDelta: blendDelta,
     outputDelta: blendDelta,
     assigned: totalWeight > 0 ? matches[0] : null
+  };
+}
+
+export function sampleFinalOutputPixelAtImagePoint({
+  x,
+  y,
+  imageData,
+  paletteContext = null,
+  paletteRecords = [],
+  config = {},
+  ensurePalette = () => {},
+  renderPaletteLabs,
+  paletteUniformEntries,
+  topPaletteMatches,
+  assignmentWeights,
+  matchLimit = DIAGNOSTIC.matchLimit
+} = {}) {
+  if (!imageData) return null;
+  const sourceColor = samplePixelBlockColor(imageData, x, y, config.pixelBlockSize, config.pixelBlockSampleMode);
+  if (!sourceColor) return null;
+  const r = sourceColor.r;
+  const g = sourceColor.g;
+  const b = sourceColor.b;
+  const sourceLab = rgb8ToLab(r, g, b);
+  const {entries} = resolvePixelAnalysisContext({
+    paletteContext,
+    paletteRecords,
+    ensurePalette,
+    renderPaletteLabs,
+    paletteUniformEntries
+  });
+  const matches = topPaletteMatches?.(sourceLab, entries, matchLimit) || [];
+  const weights = assignmentWeights?.(matches, sourceLab) || matches.map(() => 0);
+  let mappedLab = [0, 0, 0];
+  let totalWeight = 0;
+  for (let i = 0; i < matches.length; i++) {
+    const w = weights[i];
+    if (!(w > 0)) continue;
+    totalWeight += w;
+    mappedLab[0] += matches[i].renderLab[0] * w;
+    mappedLab[1] += matches[i].renderLab[1] * w;
+    mappedLab[2] += matches[i].renderLab[2] * w;
+  }
+  if (totalWeight <= 0) mappedLab = [...sourceLab];
+  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+  const rgb = finalOutputRgbForLab([r, g, b], outputLab, config.blendAmount);
+  return {
+    x: sourceColor.x,
+    y: sourceColor.y,
+    r: rgb[0],
+    g: rgb[1],
+    b: rgb[2],
+    a: sourceColor.a,
+    rgb
   };
 }
