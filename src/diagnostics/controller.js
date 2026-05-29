@@ -151,6 +151,12 @@ export function createDiagnosticsController({
     return inspectorPaneIsOpen();
   }
 
+  function pixelLoupePanelIsOpen() {
+    const diagnostic = diagnosticsState();
+    if (els.pixelLoupePane) return !!diagnostic.pixelLoupeOpen;
+    return !!diagnostic.pixelLoupeOpen;
+  }
+
   function syncPixelInspectorUi() {
     syncInspectorTabsUi();
     const paneOpen = inspectorPaneIsOpen();
@@ -161,6 +167,16 @@ export function createDiagnosticsController({
       els.togglePixelInspector.setAttribute?.("aria-pressed", String(paneOpen));
     }
     els.canvas?.classList?.toggle?.("is-inspecting", pixelOpen);
+  }
+
+  function syncPixelLoupeUi() {
+    const open = pixelLoupePanelIsOpen();
+    if (els.pixelLoupePane) els.pixelLoupePane.hidden = !open;
+    if (els.togglePixelLoupe) {
+      els.togglePixelLoupe.classList?.toggle?.("is-active", open);
+      els.togglePixelLoupe.setAttribute?.("aria-pressed", String(open));
+    }
+    els.canvas?.classList?.toggle?.("is-louping", open);
   }
 
 
@@ -281,6 +297,44 @@ export function createDiagnosticsController({
     return inspectDiagnosticImagePixel(point.x, point.y);
   }
 
+  function inspectLoupePixel(clientX, clientY) {
+    const point = clientPointToImagePixel?.(clientX, clientY);
+    if (!point || !ensureImageData()) return null;
+    const width = state.imageData.width || 1;
+    const height = state.imageData.height || 1;
+    const pxX = clamp(Math.floor(Number(point.x) || 0), 0, width - 1);
+    const pxY = clamp(Math.floor(Number(point.y) || 0), 0, height - 1);
+    const diagnostic = diagnosticsState();
+    diagnostic.pixelLoupeProbe = {x: pxX, y: pxY};
+    diagnostic.pixelLoupe = analyzeDiagnosticPixel(pxX, pxY);
+    return diagnostic.pixelLoupe;
+  }
+
+  function refreshLoupePixel() {
+    const diagnostic = diagnosticsState();
+    if (!diagnostic.pixelLoupeProbe || !ensureImageData()) return null;
+    diagnostic.pixelLoupe = analyzeDiagnosticPixel(diagnostic.pixelLoupeProbe.x, diagnostic.pixelLoupeProbe.y);
+    return diagnostic.pixelLoupe;
+  }
+
+  function clearLoupePixel() {
+    const diagnostic = diagnosticsState();
+    diagnostic.pixelLoupeProbe = null;
+    diagnostic.pixelLoupe = null;
+  }
+
+  function setPixelLoupeOpen(open, {announce = false} = {}) {
+    const diagnostic = diagnosticsState();
+    diagnostic.pixelLoupeOpen = !!open;
+    syncPixelLoupeUi();
+    if (diagnostic.pixelLoupeOpen) refreshLoupePixel();
+    if (announce) setStatus(diagnostic.pixelLoupeOpen ? "Loupe open. Hover the preview to sample pixels live." : "Loupe closed.");
+  }
+
+  function togglePixelLoupe(options = {}) {
+    setPixelLoupeOpen(!diagnosticsState().pixelLoupeOpen, options);
+  }
+
   function nudgeDiagnosticPixel(dx, dy, {step = 1, announce = true} = {}) {
     const diagnostic = diagnosticsState();
     const probe = diagnostic.pixelProbe || diagnostic.pixel;
@@ -362,6 +416,7 @@ export function createDiagnosticsController({
       syncPixelInspectorUi();
       syncPixelProbeOverlay();
     }
+    if (pixelLoupePanelIsOpen()) refreshLoupePixel();
 
     const fullDiagnosticsOpen = diagnosticsPanelIsOpen();
     const histogramOpen = histogramPanelIsOpen();
@@ -468,16 +523,23 @@ export function createDiagnosticsController({
   }
 
   syncPixelInspectorUi();
+  syncPixelLoupeUi();
 
   return {
     setInspectorTab,
     diagnosticsPanelIsOpen,
     xrayPanelIsOpen,
     pixelInspectorPanelIsOpen,
+    pixelLoupePanelIsOpen,
     setPixelInspectorOpen,
     togglePixelInspector,
+    setPixelLoupeOpen,
+    togglePixelLoupe,
     refreshDiagnosticPixel,
     inspectDiagnosticPixel,
+    inspectLoupePixel,
+    refreshLoupePixel,
+    clearLoupePixel,
     nudgeDiagnosticPixel,
     clearDiagnosticPixel,
     updateDiagnostics

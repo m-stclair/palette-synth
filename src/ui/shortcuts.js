@@ -58,6 +58,7 @@ export const SHORTCUT_DEFINITIONS = [
   {key: "P", label: "Toggle pixel-perfect preview"},
   {key: PALETTE_SWATCH_SCALE_HOTKEY, label: "Cycle palette swatch bar size"},
   {key: "I", label: "Toggle floating inspector"},
+  {key: "L", label: "Toggle live loupe"},
   {key: "Shift+I", label: "Switch inspector tab"},
   {key: "Shift+E", label: "Rotate assignment mode"},
   {key: "Inspector: ← / → / ↑ / ↓", label: "Move inspected pixel"},
@@ -400,6 +401,7 @@ function annotateShortcutTargets(root) {
     ["pixelPerfectToggle", "P"],
     ["paletteSwatchScaleToggle", PALETTE_SWATCH_SCALE_HOTKEY],
     ["togglePixelInspector", "I Shift+I"],
+    ["togglePixelLoupe", "L"],
     ["assignMode", "Shift+E"],
     ["resetViewButton", "0"],
     ["zoomOutButton", "-"],
@@ -452,6 +454,7 @@ export function createShortcutDispatcher({
   copyPixelHex = () => {},
   setPixelInspectorOpen = () => {},
   togglePixelInspector = () => {},
+  togglePixelLoupe = () => {},
   setInspectorTab = () => {},
   clearDiagnosticPixel = () => {},
   nudgeDiagnosticPixel = () => {},
@@ -720,6 +723,11 @@ export function createShortcutDispatcher({
     "i": event => {
       if (event.shiftKey) cycleInspectorTab();
       else togglePixelInspector({announce: true});
+      return true;
+    },
+    "l": event => {
+      if (event.shiftKey) return false;
+      togglePixelLoupe({announce: true});
       return true;
     },
     "0": event => {

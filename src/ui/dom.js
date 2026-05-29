@@ -117,6 +117,7 @@ export const UI_ELEMENT_IDS = [
   "diagnosticsOverlayStatus",
   "diagnosticsXray",
   "togglePixelInspector",
+  "togglePixelLoupe",
   "pixelInspectorPane",
   "pixelInspectorHandle",
   "inspectorTabs",
@@ -136,7 +137,18 @@ export const UI_ELEMENT_IDS = [
   "diagnosticsPixel",
   "copyPixelSource",
   "copyPixelFinal",
-  "addPixelSourceToManualPalette"
+  "addPixelSourceToManualPalette",
+  "pixelLoupePane",
+  "pixelLoupeHandle",
+  "closePixelLoupe",
+  "pixelLoupeCanvas",
+  "pixelLoupeCoord",
+  "pixelLoupeSource",
+  "pixelLoupeFx",
+  "pixelLoupeSourceLch",
+  "pixelLoupeFxLch",
+  "pixelLoupeSourceSwatch",
+  "pixelLoupeFxSwatch"
 ];
 
 export const SELECTION_APPEAL_WEIGHT_CONTROLS = [

@@ -24,6 +24,7 @@
                   <label class="dynamic-skin-toggle mini-control" for="dynamicSkin" title="Tint the interface from the current palette"><input id="dynamicSkin" type="checkbox" /> <span>Skin</span></label>
                   <label class="compare-toggle mini-control" for="compareToggle" title="Before/after split preview"><input id="compareToggle" type="checkbox" /> <span>Compare</span></label>
                   <button id="togglePixelInspector" type="button" class="ghost mini-control" aria-pressed="false" title="Toggle inspector (I); switch inspector tab (Shift+I)">Inspect</button>
+                  <button id="togglePixelLoupe" type="button" class="ghost mini-control" aria-pressed="false" aria-keyshortcuts="L" title="Toggle live loupe (L)">Loupe</button>
                   <label class="compare-control mini-control" for="compareSplit"><span>Split</span> <output id="compareSplitValue">50%</output><input id="compareSplit" type="range" min="0" max="100" step="1" value="50" /></label>
                 </div>
               </details>
@@ -571,6 +572,31 @@
         <div id="diagnosticsHistogram" class="diagnostics-histogram" role="img" aria-label="Sampled source and output image histograms"></div>
       </div>
     </section>
+  </section>
+
+  <section id="pixelLoupePane" class="pixel-loupe-pane" hidden aria-labelledby="pixelLoupeTitle">
+    <div id="pixelLoupeHandle" class="pixel-loupe-titlebar">
+      <h2 id="pixelLoupeTitle">Loupe</h2>
+      <button id="closePixelLoupe" type="button" class="ghost mini-control" aria-label="Close loupe" title="Close loupe">×</button>
+    </div>
+    <div class="pixel-loupe-body">
+      <canvas id="pixelLoupeCanvas" class="pixel-loupe-canvas" width="112" height="112" aria-label="Magnified source pixels"></canvas>
+      <div class="pixel-loupe-readout" aria-live="polite">
+        <div id="pixelLoupeCoord" class="pixel-loupe-coord">x —, y —</div>
+        <div class="pixel-loupe-row">
+          <span class="pixel-loupe-label">Src</span>
+          <span id="pixelLoupeSourceSwatch" class="pixel-loupe-swatch"></span>
+          <code id="pixelLoupeSource">—</code>
+          <code id="pixelLoupeSourceLch" class="pixel-loupe-lch" title="L / C / h">— / — / —°</code>
+        </div>
+        <div class="pixel-loupe-row">
+          <span class="pixel-loupe-label">Fx</span>
+          <span id="pixelLoupeFxSwatch" class="pixel-loupe-swatch"></span>
+          <code id="pixelLoupeFx">—</code>
+          <code id="pixelLoupeFxLch" class="pixel-loupe-lch" title="L / C / h">— / — / —°</code>
+        </div>
+      </div>
+    </div>
   </section>
 
 

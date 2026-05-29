@@ -2,6 +2,7 @@ import { collectUiElements } from "../ui/dom.js";
 import { bindAnimationExportControls, bindAppControls, bindControls, bindRecipeControls } from "../ui/controls.js";
 import { bindCanvasInteractions } from "../ui/canvas-interactions.js";
 import { bindFloatingPixelInspector } from "../ui/floating-pixel-inspector.js";
+import { bindPixelLoupe } from "../ui/pixel-loupe.js";
 import { initWorkbench } from "../ui/workbench.js";
 import { bindDismissibleMenus } from "../ui/dismissible-menus.js";
 import { bindRangeScrubSkinHold } from "../ui/range-scrub-skin-hold.js";
@@ -91,9 +92,13 @@ function initializerDepsFromGrouped(deps) {
     setInspectorTab: diagnosticsController.setInspectorTab,
     setPixelInspectorOpen: diagnosticsController.setPixelInspectorOpen,
     togglePixelInspector: diagnosticsController.togglePixelInspector,
+    setPixelLoupeOpen: diagnosticsController.setPixelLoupeOpen,
+    togglePixelLoupe: diagnosticsController.togglePixelLoupe,
     refreshDiagnosticPixel: diagnosticsController.refreshDiagnosticPixel,
     clearDiagnosticPixel: diagnosticsController.clearDiagnosticPixel,
     inspectDiagnosticPixel: diagnosticsController.inspectDiagnosticPixel,
+    inspectLoupePixel: diagnosticsController.inspectLoupePixel,
+    clearLoupePixel: diagnosticsController.clearLoupePixel,
     nudgeDiagnosticPixel: diagnosticsController.nudgeDiagnosticPixel,
 
     animationLoopSpan: animationExport.animationLoopSpan,
@@ -199,9 +204,13 @@ export function createAppInitializer(deps = {}) {
     setInspectorTab,
     setPixelInspectorOpen,
     togglePixelInspector,
+    setPixelLoupeOpen,
+    togglePixelLoupe,
     refreshDiagnosticPixel,
     clearDiagnosticPixel,
     inspectDiagnosticPixel,
+    inspectLoupePixel,
+    clearLoupePixel,
     nudgeDiagnosticPixel,
     updateDiagnostics,
     withHistory,
@@ -318,10 +327,22 @@ export function createAppInitializer(deps = {}) {
       config,
       setPixelInspectorOpen,
       togglePixelInspector,
+      togglePixelLoupe,
       setInspectorTab,
       refreshDiagnosticPixel,
       clearDiagnosticPixel,
       copyPixelHex,
+      setStatus
+    });
+
+    bindPixelLoupe({
+      els,
+      state,
+      config,
+      setPixelLoupeOpen,
+      togglePixelLoupe,
+      inspectLoupePixel,
+      clearLoupePixel,
       setStatus
     });
 
@@ -385,6 +406,7 @@ export function createAppInitializer(deps = {}) {
       copyPixelHex,
       setPixelInspectorOpen,
       togglePixelInspector,
+      togglePixelLoupe,
       setInspectorTab,
       clearDiagnosticPixel,
       nudgeDiagnosticPixel,
