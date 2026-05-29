@@ -12,6 +12,7 @@ export function blockSampleModeCode(mode) {
 }
 
 export function blockSamplePassNeeded(settings = {}) {
+  if (settings.pixelArtEnabled !== true) return false;
   const blockSize = Math.max(1, Math.round(Number(settings.pixelBlockSize) || 1));
   return blockSize > 1 && blockSampleModeCode(settings.pixelBlockSampleMode) !== BLOCK_SAMPLE_MODE.center;
 }

@@ -90,6 +90,7 @@ function randomPaletteSize(rng) {
 
 function randomizePixelizationControls(snapshot, rng) {
   const enabled = unit(rng) < 0.25;
+  snapshot.pixelArtEnabled = enabled;
   snapshot.pixelBlockSize = enabled ? randInt(rng, 2, 16) : 1;
   snapshot.pixelBlockSampleMode = enabled
     ? pick(rng, PIXEL_BLOCK_SAMPLE_MODES, DEFAULT_CONFIG.pixelBlockSampleMode)

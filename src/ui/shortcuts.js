@@ -1,4 +1,4 @@
-import { cloneDefaultConfig, cloneConfigSnapshot as cloneConfigSnapshotValue, cloneStoredConfigSnapshot as cloneStoredConfigSnapshotValue } from "../state/config.js";
+import { cloneDefaultConfig, cloneConfigSnapshot as cloneConfigSnapshotValue, cloneStoredConfigSnapshot as cloneStoredConfigSnapshotValue, effectivePixelBlockSize, isPixelArtEnabled } from "../state/config.js";
 import { $ } from "./dom.js";
 import { cyclePaletteSwatchScale, PALETTE_SWATCH_SCALE_HOTKEY } from "./palette-swatch-scale.js";
 
@@ -648,7 +648,7 @@ export function createShortcutDispatcher({
   }
 
   function inspectorNudgeStep(event) {
-    return event.shiftKey ? Math.max(1, Math.round(Number(config.pixelBlockSize) || 1)) : 1;
+    return event.shiftKey && isPixelArtEnabled(config) ? effectivePixelBlockSize(config) : 1;
   }
 
   function handleInspectorShortcut(event, key) {

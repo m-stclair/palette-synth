@@ -43,6 +43,7 @@ uniform int u_diagnosticOverlayMode;
 uniform int u_diagnosticOverlaySwatch;
 uniform float u_compareSplit;
 uniform int u_compareEnabled;
+uniform int u_pixelArtEnabled;
 uniform float u_pixelBlockSize;
 uniform vec2 u_sourceImageSize;
 uniform int u_blockSampledInput;
@@ -1039,6 +1040,11 @@ SourceSample sourceSampleForUv(vec2 uv) {
     float blockSize = pixelBlockSize();
     vec2 sourceSize = sourceImageSize();
     vec2 sourcePixel = clamp(floor(uv * sourceSize), vec2(0.0), sourceSize - vec2(1.0));
+
+    if (u_pixelArtEnabled != 1) {
+        return SourceSample(uv, sourcePixel);
+    }
+
     vec2 blockCoord = floor(sourcePixel / blockSize);
 
     if (u_blockSampledInput == 1) {
@@ -1046,10 +1052,6 @@ SourceSample sourceSampleForUv(vec2 uv) {
         vec2 sampledTexSize = vec2(float(sampledSize.x), float(sampledSize.y));
         vec2 sampledPixel = clamp(blockCoord, vec2(0.0), sampledTexSize - vec2(1.0));
         return SourceSample((sampledPixel + vec2(0.5)) / sampledTexSize, blockCoord);
-    }
-
-    if (blockSize <= 1.0) {
-        return SourceSample(uv, blockCoord);
     }
 
     vec2 blockOrigin = blockCoord * blockSize;
@@ -1063,7 +1065,7 @@ void main() {
 
     vec2 uv = clamp(u_viewCenter + (screenUv - 0.5) * u_viewSpan, vec2(0.0), vec2(1.0));
     SourceSample sample_ = sourceSampleForUv(uv);
-    vec2 ditherCoord = pixelBlockSize() > 1.0 ? sample_.blockCoord : localFragCoord;
+    vec2 ditherCoord = u_pixelArtEnabled == 1 ? sample_.blockCoord : localFragCoord;
 
     vec3 color = texture(u_image, sample_.uv).rgb;
     vec3 lab = rgb2lab(srgb2linear(color));

@@ -198,7 +198,7 @@ test("shortcut dispatcher toggles inspector and gives its keys precedence while 
     seedValue: makeElement({textContent: "2"})
   });
   const calls = [];
-  const config = {seed: 2, pixelBlockSize: 4};
+  const config = {seed: 2, pixelArtEnabled: true, pixelBlockSize: 4};
   const state = {diagnostics: {pixel: {sourceHex: "#111111", finalHex: "#222222"}}};
   let inspectorOpen = false;
   const dispatcher = createShortcutDispatcher({

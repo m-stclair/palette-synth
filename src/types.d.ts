@@ -166,6 +166,7 @@ export interface AppConfig {
   generatedLocks: GeneratedLock[];
   pixelPerfect: boolean;
   dynamicSkin: boolean;
+  pixelArtEnabled: boolean;
   pixelBlockSize: number;
   pixelBlockSampleMode: LooseString<"center" | "average" | "dominant">;
   despeckleEnabled: boolean;
@@ -253,6 +254,7 @@ export interface RenderSettings {
   ditherScale: number;
   ditherAngle: number;
   ditherLumaAmount: number;
+  pixelArtEnabled: boolean;
   pixelBlockSize: number;
   pixelBlockSampleMode: string;
 }

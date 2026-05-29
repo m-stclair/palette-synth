@@ -1,4 +1,5 @@
 import { MAX_PALETTE_SIZE } from "../constants.js";
+import { effectivePixelBlockSize } from "../state/config.js";
 import { maskBehaviorCode, maskForbiddenSourceFlags } from "../ui/cycle-mask.js";
 import { paletteLabs } from "../color-utils.js";
 import { createWebgl2Context, clearFramebuffer } from "../gl/context.js";
@@ -201,7 +202,7 @@ export function createRenderedCanvasController({
             fragmentSource: postProcessFragmentSource,
             edgeTightenFragmentSource,
             settings: exportPostSettings,
-            pixelBlockSize: Math.max(1, Math.round(Number(config.pixelBlockSize) || 1))
+            pixelBlockSize: effectivePixelBlockSize(config)
           });
         }
 

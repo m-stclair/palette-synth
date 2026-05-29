@@ -1,5 +1,6 @@
 import { byteRgbToHex, clamp01, colorInfoLabel, hexToLab, labToHex, normalizeHexColor } from "../color-utils.js";
 import { samplePixelBlockColor } from "../diagnostics/pixel-inspector.js";
+import { effectivePixelBlockSize } from "../state/config.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
 
 export function createManualPaletteEditor({
@@ -442,7 +443,7 @@ export function createManualPaletteEditor({
           state().imageData,
           imagePoint.x,
           imagePoint.y,
-          config().pixelBlockSize,
+          effectivePixelBlockSize(config()),
           config().pixelBlockSampleMode
         );
         if (!sampled) {

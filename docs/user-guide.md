@@ -37,7 +37,7 @@ Use **Mode** to choose where the palette comes from.
 - **Dither patterns:** ordered 2×2, ordered 4×4, ordered 8×8, hash noise, etched lines, screenprint dots, crosshatch ink, stipple grain, woven threads, and contour wash.
 - **Palette cycling:** global, banded, and manually tagged swatches.
 - **Preview controls:** pixel-perfect preview, zoom, pan, and before/after compare split.
-- **Pixel-art post-process:** despeckle, a 3×3 mode filter with 1–4 passes, plus edge tighten, a conservative one-pass cleanup for weak gaps and chipped corners. Dither protection is enabled by default so those cleanup passes do not chew through intentional two-color dither texture. All of this runs at art-pixel granularity so it respects `pixelBlockSize`. The diagnostic overlay short-circuits the post-process pipeline, so swatch and difference views always reflect raw palette output.
+- **Pixel-art processing:** **Art pixels** has an **Off** state. Off is view-referred normal rendering; values `1` and above are image-referred art-pixel mode. Block sampling, despeckle, dither protection, and edge tighten only apply while art-pixel mode is on. The diagnostic overlay short-circuits the post-process pipeline, so swatch and difference views always reflect raw palette output.
 
 ## Shared generation controls
 

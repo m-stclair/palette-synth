@@ -73,6 +73,7 @@ export function renderPalettePass(gl, program, {
   gl.uniform1f(uniformLocation(gl, program, "u_ditherScale"), Number(settings.ditherScale));
   gl.uniform1f(uniformLocation(gl, program, "u_ditherAngle"), Number(settings.ditherAngle));
   gl.uniform1f(uniformLocation(gl, program, "u_ditherLumaAmount"), Number(settings.ditherLumaAmount));
+  gl.uniform1i(uniformLocation(gl, program, "u_pixelArtEnabled"), settings.pixelArtEnabled ? 1 : 0);
   gl.uniform1f(uniformLocation(gl, program, "u_pixelBlockSize"), Math.max(1, Number(settings.pixelBlockSize) || 1));
   const overlayCode = diagnosticOverlayMode === "swatch" ? 1 : (diagnosticOverlayMode === "difference" ? 2 : 0);
   const overlaySwatch = Number(diagnosticOverlaySwatch);

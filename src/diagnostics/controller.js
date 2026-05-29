@@ -1,5 +1,6 @@
 import { analyzePixelAtImagePoint, createPixelAnalysisContext, sampleFinalOutputPixelAtImagePoint } from "./pixel-inspector.js";
 import { clamp } from "../color-utils.js";
+import { effectivePixelBlockSize } from "../state/config.js";
 
 export function panelIsOpen(panel) {
   return !!panel && !panel.hidden && !panel.classList.contains("is-collapsed");
@@ -226,7 +227,7 @@ export function createDiagnosticsController({
       return;
     }
 
-    const blockSize = Math.max(1, Math.round(Number(config.pixelBlockSize) || 1));
+    const blockSize = effectivePixelBlockSize(config);
     const imageW = state.imageData.width || 1;
     const imageH = state.imageData.height || 1;
     const blockOriginX = Math.floor(pixel.x / blockSize) * blockSize;

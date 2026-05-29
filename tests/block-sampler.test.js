@@ -14,12 +14,13 @@ test("block sampler exposes representative sample mode", () => {
   assert.equal(blockSampleModeCode("missing"), BLOCK_SAMPLE_MODE.center);
 });
 
-test("block sample pass runs for non-center block modes only", () => {
-  assert.equal(blockSamplePassNeeded({pixelBlockSize: 1, pixelBlockSampleMode: "representative"}), false);
-  assert.equal(blockSamplePassNeeded({pixelBlockSize: 4, pixelBlockSampleMode: "center"}), false);
-  assert.equal(blockSamplePassNeeded({pixelBlockSize: 4, pixelBlockSampleMode: "mean"}), true);
-  assert.equal(blockSamplePassNeeded({pixelBlockSize: 4, pixelBlockSampleMode: "representative"}), true);
-  assert.equal(blockSamplePassNeeded({pixelBlockSize: 4, pixelBlockSampleMode: "missing"}), false);
+test("block sample pass runs for enabled non-center art-pixel modes only", () => {
+  assert.equal(blockSamplePassNeeded({pixelArtEnabled: false, pixelBlockSize: 4, pixelBlockSampleMode: "mean"}), false);
+  assert.equal(blockSamplePassNeeded({pixelArtEnabled: true, pixelBlockSize: 1, pixelBlockSampleMode: "representative"}), false);
+  assert.equal(blockSamplePassNeeded({pixelArtEnabled: true, pixelBlockSize: 4, pixelBlockSampleMode: "center"}), false);
+  assert.equal(blockSamplePassNeeded({pixelArtEnabled: true, pixelBlockSize: 4, pixelBlockSampleMode: "mean"}), true);
+  assert.equal(blockSamplePassNeeded({pixelArtEnabled: true, pixelBlockSize: 4, pixelBlockSampleMode: "representative"}), true);
+  assert.equal(blockSamplePassNeeded({pixelArtEnabled: true, pixelBlockSize: 4, pixelBlockSampleMode: "missing"}), false);
 });
 
 test("block sample pass restores the caller framebuffer", () => {

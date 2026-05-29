@@ -26,6 +26,19 @@ export const DEFAULT_COSINE_CUSTOM_VECTORS = {
 export const COSINE_VECTOR_KEYS = ["a", "b", "c", "d"];
 export const PALETTE_SWATCH_SCALES = [1, 2, 3];
 
+export function isPixelArtEnabled(config = {}) {
+  return config?.pixelArtEnabled === true;
+}
+
+export function effectivePixelBlockSize(config = {}) {
+  if (!isPixelArtEnabled(config)) return 1;
+  return clamp(Math.round(Number(config.pixelBlockSize) || DEFAULT_CONFIG.pixelBlockSize), 1, 16);
+}
+
+export function pixelBlockSliderValue(config = {}) {
+  return isPixelArtEnabled(config) ? effectivePixelBlockSize(config) : 0;
+}
+
 export function normalizePaletteSwatchScale(value) {
   const number = Number(value);
   return PALETTE_SWATCH_SCALES.includes(number) ? number : 1;
@@ -109,6 +122,7 @@ export const DEFAULT_CONFIG = {
   generatedLocks: [],
   pixelPerfect: false,
   dynamicSkin: false,
+  pixelArtEnabled: false,
   pixelBlockSize: 1,
   pixelBlockSampleMode: "center",
   despeckleEnabled: false,
@@ -434,6 +448,7 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   }) : [];
   base.pixelPerfect = !!base.pixelPerfect;
   base.dynamicSkin = !!base.dynamicSkin;
+  const hasExplicitPixelArtEnabled = hasOwn(source, "pixelArtEnabled");
   base.pixelBlockSize = clamp(Math.round(Number(base.pixelBlockSize) || DEFAULT_CONFIG.pixelBlockSize), 1, 16);
   base.pixelBlockSampleMode = ["center", "mean", "representative"].includes(base.pixelBlockSampleMode) ? base.pixelBlockSampleMode : DEFAULT_CONFIG.pixelBlockSampleMode;
   base.despeckleEnabled = !!base.despeckleEnabled;
@@ -443,6 +458,13 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
     : DEFAULT_CONFIG.ditherProtectionEnabled;
   base.edgeTightenEnabled = !!base.edgeTightenEnabled;
   base.edgeTightenStrength = clamp(Math.round(Number(base.edgeTightenStrength) || DEFAULT_CONFIG.edgeTightenStrength), 1, 2);
+  base.pixelArtEnabled = hasExplicitPixelArtEnabled
+    ? !!base.pixelArtEnabled
+    : base.pixelBlockSize > 1
+      || base.pixelBlockSampleMode !== DEFAULT_CONFIG.pixelBlockSampleMode
+      || base.despeckleEnabled
+      || base.edgeTightenEnabled;
+  if (!base.pixelArtEnabled) base.pixelBlockSize = DEFAULT_CONFIG.pixelBlockSize;
   base.compareEnabled = !!base.compareEnabled;
   base.compareSplit = clamp01(Number.isFinite(Number(base.compareSplit)) ? Number(base.compareSplit) : DEFAULT_CONFIG.compareSplit);
   return base;

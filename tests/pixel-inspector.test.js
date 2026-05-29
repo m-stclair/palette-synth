@@ -180,7 +180,7 @@ test("analyzePixelAtImagePoint reports the snapped source color when pixel block
       ])
     },
     paletteRecords: [],
-    config: {outputMode: "quantized", blendAmount: 0, pixelBlockSize: 3}
+    config: {outputMode: "quantized", blendAmount: 0, pixelArtEnabled: true, pixelBlockSize: 3}
   });
 
   assert.equal(result.x, 1);

@@ -15,6 +15,7 @@ import {
 } from "../color-utils.js";
 import { cpuDistanceBreakdown, DIAGNOSTIC } from "./metrics.js";
 import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabForLab, finalOutputRgbForLab, outputLabToHex } from "./output-color.js";
+import { effectivePixelBlockSize } from "../state/config.js";
 
 /** @typedef {import("../types.d.ts").AppConfig} AppConfig */
 /** @typedef {import("../types.d.ts").ImageDataSource} ImageDataSource */
@@ -223,7 +224,7 @@ export function analyzePixelAtImagePoint({
   matchLimit = DIAGNOSTIC.matchLimit
 } = {}) {
   if (!imageData) return null;
-  const sourceColor = samplePixelBlockColor(imageData, x, y, config.pixelBlockSize, config.pixelBlockSampleMode);
+  const sourceColor = samplePixelBlockColor(imageData, x, y, effectivePixelBlockSize(config), config.pixelBlockSampleMode);
   if (!sourceColor) return null;
   const pxX = sourceColor.x;
   const pxY = sourceColor.y;
@@ -323,7 +324,7 @@ export function sampleFinalOutputPixelAtImagePoint({
   matchLimit = DIAGNOSTIC.matchLimit
 } = {}) {
   if (!imageData) return null;
-  const sourceColor = samplePixelBlockColor(imageData, x, y, config.pixelBlockSize, config.pixelBlockSampleMode);
+  const sourceColor = samplePixelBlockColor(imageData, x, y, effectivePixelBlockSize(config), config.pixelBlockSampleMode);
   if (!sourceColor) return null;
   const r = sourceColor.r;
   const g = sourceColor.g;

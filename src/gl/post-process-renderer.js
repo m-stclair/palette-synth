@@ -24,12 +24,12 @@ function ensureTextureWithSize(gl, textureRef, width, height, {force = false} = 
 }
 
 function normalizeDespeckleStrength(config = {}) {
-  if (!config.despeckleEnabled) return 0;
+  if (config.pixelArtEnabled !== true || !config.despeckleEnabled) return 0;
   return Math.max(0, Math.min(4, Math.round(Number(config.despeckleStrength) || 0)));
 }
 
 function normalizeEdgeTightenStrength(config = {}) {
-  if (!config.edgeTightenEnabled) return 0;
+  if (config.pixelArtEnabled !== true || !config.edgeTightenEnabled) return 0;
   return Math.max(0, Math.min(2, Math.round(Number(config.edgeTightenStrength) || 0)));
 }
 

@@ -23,6 +23,7 @@ export const UI_ELEMENT_IDS = [
   "dynamicSkin",
   "pixelBlockSize",
   "pixelBlockSizeValue",
+  "pixelArtOptions",
   "pixelBlockSampleMode",
   "tonalZoneWeight",
   "tonalZoneWeightValue",

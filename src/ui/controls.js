@@ -1,5 +1,5 @@
 import { $, SELECTION_APPEAL_WEIGHT_CONTROLS } from "./dom.js";
-import { COSINE_VECTOR_KEYS, normalizeCosineCustomVectors, snapPaletteSizeToFamilyMultiple } from "../state/config.js";
+import { COSINE_VECTOR_KEYS, effectivePixelBlockSize, isPixelArtEnabled, normalizeCosineCustomVectors, pixelBlockSliderValue, snapPaletteSizeToFamilyMultiple } from "../state/config.js";
 import { createShortcutDispatcher } from "./shortcuts.js";
 import { cyclePaletteSwatchScale, syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
@@ -158,6 +158,40 @@ export function syncGeneratedPaletteSizeControl(config, {root = document, setOut
   else if (out) out.textContent = String(config.paletteSize);
   return sizeChanged;
 }
+export function pixelBlockSizeOutputText(config, value = config?.pixelBlockSize) {
+  const raw = Number(value);
+  const enabled = raw > 0 && isPixelArtEnabled(config);
+  if (!enabled) return "Off";
+  const size = Math.max(1, Math.min(16, Math.round(raw || effectivePixelBlockSize(config))));
+  return size === 1 ? "1 source px" : `${size}×${size} source px`;
+}
+
+export function syncPixelArtControls(config, {root = document, setOutputText = null} = {}) {
+  if (!config) return;
+  const slider = $("pixelBlockSize", root);
+  const sliderValue = pixelBlockSliderValue(config);
+  if (slider) slider.value = sliderValue;
+
+  const out = $("pixelBlockSizeValue", root);
+  if (typeof setOutputText === "function") setOutputText("pixelBlockSize", out, sliderValue);
+  else if (out) out.textContent = pixelBlockSizeOutputText(config, sliderValue);
+
+  const options = $("pixelArtOptions", root);
+  if (options) options.hidden = !isPixelArtEnabled(config);
+  if (root?.body?.dataset) root.body.dataset.pixelArtEnabled = isPixelArtEnabled(config) ? "true" : "false";
+}
+
+function applyPixelBlockSizeSliderValue(config, rawValue) {
+  const sliderValue = Math.max(0, Math.min(16, Math.round(Number(rawValue) || 0)));
+  const nextEnabled = sliderValue > 0;
+  const nextSize = nextEnabled ? sliderValue : 1;
+  const enabledChanged = !Object.is(!!config.pixelArtEnabled, nextEnabled);
+  const sizeChanged = !Object.is(config.pixelBlockSize, nextSize);
+  config.pixelArtEnabled = nextEnabled;
+  config.pixelBlockSize = nextSize;
+  return {enabledChanged, sizeChanged, changed: enabledChanged || sizeChanged};
+}
+
 
 export function bindControls({
   els,
@@ -181,6 +215,7 @@ export function bindControls({
     els[key] = el;
     if (key === "paletteMode" && config[key] === "preset") config[key] = "manual";
     if (el.type === "checkbox") el.checked = !!config[key];
+    else if (key === "pixelBlockSize") el.value = pixelBlockSliderValue(config);
     else el.value = config[key];
     if (COLOR_CONTROL_KEYS.has(key)) {
       attachColorPicker(el, {label: key === "seedSwatch" ? "Seed swatch" : key});
@@ -190,6 +225,16 @@ export function bindControls({
     setOutputText(key, out, el.type === "checkbox" ? !!el.checked : el.value);
 
     const applyControlValue = () => {
+      if (key === "pixelBlockSize") {
+        const {enabledChanged, sizeChanged, changed} = applyPixelBlockSizeSliderValue(config, el.value);
+        syncPixelArtControls(config, {setOutputText});
+        if (!changed) return false;
+        if (enabledChanged) handleControlDirty("pixelArtEnabled");
+        if (sizeChanged) handleControlDirty("pixelBlockSize");
+        queueRender();
+        return true;
+      }
+
       let nextValue = controlValue(el);
       if (key === "cycleOffset") {
         nextValue = normalizedCycleOffset(nextValue, state.paletteRecords);
@@ -235,6 +280,7 @@ export function bindControls({
   }
 
   syncGeneratedPaletteSizeControl(config, {setOutputText});
+  syncPixelArtControls(config, {setOutputText});
 
   bindCosineCustomVectorControls({
     config,

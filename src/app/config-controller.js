@@ -1,5 +1,5 @@
 import { $, SELECTION_APPEAL_WEIGHT_CONTROLS } from "../ui/dom.js";
-import { syncCosineCustomVectorControls, syncGeneratedPaletteSizeControl } from "../ui/controls.js";
+import { pixelBlockSizeOutputText, syncCosineCustomVectorControls, syncGeneratedPaletteSizeControl, syncPixelArtControls } from "../ui/controls.js";
 import { syncColorPickerInput } from "../ui/color-picker.js";
 import { syncPaletteSwatchScaleUi } from "../ui/palette-swatch-scale.js";
 import {
@@ -92,6 +92,7 @@ export function createConfigController({
     if (!out) return;
     if (key === "cyclePreviewSpeed") out.textContent = `${Number(value).toFixed(1)} steps/s`;
     else if (key === "harmonyRampSteepness") out.textContent = `${Number(value).toFixed(2)}×`;
+    else if (key === "pixelBlockSize") out.textContent = pixelBlockSizeOutputText(config, value);
     else out.textContent = String(value);
   }
 
@@ -105,6 +106,7 @@ export function createConfigController({
       setOutputText(key, byId(`${key}Value`), Array.isArray(config[key]) ? el.value : config[key]);
     }
     syncGeneratedPaletteSizeControl(config, {root, setOutputText});
+    syncPixelArtControls(config, {root, setOutputText});
     syncCosineCustomVectorControls(config, root);
     SELECTION_APPEAL_WEIGHT_CONTROLS.forEach(({id, configKey}) => {
       const el = byId(id);

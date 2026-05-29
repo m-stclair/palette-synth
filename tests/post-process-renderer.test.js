@@ -12,25 +12,41 @@ test("postProcessActive is false when despeckle is disabled", () => {
 });
 
 test("postProcessActive treats despeckle with zero strength as inactive", () => {
-  assert.equal(postProcessActive({despeckleEnabled: true, despeckleStrength: 0}), false);
-  assert.equal(postProcessActive({despeckleEnabled: true, despeckleStrength: 1}), true);
+  assert.equal(postProcessActive({pixelArtEnabled: true, despeckleEnabled: true, despeckleStrength: 0}), false);
+  assert.equal(postProcessActive({pixelArtEnabled: true, despeckleEnabled: true, despeckleStrength: 1}), true);
 });
 
 test("postProcessActive treats edge tighten as an independent post-process", () => {
-  assert.equal(postProcessActive({edgeTightenEnabled: false, edgeTightenStrength: 2}), false);
-  assert.equal(postProcessActive({edgeTightenEnabled: true, edgeTightenStrength: 0}), false);
-  assert.equal(postProcessActive({edgeTightenEnabled: true, edgeTightenStrength: 1}), true);
+  assert.equal(postProcessActive({pixelArtEnabled: true, edgeTightenEnabled: false, edgeTightenStrength: 2}), false);
+  assert.equal(postProcessActive({pixelArtEnabled: true, edgeTightenEnabled: true, edgeTightenStrength: 0}), false);
+  assert.equal(postProcessActive({pixelArtEnabled: true, edgeTightenEnabled: true, edgeTightenStrength: 1}), true);
 });
 
 test("postProcessActive is false while a diagnostic overlay is active", () => {
-  const active = {despeckleEnabled: true, despeckleStrength: 2};
+  const active = {pixelArtEnabled: true, despeckleEnabled: true, despeckleStrength: 2};
   assert.equal(postProcessActive(active, {mode: "none"}), true);
   assert.equal(postProcessActive(active, {mode: "difference"}), false);
   assert.equal(postProcessActive(active, {mode: "swatch"}), false);
 });
 
+test("pixel-art post-process controls are inert when art pixels are off", () => {
+  assert.equal(postProcessActive({pixelArtEnabled: false, despeckleEnabled: true, despeckleStrength: 2}), false);
+  const settings = postProcessSettingsFromConfig({
+    pixelArtEnabled: false,
+    despeckleEnabled: true,
+    despeckleStrength: 2,
+    edgeTightenEnabled: true,
+    edgeTightenStrength: 2
+  });
+  assert.equal(settings.despeckleEnabled, false);
+  assert.equal(settings.despeckleStrength, 0);
+  assert.equal(settings.edgeTightenEnabled, false);
+  assert.equal(settings.edgeTightenStrength, 0);
+});
+
 test("postProcessSettingsFromConfig clamps and normalizes post-process values", () => {
   const settings = postProcessSettingsFromConfig({
+    pixelArtEnabled: true,
     despeckleEnabled: 1,
     despeckleStrength: 99,
     edgeTightenEnabled: 1,

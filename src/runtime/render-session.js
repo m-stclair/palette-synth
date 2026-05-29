@@ -1,4 +1,5 @@
 import { paletteLabs } from "../color-utils.js";
+import { effectivePixelBlockSize, isPixelArtEnabled } from "../state/config.js";
 import { MAX_PALETTE_SIZE } from "../constants.js";
 import { maskBehaviorCode, maskForbiddenSourceFlags } from "../ui/cycle-mask.js";
 import { clearFramebuffer, resizeDrawingBuffer } from "../gl/context.js";
@@ -56,7 +57,8 @@ export function renderSettingsFromConfig(config) {
     ditherScale: config.ditherScale,
     ditherAngle: config.ditherAngle,
     ditherLumaAmount: config.ditherLumaAmount,
-    pixelBlockSize: config.pixelBlockSize ?? 1,
+    pixelArtEnabled: isPixelArtEnabled(config),
+    pixelBlockSize: effectivePixelBlockSize(config),
     pixelBlockSampleMode: config.pixelBlockSampleMode ?? "center"
   };
 }

@@ -1,5 +1,6 @@
 import { hexToByteRgb, hexToLab, labToOklch, normalizeHexColor, rgb8ToLab } from "../color-utils.js";
 import { MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON, OKLAB_SCALE, TAU } from "../constants.js";
+import { effectivePixelBlockSize, isPixelArtEnabled } from "../state/config.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -66,7 +67,7 @@ function loupeOutputConfigSignature(config = {}) {
     signatureNumber(config.ditherLumaAmount),
     signatureNumber(config.ditherScale),
     signatureNumber(config.ditherAngle),
-    Math.max(1, Math.round(Number(config.pixelBlockSize) || 1)),
+    isPixelArtEnabled(config) ? effectivePixelBlockSize(config) : 0,
     config.pixelBlockSampleMode ?? "center"
   ].join("~");
 }
@@ -459,7 +460,7 @@ function renderLoupe({els, state, config, samplePixel = null, sampleCacheKey = "
     samplePixel,
     sampleCacheKey,
     patchSize: patchSizeForExpanded(expanded),
-    pixelBlockSize: config?.pixelBlockSize
+    pixelBlockSize: effectivePixelBlockSize(config)
   });
 }
 

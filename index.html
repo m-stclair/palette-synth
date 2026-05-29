@@ -376,27 +376,29 @@
       <section class="panel">
         <h2>Pixel art</h2>
         <div class="field">
-          <label for="pixelBlockSize">Pixel size <output id="pixelBlockSizeValue"></output></label>
-          <input id="pixelBlockSize" type="range" min="1" max="16" step="1" />
+          <label for="pixelBlockSize">Art pixels <output id="pixelBlockSizeValue"></output></label>
+          <input id="pixelBlockSize" type="range" min="0" max="16" step="1" title="Off uses view-referred single pixels. Values 1–16 use image-referred art pixels." />
         </div>
-        <div class="field">
-          <label for="pixelBlockSampleMode">Block sample</label>
-          <select id="pixelBlockSampleMode">
-            <option value="center">Center</option>
-            <option value="mean">Mean</option>
-            <option value="representative">Representative</option>
-          </select>
-        </div>
-        <label class="field checkbox-field" for="despeckleEnabled" title="3x3 mode filter on the paletted output. Removes isolated stray pixels."><span>Despeckle</span><input id="despeckleEnabled" type="checkbox" /></label>
-        <div class="field">
-          <label for="despeckleStrength">Despeckle passes <output id="despeckleStrengthValue"></output></label>
-          <input id="despeckleStrength" type="range" min="1" max="4" step="1" />
-        </div>
-        <label class="field checkbox-field" for="ditherProtectionEnabled" title="Keeps despeckle and edge tighten from eating intentional two-color dither texture. Uses the active dither pattern when available, with a small neighborhood fallback for pre-dithered texture."><span>Dither protection</span><input id="ditherProtectionEnabled" type="checkbox" /></label>
-        <label class="field checkbox-field" for="edgeTightenEnabled" title="Conservative source-resolution cleanup that repairs one-pixel edge gaps and chipped corners without sharpening."><span>Edge tighten</span><input id="edgeTightenEnabled" type="checkbox" /></label>
-        <div class="field">
-          <label for="edgeTightenStrength">Tighten strength <output id="edgeTightenStrengthValue"></output></label>
-          <input id="edgeTightenStrength" type="range" min="1" max="2" step="1" />
+        <div id="pixelArtOptions" class="pixel-art-options">
+          <div class="field">
+            <label for="pixelBlockSampleMode">Block sample</label>
+            <select id="pixelBlockSampleMode">
+              <option value="center">Center</option>
+              <option value="mean">Mean</option>
+              <option value="representative">Representative</option>
+            </select>
+          </div>
+          <label class="field checkbox-field" for="despeckleEnabled" title="3x3 mode filter on the paletted output. Removes isolated stray pixels."><span>Despeckle</span><input id="despeckleEnabled" type="checkbox" /></label>
+          <div class="field">
+            <label for="despeckleStrength">Despeckle passes <output id="despeckleStrengthValue"></output></label>
+            <input id="despeckleStrength" type="range" min="1" max="4" step="1" />
+          </div>
+          <label class="field checkbox-field" for="ditherProtectionEnabled" title="Keeps despeckle and edge tighten from eating intentional two-color dither texture. Uses the active dither pattern when available, with a small neighborhood fallback for pre-dithered texture."><span>Dither protection</span><input id="ditherProtectionEnabled" type="checkbox" /></label>
+          <label class="field checkbox-field" for="edgeTightenEnabled" title="Conservative source-resolution cleanup that repairs one-pixel edge gaps and chipped corners without sharpening."><span>Edge tighten</span><input id="edgeTightenEnabled" type="checkbox" /></label>
+          <div class="field">
+            <label for="edgeTightenStrength">Tighten strength <output id="edgeTightenStrengthValue"></output></label>
+            <input id="edgeTightenStrength" type="range" min="1" max="2" step="1" />
+          </div>
         </div>
       </section>
 

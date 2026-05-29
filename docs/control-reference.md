@@ -11,7 +11,7 @@ A rendered frame moves through this pipeline:
 3. **Palette adjustments**: the palette can be bent by gamma, chroma gamma, and hue rotation.
 4. **Pixel assignment**: each source pixel is matched to palette colors using assignment mode, perceptual weights, optional distance limits, blend/dither settings, cycle settings, and optional mask rules.
 5. **Output composition**: output mode decides which parts of the matched palette color are used, then Wet/Dry Mix blends the result back over the source.
-6. **Pixel-art finishing**: optional block sampling and despeckle operate at art-pixel scale.
+6. **Pixel-art finishing**: optional image-referred art pixels, block sampling, despeckle, and edge tightening run only when art-pixel mode is on.
 
 Some controls are conditional. A hidden control is not inactive magic; it is a control for a mode you are not currently using.
 
@@ -204,14 +204,14 @@ Visible in **Assignment: Dither**.
 
 | Control | What it does |
 |---|---|
-| **Pixel size** | Groups the source image into larger art-pixels before palette assignment. At `1`, pixels are processed normally. Above `1`, mapping and dither coordinates operate at block scale. |
-| **Block sample: Center** | Samples the center pixel of each art-pixel block. Fast and crisp, but can miss small details. |
+| **Art pixels** | `Off` keeps rendering view-referred: one screen/render pixel is one independent assignment. Values `1`–`16` turn on image-referred art-pixel mode. `1` preserves source-pixel size but locks dither/diagnostic logic to the source-image grid; higher values group the source image into larger art-pixels before palette assignment. |
+| **Block sample: Center** | Visible only when **Art pixels** is on. Samples the center pixel of each art-pixel block. Fast and crisp, but can miss small details. |
 | **Block sample: Mean** | Averages the block before mapping. Smoother; better for reducing noisy source pixels. |
 | **Block sample: Representative** | Chooses a representative color for the block rather than a straight center sample or mean. Useful when the mean muddies distinct colors. |
-| **Despeckle** | Runs a 3×3 mode filter on the paletted output to remove isolated stray art-pixels. |
+| **Despeckle** | Visible only when **Art pixels** is on. Runs a 3×3 mode filter on the paletted output to remove isolated stray art-pixels. |
 | **Despeckle passes** | Number of despeckle passes, from 1 to 4. More passes are stronger and can eat intentional detail. |
 | **Dither protection** | Prevents despeckle and edge tighten from replacing pixels that look like intentional two-color dither. In Dither assignment mode it also uses the active dither pattern, scale, and angle as a phase hint; otherwise it falls back to small checker/stripe neighborhood evidence. |
-| **Edge tighten** | Runs one conservative post-palette pass after despeckle. It repairs weak one-pixel gaps and chipped corners when neighboring art-pixels form a clearer edge. |
+| **Edge tighten** | Visible only when **Art pixels** is on. Runs one conservative post-palette pass after despeckle. It repairs weak one-pixel gaps and chipped corners when neighboring art-pixels form a clearer edge. |
 | **Tighten strength** | Edge-tighten strength, from 1 to 2. `1` only accepts strong opposite-pair evidence; `2` also accepts small corner-block repairs. |
 
 ## Cycle panel

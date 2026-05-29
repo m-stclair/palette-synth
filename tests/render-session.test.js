@@ -21,6 +21,7 @@ function makeConfig(overrides = {}) {
     ditherScale: 4,
     ditherAngle: 30,
     ditherLumaAmount: 0.6,
+    pixelArtEnabled: true,
     pixelBlockSize: 3,
     pixelBlockSampleMode: "center",
     ...overrides
@@ -138,6 +139,7 @@ test("renderSettingsFromConfig selects only shader render settings", () => {
     ditherScale: 4,
     ditherAngle: 30,
     ditherLumaAmount: 0.6,
+    pixelArtEnabled: true,
     pixelBlockSize: 3,
     pixelBlockSampleMode: "center"
   });

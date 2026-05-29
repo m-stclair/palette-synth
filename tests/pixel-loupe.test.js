@@ -431,7 +431,7 @@ test("pixel loupe diff mode renders source-to-final OKLab distance in the patch"
 
 
 test("pixel loupe shows the snapped art-pixel footprint when block size is larger than one", () => {
-  const t = bindTestLoupe({config: {pixelBlockSize: 4}});
+  const t = bindTestLoupe({config: {pixelArtEnabled: true, pixelBlockSize: 4}});
   try {
     t.canvas.dispatch("pointermove", {clientX: 1, clientY: 2});
 

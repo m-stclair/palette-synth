@@ -182,6 +182,7 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.maxDistanceEnabled, true);
   assert.equal(clean.maxDistance, 100);
   assert.equal(clean.compareSplit, 1);
+  assert.equal(clean.pixelArtEnabled, true);
   assert.equal(clean.pixelBlockSize, 16);
   assert.equal(clean.pixelBlockSampleMode, DEFAULT_CONFIG.pixelBlockSampleMode);
   assert.equal(clean.tonalZoneWeight, 2);
@@ -189,6 +190,21 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.generatedTintShadeFamilies, false);
   assert.equal(clean.cosineCustomTintShadeFamilies, false);
   assert.equal(clean.manualMatchAliases.length, 0);
+});
+
+test("pixel art sanitization keeps off separate from size-one art pixels", () => {
+  const off = sanitizeConfigSnapshot({pixelArtEnabled: false, pixelBlockSize: 8, despeckleEnabled: true});
+  assert.equal(off.pixelArtEnabled, false);
+  assert.equal(off.pixelBlockSize, 1);
+  assert.equal(off.despeckleEnabled, true);
+
+  const sizeOneArtPixels = sanitizeConfigSnapshot({pixelArtEnabled: true, pixelBlockSize: 1});
+  assert.equal(sizeOneArtPixels.pixelArtEnabled, true);
+  assert.equal(sizeOneArtPixels.pixelBlockSize, 1);
+
+  const legacyLargePixels = sanitizeConfigSnapshot({pixelBlockSize: 4});
+  assert.equal(legacyLargePixels.pixelArtEnabled, true);
+  assert.equal(legacyLargePixels.pixelBlockSize, 4);
 });
 
 test("config sanitization keeps tonal zone and width multipliers in range", () => {
