@@ -396,3 +396,78 @@ test("manual palette actions import LUT files as manual swatches and records his
   assert.equal(calls.some(call => Array.isArray(call) && call[0] === "history" && call[2] === "Import LUT"), true);
   assert.deepEqual(urlCalls, [["create", "look.png"], ["revoke", "blob:look.png"]]);
 });
+
+function imageDataFromRgbTriples(rgbTriples) {
+  const data = new Uint8ClampedArray(rgbTriples.length * 4);
+  rgbTriples.forEach(([r, g, b], index) => {
+    const offset = index * 4;
+    data[offset] = r;
+    data[offset + 1] = g;
+    data[offset + 2] = b;
+    data[offset + 3] = 255;
+  });
+  return {width: rgbTriples.length, height: 1, data};
+}
+
+test("manual palette actions add a k-means swatch from residual image color", () => {
+  const imageData = imageDataFromRgbTriples([
+    [255, 0, 0],
+    [0, 0, 255],
+    [0, 255, 0]
+  ]);
+  const config = {
+    ...cloneDefaultConfig(),
+    paletteMode: "manual",
+    generatedAssist: 25,
+    manualPalette: [
+      {id: "red", hex: "#ff0000", locked: true, muted: false},
+      {id: "blue", hex: "#0000ff", locked: false, muted: false}
+    ],
+    manualMatchAliases: [],
+    blockSize: 1,
+    samplingMode: "stratified",
+    seed: 2
+  };
+  const {controller, calls, statuses} = makeHarness({config, activePaletteImageData: () => imageData});
+
+  controller.addManualKMeansSwatch();
+
+  assert.equal(config.generatedAssist, 0);
+  assert.equal(config.manualPalette.length, 3);
+  assert.equal(config.manualPalette[2].hex, "#00ff00");
+  assert.deepEqual(calls[0], ["withHistory", "Add k-means manual swatch"]);
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === "setOutputText"), true);
+  assert.equal(statuses.at(-1), "Added k-means swatch #00ff00.");
+});
+
+test("manual palette actions refit only unlocked active swatches with k-means", () => {
+  const imageData = imageDataFromRgbTriples([
+    [255, 0, 0],
+    [0, 0, 255]
+  ]);
+  const config = {
+    ...cloneDefaultConfig(),
+    paletteMode: "manual",
+    generatedAssist: 0,
+    manualPalette: [
+      {id: "red", hex: "#ff0000", locked: true, muted: false},
+      {id: "fit", hex: "#111111", aliasHex: "#222222", locked: false, muted: false},
+      {id: "muted", hex: "#00ff00", locked: false, muted: true}
+    ],
+    manualMatchAliases: [{index: 1, hex: "#222222"}],
+    blockSize: 1,
+    samplingMode: "stratified",
+    seed: 2
+  };
+  const {controller, calls, statuses} = makeHarness({config, activePaletteImageData: () => imageData});
+
+  controller.refitUnlockedManualWithKMeans();
+
+  assert.equal(config.manualPalette[0].hex, "#ff0000");
+  assert.equal(config.manualPalette[1].hex, "#0000ff");
+  assert.equal(config.manualPalette[1].aliasHex, null);
+  assert.equal(config.manualPalette[2].hex, "#00ff00");
+  assert.deepEqual(config.manualMatchAliases, []);
+  assert.deepEqual(calls[0], ["withHistory", "Refit unlocked swatches with k-means"]);
+  assert.equal(statuses.at(-1), "Refit 1 unlocked manual swatch with k-means.");
+});

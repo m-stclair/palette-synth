@@ -491,6 +491,8 @@ export function bindAppControls({
   loadPresetAsManual,
   switchPalettePreset,
   addManualSwatch,
+  addManualKMeansSwatch,
+  refitUnlockedManualWithKMeans,
   addPixelSourceToManualPalette,
   copyPixelHex,
   setPixelInspectorOpen,
@@ -576,6 +578,8 @@ export function bindAppControls({
   $("previousPresetAsManual")?.addEventListener("click", () => switchPalettePreset?.(-1));
   $("nextPresetAsManual")?.addEventListener("click", () => switchPalettePreset?.(1));
   $("addSwatch")?.addEventListener("click", addManualSwatch);
+  $("addKMeansSwatch")?.addEventListener("click", addManualKMeansSwatch);
+  $("refitUnlockedKMeans")?.addEventListener("click", refitUnlockedManualWithKMeans);
   $("addPixelSourceToManualPalette")?.addEventListener("click", addPixelSourceToManualPalette);
   $("importPaletteText")?.addEventListener("click", openManualPaletteTextDialog);
   $("cancelPaletteTextImport")?.addEventListener("click", closeManualPaletteTextDialog);

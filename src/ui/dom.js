@@ -98,6 +98,8 @@ export const UI_ELEMENT_IDS = [
   "pixelProbeOverlay",
   "capturePalette",
   "capturePaletteMenu",
+  "addKMeansSwatch",
+  "refitUnlockedKMeans",
   "importPaletteText",
   "manualPaletteTextDialog",
   "manualPaletteTextInput",

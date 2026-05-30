@@ -1,18 +1,21 @@
 import {DEFAULT_CONFIG} from "../state/config.js";
 import {
+    CANDIDATE_SAMPLE_COUNT,
     MAX_PALETTE_SIZE,
     PALETTE_PRESET_CATALOG,
     PALETTE_PRESET_CATEGORY_ORDER,
     PALETTE_PRESETS
 } from "../constants.js";
 import {byteRgbToHex, clamp, labToHex, normalizeHexColor, normalizeManualLab} from "../color-utils.js";
-import {createManualSwatch, manualSwatchesFromColors, normalizeCapturedPaletteEntry} from "./swatches.js";
+import {createManualSwatch, manualSwatchLab, manualSwatchesFromColors, normalizeCapturedPaletteEntry} from "./swatches.js";
 import {
     createManualPresetId,
     loadManualPresets,
     normalizeManualPreset,
     saveManualPresets
 } from "../storage/manual-presets.js";
+import {buildPatchOrigins, paletteSampleCacheKey, samplePaletteLabs} from "../palette/sampling.js";
+import {constrainedKMeansLabs} from "../palette/kmeans.js";
 
 export function humanizePresetName(name) {
     return String(name)
@@ -531,7 +534,7 @@ export function createManualPaletteActions({
 
     function addManualSwatch() {
         const swatches = syncManualSwatches();
-        if (swatches.length >= 42) return;
+        if (swatches.length >= MAX_PALETTE_SIZE) return;
         withHistory("Add manual swatch", () => {
             const current = syncManualSwatches();
             const last = current[current.length - 1]?.hex || "#eeeeee";
@@ -540,6 +543,135 @@ export function createManualPaletteActions({
             renderManualSwatches();
             markPaletteDirty();
             queueRender();
+        });
+    }
+
+    function manualKMeansImageData() {
+        return activePaletteImageData?.("generated") || activePaletteImageData?.() || null;
+    }
+
+    function manualKMeansSampleRegion(imageData) {
+        return activePaletteRegionRect?.(imageData, "generated") || activePaletteRegionRect?.(imageData) || null;
+    }
+
+    function manualKMeansSamples() {
+        const imageData = manualKMeansImageData();
+        if (!imageData?.data || !imageData.width || !imageData.height) return null;
+        const sampleRegion = manualKMeansSampleRegion(imageData);
+        const origins = buildPatchOrigins(CANDIDATE_SAMPLE_COUNT, imageData.width, imageData.height, config.seed, config.samplingMode, sampleRegion);
+        return samplePaletteLabs(imageData, imageData.width, imageData.height, origins, config.blockSize, paletteSampleCacheKey({
+            sampleCount: CANDIDATE_SAMPLE_COUNT,
+            width: imageData.width,
+            height: imageData.height,
+            seed: config.seed,
+            samplingMode: config.samplingMode,
+            region: sampleRegion,
+            blockSize: config.blockSize
+        }));
+    }
+
+    function setGeneratedAssistZero() {
+        if (config.generatedAssist === 0) return;
+        config.generatedAssist = 0;
+        if (els.generatedAssist) els.generatedAssist.value = config.generatedAssist;
+        setOutputText("generatedAssist", byId(root, "generatedAssistValue"), config.generatedAssist);
+    }
+
+    function writeManualKMeansResult(swatches, statusText) {
+        config.paletteMode = "manual";
+        if (els.paletteMode) els.paletteMode.value = "manual";
+        setGeneratedAssistZero();
+        config.manualPalette = swatches;
+        config.manualMatchAliases = [];
+        renderManualSwatches();
+        markPaletteDirty();
+        updateConditionalPanels();
+        queueRender();
+        setStatus(statusText);
+    }
+
+    function refitUnlockedManualWithKMeans() {
+        const samples = manualKMeansSamples();
+        if (!samples?.length) {
+            setStatus("Load an image before using k-means on manual swatches.");
+            return;
+        }
+
+        const current = syncManualSwatches();
+        const movable = [];
+        const fixedCenters = [];
+        current.forEach((swatch, index) => {
+            if (swatch.muted) return;
+            const lab = manualSwatchLab(swatch);
+            if (swatch.locked) fixedCenters.push(lab);
+            else movable.push({index, lab});
+        });
+
+        if (!movable.length) {
+            setStatus("No unlocked active manual swatches to refit.");
+            return;
+        }
+
+        withHistory("Refit unlocked swatches with k-means", () => {
+            const result = constrainedKMeansLabs(samples, {
+                fixedCenters,
+                movableCenters: movable.map(entry => entry.lab),
+                seed: config.seed,
+                maxIterations: 32,
+                snapToSamples: true
+            });
+            const out = current.map(swatch => ({...swatch}));
+            let changed = 0;
+            movable.forEach((entry, movableIndex) => {
+                const lab = normalizeManualLab(result.movableCenters[movableIndex]);
+                if (!lab) return;
+                const {lab: _oldLab, colorSpace: _oldColorSpace, ...swatch} = out[entry.index];
+                out[entry.index] = {
+                    ...swatch,
+                    hex: labToHex(lab),
+                    aliasHex: null,
+                    lab,
+                    colorSpace: "oklab-scaled"
+                };
+                changed++;
+            });
+            writeManualKMeansResult(out, `Refit ${changed} unlocked manual swatch${changed === 1 ? "" : "es"} with k-means.`);
+        });
+    }
+
+    function addManualKMeansSwatch() {
+        const current = syncManualSwatches();
+        if (current.length >= MAX_PALETTE_SIZE) {
+            setStatus("Manual palette is already full.");
+            return;
+        }
+        const samples = manualKMeansSamples();
+        if (!samples?.length) {
+            setStatus("Load an image before adding a k-means swatch.");
+            return;
+        }
+
+        const fixedCenters = current
+            .filter(swatch => !swatch.muted)
+            .map(swatch => manualSwatchLab(swatch));
+
+        withHistory("Add k-means manual swatch", () => {
+            const result = constrainedKMeansLabs(samples, {
+                fixedCenters,
+                movableCount: 1,
+                seed: config.seed,
+                maxIterations: 32,
+                snapToSamples: true
+            });
+            const lab = normalizeManualLab(result.movableCenters[0]);
+            if (!lab) {
+                setStatus("Could not find a k-means swatch from the image.");
+                return;
+            }
+            const out = current.map(swatch => ({...swatch}));
+            const hex = labToHex(lab);
+            out.push(createManualSwatch(hex, null, "kmeans", false, lab));
+            writeManualKMeansResult(out, `Added k-means swatch ${hex}.`);
         });
     }
 
@@ -654,6 +786,8 @@ export function createManualPaletteActions({
         closeCapturePaletteMenu,
         importLut,
         addManualSwatch,
+        addManualKMeansSwatch,
+        refitUnlockedManualWithKMeans,
         addPixelSourceToManualPalette,
         copyCurrentPaletteHexStrings,
         openManualPaletteTextDialog,
