@@ -7,6 +7,8 @@ import {
 import {
   clamp,
   colorInfoLabel,
+  clearHueChromaForLightness,
+  hasReliableHue,
   hexToByteRgb,
   labDistanceComponents,
   labToHex,
@@ -100,8 +102,8 @@ function lightnessY(lab, height, padding) {
 }
 
 function hueXForPlot(lab, plotLeft, plotRight, pad) {
-  const [, C, h] = labToOklch(lab);
-  if (C < NEUTRAL_CHROMA_EPSILON) return (pad + plotLeft) / 2;
+  const [L, C, h] = labToOklch(lab);
+  if (!hasReliableHue(L, C)) return (pad + plotLeft) / 2;
   return plotLeft + (h / TAU) * (plotRight - plotLeft);
 }
 
@@ -334,7 +336,7 @@ function renderProceduralHarmonyTrace(trace = {}) {
       // Plot the visible/generated output hue after the tonal-region rule and
       // final sRGB fitting. The row text still shows the relationship seed hue,
       // but the scatter should reflect where the swatch actually landed.
-      hueDegrees: outputLab && outputC >= NEUTRAL_CHROMA_EPSILON ? outputHue * 360 / TAU : row.seedHueDegrees,
+      hueDegrees: outputLab && hasReliableHue(outputLab[0], outputC) ? outputHue * 360 / TAU : row.seedHueDegrees,
       L: outputLab?.[0] ?? row.seedL,
       variant: row.variant,
       label: `${row.variant} ${row.outputHex}`
@@ -734,7 +736,7 @@ export function createDiagnosticsPanel({
       const L = clamp((1 - ((point.y - pad) / Math.max(1, height - pad * 2))) * 100, 0, 100);
       if (point.x < plotLeft) return oklchToLab([L, 0, currentH]);
       const h = clamp((point.x - plotLeft) / Math.max(1, plotWidth), 0, 1) * TAU;
-      const C = currentC < NEUTRAL_CHROMA_EPSILON ? 12 : currentC;
+      const C = hasReliableHue(currentL, currentC) ? currentC : Math.max(12, clearHueChromaForLightness(L));
       return fitLabToSrgb(oklchToLab([L, C, h]));
     }
     if (mode === "wheel") {
@@ -845,7 +847,7 @@ export function createDiagnosticsPanel({
     if (channel === "chroma") return parts.chroma;
     if (channel === "hue") {
       const [, chroma, hue] = labToOklch(lab);
-      if (chroma < NEUTRAL_CHROMA_EPSILON) return null;
+      if (!hasReliableHue(parts.lightness, chroma)) return null;
       return hue * 180 / Math.PI;
     }
     return parts.lightness;
@@ -1322,7 +1324,7 @@ export function createDiagnosticsPanel({
     }).join("");
 
     // Neutral column: a subtle band between pad and plotLeft where every
-    // record with chroma below NEUTRAL_CHROMA_EPSILON gets stacked. The band
+    // record without reliable hue at its lightness gets stacked. The band
     // makes that collapse legible instead of being an unmarked vertical line.
     const neutralBand = `<rect x="${pad.toFixed(1)}" y="${pad.toFixed(1)}" width="${(plotLeft - pad).toFixed(1)}" height="${(height - pad * 2).toFixed(1)}" fill="rgba(184,196,214,.05)"/>
       <text x="${((pad + plotLeft) / 2).toFixed(1)}" y="${(height - pad + 10).toFixed(1)}" text-anchor="middle" class="xray-axis">neutral</text>`;
@@ -1458,7 +1460,7 @@ export function createDiagnosticsPanel({
         <text x="${(tx + labelOffset.dx).toFixed(1)}" y="${(ty + labelOffset.dy).toFixed(1)}" text-anchor="${labelOffset.anchor}" class="xray-axis">${stop.name}</text>`;
     }).join("");
 
-    // Neutral cluster lives inside the NEUTRAL_CHROMA_EPSILON ring. Shading
+    // Neutral cluster is drawn with the midtone neutral ring. Shading
     // it makes the collapse legible — neutrals lose their hue, so they all
     // pile up at the center; without the ring it looks like a dense bug.
     const neutralRadius = radiusFor(NEUTRAL_CHROMA_EPSILON);
@@ -2088,7 +2090,7 @@ export function createDiagnosticsPanel({
         <div><span>candidate appeal</span><b>C ${formatScore(candidateAppealWeights.chroma)}</b><small>secondary · O ${formatScore(candidateAppealWeights.outlier)} · M ${formatScore(candidateAppealWeights.midtone)}</small></div>
         <div><span>tonal zone</span><b>×${formatScore(constants.tonalZoneWeight ?? 1)}</b><small>need ${formatScore(constants.tonalNeedBonus)} · crowd ${formatScore(constants.tonalCrowdingPenalty)}</small></div>
         <div><span>width bonus</span><b>×${formatScore(constants.widthBonus ?? 1)}</b><small>range ${formatScore(constants.rangeExpansionBonus)} · novelty ${formatScore(constants.noveltyBonus)}</small></div>
-        <div><span>hue spread</span><b>${formatScore(constants.hueSpreadBonus)}</b><small>seed hue anchors, C ${formatScore(constants.hueReliabilityChromaLow)}–${formatScore(constants.hueReliabilityChromaHigh)}</small></div>
+        <div><span>hue spread</span><b>${formatScore(constants.hueSpreadBonus)}</b><small>seed hue anchors, mid C ${formatScore(constants.hueReliabilityMidNeutral)}–${formatScore(constants.hueReliabilityMidClear)}, endpoint C ${formatScore(constants.hueReliabilityEndpointNeutral)}–${formatScore(constants.hueReliabilityEndpointClear)}</small></div>
         <div><span>${spacingLabel} spacing</span><b>${formatDistance(trace.colorSpacing ?? trace.familySpacing)}</b><small>${spacingMode === "family" ? "whole footprint" : "direct picks"}</small></div>
         ${expansionLine}
         <div><span>tonal target</span><b>${targetText || "—"}</b></div>

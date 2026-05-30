@@ -2,6 +2,7 @@ import {
   byteRgbToHex,
   colorInfoLabel,
   fitLabToSrgb,
+  hasReliableHue,
   hexToByteRgb,
   hexToLab,
   labInSrgbGamut,
@@ -12,7 +13,7 @@ import {
   normalizeHexColor,
   oklchToLab
 } from "../color-utils.js";
-import { NEUTRAL_CHROMA_EPSILON, OKLCH_PROCEDURAL_CHROMA_MAX, TAU } from "../constants.js";
+import { OKLCH_PROCEDURAL_CHROMA_MAX, TAU } from "../constants.js";
 
 const PICKER_KEY = "__paletteSynthColorPicker";
 const FALLBACK_HEX = "#000000";
@@ -83,7 +84,7 @@ function oklchFromHex(hex, fallbackHue = 0) {
   return {
     l: clampLightness(l),
     c: Math.max(0, c),
-    h: c < NEUTRAL_CHROMA_EPSILON ? normalizeHueRadians(fallbackHue) : normalizeHueRadians(h)
+    h: hasReliableHue(l, c) ? normalizeHueRadians(h) : normalizeHueRadians(fallbackHue)
   };
 }
 
@@ -214,7 +215,7 @@ function fitOklchToDisplay({l, c, h}) {
   return {
     l: clampLightness(displayL),
     c: Math.max(0, displayC),
-    h: displayC < NEUTRAL_CHROMA_EPSILON ? safeH : normalizeHueRadians(displayH),
+    h: hasReliableHue(displayL, displayC) ? normalizeHueRadians(displayH) : safeH,
     hex: labToHex(displayLab)
   };
 }
@@ -418,7 +419,7 @@ function trianglePointForWeights(weights) {
 function oklchForTriangleWeights(weights, hue) {
   const safeHue = normalizeHueRadians(hue);
   const [l, c, h] = labToOklch(labForTriangleWeights(normalizeTriangleWeights(weights), safeHue));
-  return {l, c, h: c < NEUTRAL_CHROMA_EPSILON ? safeHue : normalizeHueRadians(h)};
+  return {l, c, h: hasReliableHue(l, c) ? normalizeHueRadians(h) : safeHue};
 }
 
 function writeLabPixel(data, offset, lab, alpha = 255) {

@@ -55,6 +55,10 @@ out vec4 outColor;
 const float OKLAB_SCALE = 100.0;
 const float NEUTRAL_CHROMA_EPSILON = 2.0;
 const float CLEAR_HUE_CHROMA = 6.0;
+const float ENDPOINT_NEUTRAL_CHROMA_EPSILON = 8.0;
+const float ENDPOINT_CLEAR_HUE_CHROMA = 14.0;
+const float HUE_LIGHTNESS_HEADROOM_LOW = 8.0;
+const float HUE_LIGHTNESS_HEADROOM_HIGH = 24.0;
 const float HUE_DISTANCE_SCALE = 10.0;
 const float NEUTRAL_CATEGORY_HUE_SEPARATION = 1.41421356237;
 
@@ -164,6 +168,39 @@ bool is_finite(float x) {
 int positiveMod(int x, int m) {
     int r = x % m;
     return (r < 0) ? r + m : r;
+}
+
+float lightnessHeadroom(float L) {
+    float safeL = clamp(L, 0.0, 100.0);
+    return min(safeL, 100.0 - safeL);
+}
+
+float hueEndpointFactorForLightness(float L) {
+    return 1.0 - smoothstep(
+        HUE_LIGHTNESS_HEADROOM_LOW,
+        HUE_LIGHTNESS_HEADROOM_HIGH,
+        lightnessHeadroom(L)
+    );
+}
+
+float neutralChromaEpsilonForLightness(float L) {
+    return mix(NEUTRAL_CHROMA_EPSILON, ENDPOINT_NEUTRAL_CHROMA_EPSILON, hueEndpointFactorForLightness(L));
+}
+
+float clearHueChromaForLightness(float L) {
+    return mix(CLEAR_HUE_CHROMA, ENDPOINT_CLEAR_HUE_CHROMA, hueEndpointFactorForLightness(L));
+}
+
+float hueReliabilityForLab(float L, float chroma) {
+    return smoothstep(neutralChromaEpsilonForLightness(L), clearHueChromaForLightness(L), chroma);
+}
+
+bool labHasReliableHue(float L, float chroma) {
+    return chroma >= neutralChromaEpsilonForLightness(L);
+}
+
+float hueGateForPair(float aL, float aC, float bL, float bC) {
+    return min(hueReliabilityForLab(aL, aC), hueReliabilityForLab(bL, bC));
 }
 
 mat2 rot2(float degrees) {
@@ -287,18 +324,17 @@ float deltaE_bias_fast(float labL, float labC, vec2 labHue, vec4 q) {
     // neutral mode, the achromatic axis is lifted off the hue plane: a neutral
     // matched against a colored point has a real, fixed hue/category distance.
     float hueBias = 0.0;
-    bool labHasHue = labC >= NEUTRAL_CHROMA_EPSILON;
-    bool candidateHasHue = C >= NEUTRAL_CHROMA_EPSILON;
+    bool labHasHue = labHasReliableHue(labL, labC);
+    bool candidateHasHue = labHasReliableHue(L, C);
     if (labHasHue && candidateHasHue) {
         float theta = clamp(dot(labHue, hue), -1.0, 1.0);
-        float hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, min(labC, C));
+        float hueGate = hueGateForPair(labL, labC, L, C);
         float hueSeparation = sqrt(max(0.0, 2.0 - 2.0 * theta));
         hueBias = HUE_DISTANCE_SCALE * hueGate * hueSeparation;
     }
 #if NEUTRAL_IS_CATEGORY
     else if (labHasHue != candidateHasHue) {
-        float coloredC = labHasHue ? labC : C;
-        float hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, coloredC);
+        float hueGate = labHasHue ? hueReliabilityForLab(labL, labC) : hueReliabilityForLab(L, C);
         hueBias = HUE_DISTANCE_SCALE * hueGate * NEUTRAL_CATEGORY_HUE_SEPARATION;
     }
 #endif
@@ -321,33 +357,33 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
     return paletteSourceIndices[entryIndex] == selectedSwatch;
 }
 
-vec2 safeHueUnit(vec2 ab, vec2 fallback) {
+vec2 safeHueUnit(float L, vec2 ab, vec2 fallback) {
     float c = length(ab);
-    return c >= NEUTRAL_CHROMA_EPSILON ? ab / c : fallback;
+    return labHasReliableHue(L, c) ? ab / c : fallback;
 }
 
-float meaningfulChroma(float chroma) {
-    return chroma >= NEUTRAL_CHROMA_EPSILON ? chroma : 0.0;
+float meaningfulChroma(float L, float chroma) {
+    return labHasReliableHue(L, chroma) ? chroma : 0.0;
 }
 
 vec3 applyOutputMode(vec3 sourceLab, vec3 paletteLab) {
 #if OUTPUT_MODE == OUTPUT_PRESERVE_LUMA
     return vec3(sourceLab.x, paletteLab.yz);
 #elif OUTPUT_MODE == OUTPUT_PRESERVE_CHROMA
-    float sourceChroma = meaningfulChroma(length(sourceLab.yz));
-    vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
-    vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
+    float sourceChroma = meaningfulChroma(sourceLab.x, length(sourceLab.yz));
+    vec2 sourceHue = safeHueUnit(sourceLab.x, sourceLab.yz, vec2(1.0, 0.0));
+    vec2 paletteHue = safeHueUnit(paletteLab.x, paletteLab.yz, sourceHue);
     return vec3(paletteLab.x, paletteHue * sourceChroma);
 #elif OUTPUT_MODE == OUTPUT_HUE_WASH
-    float sourceChroma = meaningfulChroma(length(sourceLab.yz));
+    float sourceChroma = meaningfulChroma(sourceLab.x, length(sourceLab.yz));
     float paletteChroma = length(paletteLab.yz);
 #if NEUTRAL_IS_CATEGORY
-    if (paletteChroma < NEUTRAL_CHROMA_EPSILON) {
+    if (!labHasReliableHue(paletteLab.x, paletteChroma)) {
         return vec3(sourceLab.x, vec2(0.0));
     }
 #endif
-    vec2 sourceHue = safeHueUnit(sourceLab.yz, vec2(1.0, 0.0));
-    vec2 paletteHue = safeHueUnit(paletteLab.yz, sourceHue);
+    vec2 sourceHue = safeHueUnit(sourceLab.x, sourceLab.yz, vec2(1.0, 0.0));
+    vec2 paletteHue = safeHueUnit(paletteLab.x, paletteLab.yz, sourceHue);
     return vec3(sourceLab.x, paletteHue * sourceChroma);
 #elif OUTPUT_MODE == OUTPUT_SHADOW_HIGHLIGHT
     float lo = min(u_shadowCutoff, u_highlightCutoff);

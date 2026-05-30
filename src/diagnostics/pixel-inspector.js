@@ -1,17 +1,17 @@
 import {
-  CLEAR_HUE_CHROMA,
-  HUE_DISTANCE_SCALE,
-  NEUTRAL_CHROMA_EPSILON
+  HUE_DISTANCE_SCALE
 } from "../constants.js";
 
 import {
   byteRgbToHex,
   clamp,
+  hasReliableHue,
+  hueGateForPair,
+  hueReliabilityForLightnessAndChroma,
   labDistanceComponents,
   linear2SRGB,
   rgb8ToLab,
-  sRGB2Linear,
-  smoothstep
+  sRGB2Linear
 } from "../color-utils.js";
 import { cpuDistanceBreakdown, DIAGNOSTIC } from "./metrics.js";
 import { applyOutputModeCpu, blendHexes, finalOutputHexForLab, finalOutputLabForLab, finalOutputRgbForLab, outputLabToHex } from "./output-color.js";
@@ -64,15 +64,19 @@ export function labDeltaParts(aLab, bLab, config = {}) {
   const aHue = aC > 1e-6 ? [(aLab[1] || 0) / aC, (aLab[2] || 0) / aC] : [1, 0];
   const bHue = bC > 1e-6 ? [(bLab[1] || 0) / bC, (bLab[2] || 0) / bC] : [1, 0];
   const theta = clamp(aHue[0] * bHue[0] + aHue[1] * bHue[1], -1, 1);
-  const aHasHue = aC >= NEUTRAL_CHROMA_EPSILON;
-  const bHasHue = bC >= NEUTRAL_CHROMA_EPSILON;
+  const aL = Number(aLab?.[0]) || 0;
+  const bL = Number(bLab?.[0]) || 0;
+  const aHasHue = hasReliableHue(aL, aC);
+  const bHasHue = hasReliableHue(bL, bC);
   const hueSuppressed = !(aHasHue && bHasHue) && !(config.neutralIsCategory && aHasHue !== bHasHue);
   const hue = hueSuppressed
     ? 0
     : HUE_DISTANCE_SCALE
       * (aHasHue && bHasHue
-        ? smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, Math.min(aC, bC)) * Math.sqrt(Math.max(0, 2 - 2 * theta))
-        : smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, aHasHue ? aC : bC) * Math.SQRT2);
+        ? hueGateForPair(aL, aC, bL, bC) * Math.sqrt(Math.max(0, 2 - 2 * theta))
+        : (aHasHue
+          ? hueReliabilityForLightnessAndChroma(aL, aC)
+          : hueReliabilityForLightnessAndChroma(bL, bC)) * Math.SQRT2);
   return {
     luma: Math.abs((aLab?.[0] || 0) - (bLab?.[0] || 0)),
     chroma: Math.abs(aC - bC),

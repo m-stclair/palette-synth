@@ -246,6 +246,17 @@ test("neutral colors suppress hue without inspecting unsafe hue vectors", () => 
   assert.equal(parts.hueSuppressed, true);
 });
 
+test("achromatic hue width expands near black and white", () => {
+  const config = {...baseConfig, lumaWeight: 0, chromaWeight: 0, hueWeight: 1};
+  const midtone = distanceBreakdownForLabs([50, 4, 0], [50, 0, 4], config);
+  const nearBlack = distanceBreakdownForLabs([5, 4, 0], [5, 0, 4], config);
+
+  assert.ok(midtone.hue > 0);
+  assert.equal(midtone.hueSuppressed, false);
+  assert.equal(nearBlack.hue, 0);
+  assert.equal(nearBlack.hueSuppressed, true);
+});
+
 test("max-distance gate leaves far pixels unassigned", () => {
   const matches = [
     {distance: 12, displayIndex: 0},

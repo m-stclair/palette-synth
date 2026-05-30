@@ -946,6 +946,22 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
+    electricCandy: {
+        category: "Art + mood",
+        colors: [
+            "#071307", "#093c31", "#00646d", "#3c88b8",
+            "#9f9af9", "#ffb7fa"
+        ]
+    },
+
+    emberSky: {
+        category: "Art + mood",
+        colors: [
+            "#17150f", "#765c60", "#a7685d", "#d9764f",
+            "#fe9d27", "#fee555"
+        ]
+    },
+
     // Powder room at midnight: black tile, rose soap, brass, milk glass.
     powderRoom: {
         category: "Art + mood",

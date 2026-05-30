@@ -1,5 +1,5 @@
-import { hexToByteRgb, hexToLab, labToOklch, normalizeHexColor, rgb8ToLab } from "../color-utils.js";
-import { MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON, OKLAB_SCALE, TAU } from "../constants.js";
+import { hasReliableHue, hexToByteRgb, hexToLab, labToOklch, normalizeHexColor, rgb8ToLab } from "../color-utils.js";
+import { MAX_PALETTE_SIZE, OKLAB_SCALE, TAU } from "../constants.js";
 import { effectivePixelBlockSize, isPixelArtEnabled } from "../state/config.js";
 
 function clamp(value, min, max) {
@@ -156,7 +156,7 @@ function formatLoupeLch(hex) {
   const safeHex = normalizeHexColor(hex, "");
   if (!safeHex) return "— / — / —°";
   const [L, C, h] = labToOklch(hexToLab(safeHex));
-  const degrees = C < NEUTRAL_CHROMA_EPSILON ? 0 : h * 360 / TAU;
+  const degrees = hasReliableHue(L, C) ? h * 360 / TAU : 0;
   return `${L.toFixed(1)} / ${C.toFixed(1)} / ${degrees.toFixed(0)}°`;
 }
 

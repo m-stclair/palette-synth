@@ -1,4 +1,9 @@
 import {
+  CLEAR_HUE_CHROMA,
+  ENDPOINT_CLEAR_HUE_CHROMA,
+  ENDPOINT_NEUTRAL_CHROMA_EPSILON,
+  HUE_LIGHTNESS_HEADROOM_HIGH,
+  HUE_LIGHTNESS_HEADROOM_LOW,
   MAX_PALETTE_SIZE,
   NEUTRAL_CHROMA_EPSILON,
   OKLAB_SCALE,
@@ -17,6 +22,46 @@ export function $(id) { return document.getElementById(id); }
 
 export function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
 export function clamp01(x) { return clamp(x, 0, 1); }
+
+export function lightnessHeadroom(lightness) {
+    const L = clamp(Number(lightness) || 0, 0, 100);
+    return Math.min(L, 100 - L);
+  }
+
+export function hueEndpointFactorForLightness(lightness) {
+    return 1 - smoothstep(
+      HUE_LIGHTNESS_HEADROOM_LOW,
+      HUE_LIGHTNESS_HEADROOM_HIGH,
+      lightnessHeadroom(lightness)
+    );
+  }
+
+export function neutralChromaEpsilonForLightness(lightness) {
+    return NEUTRAL_CHROMA_EPSILON + (ENDPOINT_NEUTRAL_CHROMA_EPSILON - NEUTRAL_CHROMA_EPSILON) * hueEndpointFactorForLightness(lightness);
+  }
+
+export function clearHueChromaForLightness(lightness) {
+    return CLEAR_HUE_CHROMA + (ENDPOINT_CLEAR_HUE_CHROMA - CLEAR_HUE_CHROMA) * hueEndpointFactorForLightness(lightness);
+  }
+
+export function hueReliabilityForLightnessAndChroma(lightness, chroma) {
+    return smoothstep(
+      neutralChromaEpsilonForLightness(lightness),
+      clearHueChromaForLightness(lightness),
+      Math.max(0, Number(chroma) || 0)
+    );
+  }
+
+export function hasReliableHue(lightness, chroma) {
+    return Math.max(0, Number(chroma) || 0) >= neutralChromaEpsilonForLightness(lightness);
+  }
+
+export function hueGateForPair(aLightness, aChroma, bLightness, bChroma) {
+    return Math.min(
+      hueReliabilityForLightnessAndChroma(aLightness, aChroma),
+      hueReliabilityForLightnessAndChroma(bLightness, bChroma)
+    );
+  }
 
 export function positiveMod(value, modulus) {
     const n = Math.trunc(Number(value));
@@ -147,7 +192,7 @@ export function labToHex(lab) {
 
 export function labToOklch([L, a, b]) {
     const C = Math.hypot(a, b);
-    const h = C < NEUTRAL_CHROMA_EPSILON ? 0 : Math.atan2(b, a);
+    const h = hasReliableHue(L, C) ? Math.atan2(b, a) : 0;
     return [L, C, h < 0 ? h + TAU : h];
   }
 
@@ -155,7 +200,7 @@ export function formatLch(lab, {prefix = "LCH"} = {}) {
     const safe = normalizeManualLab(lab);
     if (!safe) return "";
     const [L, C, h] = labToOklch(safe);
-    const degrees = C < NEUTRAL_CHROMA_EPSILON ? 0 : h * 360 / TAU;
+    const degrees = hasReliableHue(L, C) ? h * 360 / TAU : 0;
     return `${prefix} ${L.toFixed(1)} ${C.toFixed(1)} ${degrees.toFixed(0)}°`;
   }
 
@@ -225,8 +270,8 @@ export function compareLightness(a, b) {
 export function compareHueThenLightness(a, b) {
     const ca = paletteChroma(a);
     const cb = paletteChroma(b);
-    const aNeutral = ca < NEUTRAL_CHROMA_EPSILON;
-    const bNeutral = cb < NEUTRAL_CHROMA_EPSILON;
+    const aNeutral = !hasReliableHue(a[0], ca);
+    const bNeutral = !hasReliableHue(b[0], cb);
     if (aNeutral || bNeutral) {
       if (aNeutral !== bNeutral) return aNeutral ? -1 : 1;
       return compareLightness(a, b);
@@ -456,17 +501,21 @@ export function hueDistanceDegrees(aHue, bHue) {
     return hueDistanceRadians(aHue, bHue) * 180 / Math.PI;
   }
 
-export function hueReliabilityForChroma(chroma) {
-    return smoothstep(3, 6, chroma);
+export function hueReliabilityForChroma(chroma, lightness = 50) {
+    return hueReliabilityForLightnessAndChroma(lightness, chroma);
   }
 
 export function hueInfoForSeedLab(lab) {
     const safe = Array.isArray(lab) ? lab : [0, 0, 0];
+    const lightness = Number(safe[0]) || 0;
     const chroma = Math.hypot(Number(safe[1]) || 0, Number(safe[2]) || 0);
     return {
       hue: paletteHue(safe),
+      lightness,
       chroma,
-      reliability: hueReliabilityForChroma(chroma)
+      neutralChroma: neutralChromaEpsilonForLightness(lightness),
+      clearHueChroma: clearHueChromaForLightness(lightness),
+      reliability: hueReliabilityForLightnessAndChroma(lightness, chroma)
     };
   }
 
@@ -487,7 +536,10 @@ export function nearestHueAnchorMatchPrepared(candidate, anchorCount, reliableAn
         index: -1,
         anchorCount,
         reliableAnchorCount: reliable.length,
+        candidateLightness: safeCandidate.lightness,
         candidateChroma: safeCandidate.chroma,
+        candidateNeutralChroma: safeCandidate.neutralChroma,
+        candidateClearHueChroma: safeCandidate.clearHueChroma,
         candidateReliability: safeCandidate.reliability,
         anchorReliability: 0
       };
@@ -509,7 +561,10 @@ export function nearestHueAnchorMatchPrepared(candidate, anchorCount, reliableAn
       index: nearestIndex,
       anchorCount,
       reliableAnchorCount: reliable.length,
+      candidateLightness: safeCandidate.lightness,
       candidateChroma: safeCandidate.chroma,
+      candidateNeutralChroma: safeCandidate.neutralChroma,
+      candidateClearHueChroma: safeCandidate.clearHueChroma,
       candidateReliability: safeCandidate.reliability,
       anchorReliability: nearestReliability
     };

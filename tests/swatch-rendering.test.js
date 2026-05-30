@@ -333,7 +333,7 @@ test("palette preview renders generated locks, manual aliases, and click actions
     const chip = els.palettePreview.children[0];
     assert.equal(chip.classList.contains("is-lockable"), true);
     assert.equal(els.paletteCount.textContent, "1 colors · 0 locks");
-    assert.match(chip.title, /#000003 · LCH 4\.4 3\.0 264°/);
+    assert.match(chip.title, /#000003 · LCH 4\.4 3\.0 0°/);
     assert.doesNotMatch(chip.title, /LCH 0\.0 7\.4/);
     assert.match(els.paletteHint.textContent, /Generated palette from current image/);
     assert.equal(syncedCycles, 1);

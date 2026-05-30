@@ -1,9 +1,11 @@
-import { CLEAR_HUE_CHROMA, HUE_DISTANCE_SCALE, MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON } from "../constants.js";
+import { HUE_DISTANCE_SCALE, MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON } from "../constants.js";
 import {
   byteRgbToHex,
   clamp,
   clamp01,
-  smoothstep,
+  hasReliableHue,
+  hueGateForPair,
+  hueReliabilityForLightnessAndChroma,
   labDistanceComponents,
   labToHex,
   paletteHue,
@@ -84,21 +86,24 @@ export function cpuDistanceBreakdown(labLightness, labChroma, labHue, featureLig
   const dL = labLightness - featureLightness;
   const dC = labChroma - featureChroma;
 
-  // Continuous mode suppresses hue when either side is neutral. Categorical
-  // neutral mode lifts the achromatic axis off the hue plane, so neutral-vs-
-  // chromatic has a real category distance instead of collapsing to zero.
-  const labHasHue = labChroma >= NEUTRAL_CHROMA_EPSILON;
-  const featureHasHue = featureChroma >= NEUTRAL_CHROMA_EPSILON;
+  // Continuous mode suppresses hue when either side is neutral. The neutral
+  // tube widens near black and white, where small a/b offsets are mostly glare,
+  // quantization, or display behavior rather than a stable perceived hue.
+  // Categorical neutral mode still lifts the achromatic axis off the hue plane,
+  // but the lift is gated by the colored side's lightness-aware hue reliability.
+  const labHasHue = hasReliableHue(labLightness, labChroma);
+  const featureHasHue = hasReliableHue(featureLightness, featureChroma);
   const hueSuppressed = !(labHasHue && featureHasHue) && !(config.neutralIsCategory && labHasHue !== featureHasHue);
   let hueBias = 0;
   if (labHasHue && featureHasHue) {
     const theta = clamp(labHue[0] * featureHue[0] + labHue[1] * featureHue[1], -1, 1);
-    const hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, Math.min(labChroma, featureChroma));
+    const hueGate = hueGateForPair(labLightness, labChroma, featureLightness, featureChroma);
     const hueSeparation = Math.sqrt(Math.max(0, 2 - 2 * theta));
     hueBias = HUE_DISTANCE_SCALE * hueGate * hueSeparation;
   } else if (config.neutralIsCategory && labHasHue !== featureHasHue) {
-    const coloredChroma = labHasHue ? labChroma : featureChroma;
-    const hueGate = smoothstep(NEUTRAL_CHROMA_EPSILON, CLEAR_HUE_CHROMA, coloredChroma);
+    const hueGate = labHasHue
+      ? hueReliabilityForLightnessAndChroma(labLightness, labChroma)
+      : hueReliabilityForLightnessAndChroma(featureLightness, featureChroma);
     hueBias = HUE_DISTANCE_SCALE * hueGate * Math.SQRT2;
   }
 
@@ -545,7 +550,7 @@ function histogramSampleFromLab(lab) {
   const parts = labDistanceComponents(lab);
   const lightness = clamp(parts.lightness, 0, 100);
   const chroma = Math.max(0, parts.chroma || 0);
-  const hue = chroma < NEUTRAL_CHROMA_EPSILON ? null : paletteHue(lab) * 180 / Math.PI;
+  const hue = hasReliableHue(lightness, chroma) ? paletteHue(lab) * 180 / Math.PI : null;
   return {lightness, chroma, hue, lab};
 }
 

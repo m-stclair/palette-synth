@@ -4,7 +4,6 @@ import {
   HARMONY_REGION_CONTRASTS,
   HARMONY_RELATIONSHIPS,
   HIGHLIGHT_L_CUTOFF,
-  NEUTRAL_CHROMA_EPSILON,
   OKLCH_PROCEDURAL_CHROMA_MAX,
   SHADOW_L_CUTOFF,
   TAU
@@ -14,6 +13,7 @@ import {
   clamp01,
   expandSwatchVariants,
   fitLabToSrgb,
+  hasReliableHue,
   hexToLab,
   labToOklch,
   labToHex,
@@ -403,7 +403,7 @@ function buildHarmonyPalette(config, {captureTrace = false} = {}) {
   const slotPlan = harmonySlotsForSize(relationshipKey, requestedSize);
   const bandCounts = slotPlan.targetCounts;
   const activeFamilyCount = slotPlan.activeFamilyCount;
-  const usableC = Math.max(baseC, baseC < NEUTRAL_CHROMA_EPSILON ? 24 : baseC);
+  const usableC = Math.max(baseC, hasReliableHue(baseL, baseC) ? baseC : 24);
   const rampSteepness = harmonyRampSteepnessForConfig(config);
   const records = [];
   const rows = [];
