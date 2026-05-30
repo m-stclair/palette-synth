@@ -536,7 +536,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Large Lospec community-curated pixel art palette.
     // Broad, flexible ramps for characters, terrain, UI, foliage, skies, metals, and candy highlights.
-    lospec: {
+    lospec500: {
         category: "Art + mood",
         colors: [
             "#10121c", "#2c1e31", "#6b2643", "#ac2847",
@@ -927,7 +927,6 @@ globalThis.PALETTE_PRESET_CATALOG = {
     },
 
 
-
     // Warm manuscript: ink, oxblood margin note, ochre glue, vellum.
     scriptorium: {
         category: "Art + mood",
@@ -946,7 +945,8 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
-    electricCandy: {
+    // half-mint, half-bubblegum, tastes like nothing
+    glassCandy: {
         category: "Art + mood",
         colors: [
             "#071307", "#093c31", "#00646d", "#3c88b8",
@@ -954,7 +954,8 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
-    emberSky: {
+    // curl of flame in the sky, fuel black to clean combustion yellow
+    fireSeason: {
         category: "Art + mood",
         colors: [
             "#17150f", "#765c60", "#a7685d", "#d9764f",
