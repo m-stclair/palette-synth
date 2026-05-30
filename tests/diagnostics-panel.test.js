@@ -313,6 +313,58 @@ test("histogram swatch markers use visible swatch color for placement and toolti
   assert.doesNotMatch(els.diagnosticsHistogram.innerHTML, /swatch 1 · C 7\.4/);
 });
 
+test("hue histogram renders skipped neutrals as a clickable diagnostic overlay control", () => {
+  const els = {
+    diagnosticsTabs: element(),
+    diagnosticsContributionPanel: element(),
+    diagnosticsHistogramPanel: element(),
+    diagnosticsHistogramHeading: element(),
+    diagnosticsHistogram: element()
+  };
+  const histogram = {
+    kind: "sourceHueDetail",
+    scope: "source",
+    channel: "hue",
+    label: "source hue",
+    axisLabel: "H°",
+    bins: [2, 0, 1, 0],
+    segments: {shadow: [1, 0, 0, 0], midtone: [1, 0, 1, 0], highlight: [0, 0, 0, 0]},
+    segmentNames: ["shadow", "midtone", "highlight"],
+    max: 2,
+    total: 3,
+    step: 1,
+    domain: {min: 0, max: 360},
+    omittedNeutralCount: 7,
+    omittedLowChromaCount: 7,
+    hueOmittedReason: "neutral / unreliable hue",
+    stats: {p10: 10, median: 20, p90: 30, mean: 12, mode: 45, max: 270, shadowPercent: 0.33, highlightPercent: 0}
+  };
+  const state = {
+    imageData: {width: 1, height: 1},
+    diagnostics: {
+      histogramTab: "hue",
+      overlay: {mode: "histogram", histogramScope: "source", histogramChannel: "neutral"},
+      histogramStats: {
+        "source-hue": {records: [], histogram},
+        "output-hue": {records: [], histogram: {...histogram, kind: "outputHueDetail", scope: "output", label: "output hue"}}
+      }
+    }
+  };
+  const panel = createDiagnosticsPanel({
+    els,
+    getConfig: () => ({assignMode: "nearest"}),
+    getState: () => state
+  });
+
+  panel.renderHistogramPanel(state.diagnostics.histogramStats);
+
+  assert.match(els.diagnosticsHistogram.innerHTML, /data-histogram-neutral-scope="source"/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /neutral \/ unreliable hue skipped 7/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-neutral-skip is-diagnostic-overlay/);
+  assert.doesNotMatch(els.diagnosticsHistogram.innerHTML, /low-C skipped/);
+  assert.doesNotMatch(els.diagnosticsHistogram.innerHTML, /below chroma/);
+});
+
 test("histogram inspector tab renders paired source and output charts from its active tab state", () => {
   const els = {
     diagnosticsTabs: element(),
@@ -392,6 +444,8 @@ test("histogram inspector tab renders paired source and output charts from its a
   assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-readouts/);
   assert.match(els.diagnosticsHistogram.innerHTML, /preserveAspectRatio="none"/);
   assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-bar/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-bin-hit-target/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /height="18\.00"/);
   assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-marker/);
   assert.match(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-mode/);
   assert.doesNotMatch(els.diagnosticsHistogram.innerHTML, /diagnostics-histogram-gap/);

@@ -534,6 +534,81 @@ test("diagnostics domain groups metrics, panel, controller, and overlay capabili
   assert.deepEqual(calls.slice(-2), [["status", "Diagnostic overlay: swatch 64."], "queueRender"]);
 });
 
+test("diagnostics domain normalizes histogram overlay bins", () => {
+  const calls = [];
+  const state = {diagnostics: {histogramBinCount: 80}, paletteRecords: [], imageData: null};
+  const domain = createDiagnosticsDomain({
+    els: {},
+    state,
+    config: {},
+    palette: {
+      manualCycleModeEnabled: () => false,
+      cycleTagged: () => false,
+      isGeneratedPaletteMode: () => false,
+      activePaletteImageData: () => null,
+      syncGeneratedLocks: () => [],
+      renderPaletteLabs: () => [],
+      paletteUniformEntries: () => []
+    },
+    render: {queueRender: () => calls.push("queueRender")},
+    view: {},
+    setStatus: message => calls.push(["status", message])
+  });
+
+  domain.setDiagnosticOverlay({
+    mode: "histogram",
+    histogramScope: "output",
+    histogramChannel: "hue",
+    histogramBinIndex: 999,
+    histogramBinCount: 40,
+    histogramDomainMax: 360,
+    histogramStart: 351,
+    histogramEnd: 360
+  });
+
+  assert.equal(state.diagnostics.overlay.mode, "histogram");
+  assert.equal(state.diagnostics.overlay.histogramScope, "output");
+  assert.equal(state.diagnostics.overlay.histogramChannel, "hue");
+  assert.equal(state.diagnostics.overlay.histogramBinIndex, 39);
+  assert.equal(state.diagnostics.overlay.histogramBinCount, 40);
+  assert.equal(state.diagnostics.overlay.histogramMin, 351);
+  assert.equal(state.diagnostics.overlay.histogramMax, 1e20);
+  assert.deepEqual(calls.slice(-2), [["status", "Diagnostic overlay: output H° bin 40 (351.0–360.0)."], "queueRender"]);
+});
+
+test("diagnostics domain supports a neutral hue-skipped histogram overlay", () => {
+  const calls = [];
+  const state = {diagnostics: {histogramBinCount: 80}, paletteRecords: [], imageData: null};
+  const domain = createDiagnosticsDomain({
+    els: {},
+    state,
+    config: {},
+    palette: {
+      manualCycleModeEnabled: () => false,
+      cycleTagged: () => false,
+      isGeneratedPaletteMode: () => false,
+      activePaletteImageData: () => null,
+      syncGeneratedLocks: () => [],
+      renderPaletteLabs: () => [],
+      paletteUniformEntries: () => []
+    },
+    render: {queueRender: () => calls.push("queueRender")},
+    view: {},
+    setStatus: message => calls.push(["status", message])
+  });
+
+  domain.setDiagnosticOverlay({
+    mode: "histogram",
+    histogramScope: "source",
+    histogramChannel: "neutral"
+  });
+
+  assert.equal(state.diagnostics.overlay.mode, "histogram");
+  assert.equal(state.diagnostics.overlay.histogramChannel, "neutral");
+  assert.equal(state.diagnostics.overlay.histogramBinIndex, null);
+  assert.deepEqual(calls.slice(-2), [["status", "Diagnostic overlay: source neutral / unreliable hue."], "queueRender"]);
+});
+
 test("diagnostics domain normalizes unsupported overlay modes to off", () => {
   const calls = [];
   const state = {diagnostics: {}, paletteRecords: [], imageData: null};

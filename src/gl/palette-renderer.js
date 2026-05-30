@@ -22,8 +22,9 @@ export function renderPalettePass(gl, program, {
   visiblePaletteSize,
   cycleOffset,
   manualCycleEnabled = false,
-  diagnosticOverlayMode = "none",
   diagnosticOverlaySwatch = -1,
+  diagnosticOverlayHistogramMin = 0,
+  diagnosticOverlayHistogramMax = 0,
   compareEnabled = false,
   compareSplit = -1,
   settings = {}
@@ -75,10 +76,12 @@ export function renderPalettePass(gl, program, {
   gl.uniform1f(uniformLocation(gl, program, "u_ditherLumaAmount"), Number(settings.ditherLumaAmount));
   gl.uniform1i(uniformLocation(gl, program, "u_pixelArtEnabled"), settings.pixelArtEnabled ? 1 : 0);
   gl.uniform1f(uniformLocation(gl, program, "u_pixelBlockSize"), Math.max(1, Number(settings.pixelBlockSize) || 1));
-  const overlayCode = diagnosticOverlayMode === "swatch" ? 1 : (diagnosticOverlayMode === "difference" ? 2 : 0);
   const overlaySwatch = Number(diagnosticOverlaySwatch);
-  gl.uniform1i(uniformLocation(gl, program, "u_diagnosticOverlayMode"), overlayCode);
+  const overlayHistogramMin = Number(diagnosticOverlayHistogramMin);
+  const overlayHistogramMax = Number(diagnosticOverlayHistogramMax);
   gl.uniform1i(uniformLocation(gl, program, "u_diagnosticOverlaySwatch"), Number.isFinite(overlaySwatch) ? Math.round(overlaySwatch) : -1);
+  gl.uniform1f(uniformLocation(gl, program, "u_diagnosticOverlayHistogramMin"), Number.isFinite(overlayHistogramMin) ? overlayHistogramMin : 0);
+  gl.uniform1f(uniformLocation(gl, program, "u_diagnosticOverlayHistogramMax"), Number.isFinite(overlayHistogramMax) ? overlayHistogramMax : 0);
   gl.uniform1f(uniformLocation(gl, program, "u_compareSplit"), Number.isFinite(compareSplit) ? compareSplit : -1);
   gl.uniform1i(uniformLocation(gl, program, "u_compareEnabled"), compareEnabled ? 1 : 0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);

@@ -9,6 +9,7 @@ import {
   computeSourceHistogramDiagnostics,
   createDiagnosticMetrics,
   diagnosticsSignature,
+  normalizeHistogramBinCount,
   sampleImageDiagnostics,
   topPaletteMatches
 } from "../src/diagnostics/metrics.js";
@@ -315,6 +316,55 @@ test("source histogram diagnostics sample only the histogram view payload", () =
   assert.equal(stats.histogram.widestGap, undefined);
 });
 
+test("histogram diagnostics accept adjustable bin counts", () => {
+  const records = [record([50, 0, 0], 0)];
+  const imageData = {
+    width: 2,
+    height: 1,
+    data: new Uint8ClampedArray([
+      0, 0, 0, 255,
+      255, 255, 255, 255
+    ])
+  };
+
+  const stats = computeSourceHistogramDiagnostics({imageData, records, config: baseConfig, binCount: 32});
+
+  assert.equal(normalizeHistogramBinCount(31), 32);
+  assert.equal(stats.histogram.bins.length, 32);
+  assert.equal(stats.histogram.segments.neutral.length, 32);
+  assert.equal(stats.histogram.bins.reduce((sum, count) => sum + count, 0), 2);
+});
+
+test("diagnostic metrics signatures include histogram bin detail", () => {
+  const records = [record([50, 0, 0], 0)];
+  const entries = records.map(entry);
+  const imageData = {width: 1, height: 1, data: new Uint8ClampedArray([0, 0, 0, 255])};
+  let binCount = 40;
+  const metrics = createDiagnosticMetrics({
+    getConfig: () => baseConfig,
+    getImageData: () => imageData,
+    getRecords: () => records,
+    getEntries: () => entries,
+    getHistogramBinCount: () => binCount
+  });
+
+  const first = metrics.sourceHistogramSignature(records, entries, "luma");
+  binCount = 96;
+  const second = metrics.sourceHistogramSignature(records, entries, "luma");
+
+  assert.match(first, /bins:40/);
+  assert.match(second, /bins:96/);
+  assert.notEqual(first, second);
+  assert.equal(metrics.computeSourceHistogramDiagnostics(records, "luma").histogram.bins.length, 96);
+});
+
+test("histogram bin count can be lowered to four bins", () => {
+  assert.equal(normalizeHistogramBinCount(1), 4);
+  assert.equal(normalizeHistogramBinCount(4), 4);
+  assert.equal(normalizeHistogramBinCount(6), 8);
+  assert.equal(normalizeHistogramBinCount(159), 160);
+});
+
 test("source chroma histogram uses chroma bins with tonal stacks", () => {
   const records = [record([50, 0, 0], 0)];
   const imageData = {
@@ -359,7 +409,9 @@ test("source hue histogram omits near-neutral pixels and bins chromatic hue", ()
   assert.equal(stats.histogram.bins.length, 72);
   assert.equal(stats.histogram.total, 3);
   assert.equal(stats.histogram.omittedLowChromaCount, 1);
-  assert.equal(stats.histogram.lowChromaThreshold, 2);
+  assert.equal(stats.histogram.omittedNeutralCount, 1);
+  assert.equal(stats.histogram.hueOmittedReason, "neutral / unreliable hue");
+  assert.equal(stats.histogram.lowChromaThreshold, undefined);
   assert.equal(stats.histogram.segments.midtone.length, 72);
   assert.ok(Number.isFinite(stats.histogram.stats.mean));
 });

@@ -18,7 +18,7 @@ import {
   rgb8ToLab,
   visibleSwatchLab
 } from "../color-utils.js";
-import { cpuDistanceBreakdown } from "../diagnostics/metrics.js";
+import { DIAGNOSTIC, cpuDistanceBreakdown, normalizeHistogramBinCount } from "../diagnostics/metrics.js";
 
 function capitalize(value) {
   const text = String(value || "");
@@ -491,6 +491,41 @@ export function createDiagnosticsPanel({
     onDiagnosticsTabChange(next);
   }
 
+  function histogramBinCountState() {
+    return normalizeHistogramBinCount(getState().diagnostics?.histogramBinCount);
+  }
+
+  function setHistogramBinCount(next) {
+    const state = getState();
+    if (!state.diagnostics) state.diagnostics = {};
+    const normalized = normalizeHistogramBinCount(next);
+    if (normalizeHistogramBinCount(state.diagnostics.histogramBinCount) === normalized) return;
+    state.diagnostics.histogramBinCount = normalized;
+    if (state.diagnostics.overlay?.mode === "histogram") requestDiagnosticOverlay({mode: "none"});
+    renderHistogramControls();
+    onDiagnosticsTabChange(activeHistogramTab());
+  }
+
+  function bindHistogramBinControlEvents() {
+    const input = els.diagnosticsHistogramBinCount;
+    if (!input?.addEventListener || overlayBoundElements.has(input)) return;
+    overlayBoundElements.add(input);
+    input.addEventListener("input", event => setHistogramBinCount(event.currentTarget?.value));
+  }
+
+  function renderHistogramControls() {
+    const count = histogramBinCountState();
+    if (els.diagnosticsHistogramBinCount) {
+      bindHistogramBinControlEvents();
+      els.diagnosticsHistogramBinCount.min = String(DIAGNOSTIC.histogramBinMin);
+      els.diagnosticsHistogramBinCount.max = String(DIAGNOSTIC.histogramBinMax);
+      els.diagnosticsHistogramBinCount.step = String(DIAGNOSTIC.histogramBinStep);
+      els.diagnosticsHistogramBinCount.value = String(count);
+      els.diagnosticsHistogramBinCount.setAttribute?.("aria-valuetext", `${count} bins`);
+    }
+    if (els.diagnosticsHistogramBinCountValue) els.diagnosticsHistogramBinCountValue.textContent = `${count} bins`;
+  }
+
   function bindHistogramTabEvents() {
     const tabs = els.diagnosticsTabs;
     if (!tabs?.addEventListener || overlayBoundElements.has(tabs)) return;
@@ -514,14 +549,27 @@ export function createDiagnosticsPanel({
 
   function diagnosticsOverlayState() {
     const overlay = getState().diagnostics?.overlay || {};
-    const mode = ["swatch", "difference"].includes(overlay.mode) ? overlay.mode : "none";
+    const mode = ["swatch", "difference", "histogram"].includes(overlay.mode) ? overlay.mode : "none";
     const swatchIndex = Number.isInteger(overlay.swatchIndex) ? overlay.swatchIndex : null;
-    return {mode, swatchIndex};
+    return {
+      mode,
+      swatchIndex,
+      histogramScope: overlay.histogramScope === "output" ? "output" : "source",
+      histogramChannel: ["chroma", "hue", "neutral"].includes(overlay.histogramChannel) ? overlay.histogramChannel : "luma",
+      histogramBinIndex: Number.isInteger(overlay.histogramBinIndex) ? overlay.histogramBinIndex : null,
+      histogramBinCount: Number.isInteger(overlay.histogramBinCount) ? overlay.histogramBinCount : null,
+      histogramDomainMax: Number.isFinite(Number(overlay.histogramDomainMax)) ? Number(overlay.histogramDomainMax) : null,
+      histogramStart: Number.isFinite(Number(overlay.histogramStart)) ? Number(overlay.histogramStart) : null,
+      histogramEnd: Number.isFinite(Number(overlay.histogramEnd)) ? Number(overlay.histogramEnd) : null,
+      histogramMin: Number.isFinite(Number(overlay.histogramMin)) ? Number(overlay.histogramMin) : null,
+      histogramMax: Number.isFinite(Number(overlay.histogramMax)) ? Number(overlay.histogramMax) : null
+    };
   }
 
   function requestDiagnosticOverlay(next) {
     setDiagnosticOverlay(next);
     renderDiagnosticsPanel(getState().diagnostics?.stats);
+    renderHistogramPanel(getState().diagnostics?.histogramStats || null);
   }
 
   function swatchGraphAttrs(index, displayIndex = index) {
@@ -829,6 +877,13 @@ export function createDiagnosticsPanel({
       } else if (overlay.mode === "swatch" && overlay.swatchIndex !== null) {
         const item = {index: overlay.swatchIndex, record: records[overlay.swatchIndex] || null};
         els.diagnosticsOverlayStatus.textContent = `${swatchText}: ${usageSwatchTitle(item, getConfig(), records)}.`;
+      } else if (overlay.mode === "histogram" && overlay.histogramChannel === "neutral") {
+        const scopeLabel = overlay.histogramScope === "output" ? "output" : "source";
+        els.diagnosticsOverlayStatus.textContent = `Histogram mask: ${scopeLabel} neutral / unreliable hue.`;
+      } else if (overlay.mode === "histogram" && overlay.histogramBinIndex !== null) {
+        const scopeLabel = overlay.histogramScope === "output" ? "output" : "source";
+        const axisLabel = overlay.histogramChannel === "chroma" ? "C" : (overlay.histogramChannel === "hue" ? "H°" : "L");
+        els.diagnosticsOverlayStatus.textContent = `Histogram mask: ${scopeLabel} ${axisLabel} ${formatDistance(overlay.histogramStart)}–${formatDistance(overlay.histogramEnd)}.`;
       } else {
         els.diagnosticsOverlayStatus.textContent = "";
       }
@@ -839,6 +894,36 @@ export function createDiagnosticsPanel({
     const pct = Math.max(0, Number(value) || 0) * 100;
     if (pct < 0.5 && pct > 0) return "<0.5%";
     return `${pct.toFixed(0)}%`;
+  }
+
+  function histogramNeutralOverlayFromScope(scope = "source") {
+    return {
+      mode: "histogram",
+      histogramScope: scope === "output" ? "output" : "source",
+      histogramChannel: "neutral",
+      histogramBinIndex: null,
+      histogramBinCount: null,
+      histogramDomainMax: null,
+      histogramStart: null,
+      histogramEnd: null,
+      histogramMin: 0,
+      histogramMax: 0
+    };
+  }
+
+  function histogramNeutralOverlayIsActive(scope = "source") {
+    const overlay = diagnosticsOverlayState();
+    return overlay.mode === "histogram"
+      && overlay.histogramScope === (scope === "output" ? "output" : "source")
+      && overlay.histogramChannel === "neutral";
+  }
+
+  function renderNeutralSkippedControl(histogram, scope, scopeLabel) {
+    const skipped = Number(histogram?.omittedNeutralCount ?? histogram?.omittedLowChromaCount) || 0;
+    if (histogram?.channel !== "hue" || skipped <= 0) return "";
+    const active = histogramNeutralOverlayIsActive(scope);
+    const label = `${scopeLabel} neutral / unreliable hue skipped ${skipped.toLocaleString()} samples`;
+    return `<button type="button" class="diagnostics-histogram-neutral-skip${active ? " is-diagnostic-overlay" : ""}" data-histogram-neutral-scope="${scope === "output" ? "output" : "source"}" aria-pressed="${active}" title="${escapeHtml(label)}">neutral / unreliable hue skipped ${skipped.toLocaleString()}</button>`;
   }
 
   function histogramValueForLab(lab, channel) {
@@ -873,11 +958,12 @@ export function createDiagnosticsPanel({
     const scopeLabel = scope === "output" ? "Output" : "Source";
     const channelLabel = histogramChannelLabel(channel).toLowerCase();
     if (!histogram || !bins.length || !(Number(histogram.total) > 0)) {
-      const omitted = Number(histogram?.omittedLowChromaCount) || 0;
+      const omitted = Number(histogram?.omittedNeutralCount ?? histogram?.omittedLowChromaCount) || 0;
+      const neutralControl = renderNeutralSkippedControl(histogram, scope, scopeLabel);
       const message = histogram?.channel === "hue" && omitted > 0
-        ? `All ${omitted.toLocaleString()} sampled ${scopeLabel.toLowerCase()} pixels were below chroma ${formatDistance(histogram.lowChromaThreshold)}; hue is undefined there.`
+        ? `All ${omitted.toLocaleString()} sampled ${scopeLabel.toLowerCase()} pixels were neutral / unreliable hue; hue is undefined there.${neutralControl ? ` ${neutralControl}` : ""}`
         : state.imageData
-        ? `Open this tab to sample ${scopeLabel.toLowerCase()} ${channelLabel}.${channel === "hue" ? " Near-neutral pixels are skipped." : ""}`
+        ? `Open this tab to sample ${scopeLabel.toLowerCase()} ${channelLabel}.${channel === "hue" ? " Neutral / unreliable hue pixels are skipped." : ""}`
         : `Open an image to see sampled ${channelLabel}.`;
       return `<div class="diagnostics-histogram-card is-empty"><div class="diagnostics-subhead">${scopeLabel}</div><div class="diagnostics-histogram-empty">${message}</div></div>`;
     }
@@ -898,8 +984,10 @@ export function createDiagnosticsPanel({
       ? histogram.segmentNames
       : (histogram.channel === "luma" ? ["neutral", "muted", "vivid"] : ["shadow", "midtone", "highlight"]);
     const segments = histogram.segments || histogram.bands || {};
+    const overlay = diagnosticsOverlayState();
     const barGap = bins.length <= 56 ? 0.7 : 0.35;
     const barW = Math.max(0.75, plotW / bins.length - barGap);
+    const minBinHitH = 18;
     const bars = bins.map((count, index) => {
       const total = Math.max(0, Number(count) || 0);
       if (!total) return "";
@@ -913,9 +1001,20 @@ export function createDiagnosticsPanel({
         cursor -= h;
         return `<rect class="diagnostics-histogram-bar is-${name}" x="${x.toFixed(2)}" y="${cursor.toFixed(2)}" width="${barW.toFixed(2)}" height="${h.toFixed(2)}"></rect>`;
       }).join("");
+      const drawnHeight = Math.max(0, padTop + plotH - cursor);
+      const hitH = Math.min(plotH, Math.max(drawnHeight, minBinHitH));
+      const hitY = Math.max(padTop, padTop + plotH - hitH);
+      const hitTarget = `<rect class="diagnostics-histogram-bin-hit-target" aria-hidden="true" x="${x.toFixed(2)}" y="${hitY.toFixed(2)}" width="${barW.toFixed(2)}" height="${(padTop + plotH - hitY).toFixed(2)}"></rect>`;
       const v0 = (index / bins.length) * domainMax;
       const v1 = ((index + 1) / bins.length) * domainMax;
-      return `<g><title>${axisLabel} ${formatDistance(v0)}–${formatDistance(v1)}: ${total} samples</title>${rendered}</g>`;
+      const overlayActive = overlay.mode === "histogram"
+        && overlay.histogramScope === scope
+        && overlay.histogramChannel === histogram.channel
+        && overlay.histogramBinIndex === index
+        && overlay.histogramBinCount === bins.length
+        && Math.abs((overlay.histogramDomainMax || 0) - domainMax) < 0.0001;
+      const label = `${scopeLabel} ${axisLabel} ${formatDistance(v0)}–${formatDistance(v1)}: ${total} samples`;
+      return `<g class="diagnostics-histogram-bin${overlayActive ? " is-diagnostic-overlay" : ""}" tabindex="0" role="button" aria-pressed="${overlayActive}" aria-label="${escapeHtml(label)}" data-histogram-bin-index="${index}" data-histogram-scope="${scope}" data-histogram-channel="${histogram.channel}" data-histogram-bin-count="${bins.length}" data-histogram-domain-max="${domainMax}" data-histogram-start="${v0}" data-histogram-end="${v1}" data-histogram-axis-label="${escapeHtml(axisLabel)}"><title>${escapeHtml(label)}</title>${hitTarget}${rendered}</g>`;
     }).join("");
 
     const stats = histogram.stats || histogram.sourceLightness || {};
@@ -968,10 +1067,11 @@ export function createDiagnosticsPanel({
     const range = histogram.channel === "hue"
       ? `mode ${formatDistance(stats.mode)}°`
       : (Number.isFinite(Number(stats.p10)) && Number.isFinite(Number(stats.p90)) ? `${formatDistance(stats.p10)}–${formatDistance(stats.p90)}` : "—");
+    const neutralSkippedControl = renderNeutralSkippedControl(histogram, scope, scopeLabel);
     const detailText = histogram.channel === "chroma"
       ? `mean C ${formatDistance(stats.mean)} · median ${formatDistance(stats.median)} · max ${formatDistance(stats.max)} · shadows ${histogramPercent(stats.shadowPercent)} / highlights ${histogramPercent(stats.highlightPercent)}`
       : histogram.channel === "hue"
-        ? `circular mean ${formatDistance(stats.mean)}° · mode ${formatDistance(stats.mode)}° · low-C skipped ${(Number(histogram.omittedLowChromaCount) || 0).toLocaleString()} < ${formatDistance(histogram.lowChromaThreshold)}`
+        ? `circular mean ${formatDistance(stats.mean)}° · mode ${formatDistance(stats.mode)}°${neutralSkippedControl ? ` · ${neutralSkippedControl}` : ""}`
         : `mean L ${formatDistance(stats.mean)} · median ${formatDistance(stats.median)} · mode ${formatDistance(stats.mode)} · vivid ${histogramPercent(stats.saturatedPercent)}`;
     const overflow = histogram.overflowCount ? ` · ${histogram.overflowCount.toLocaleString()} above axis` : "";
     const segmentLabel = histogram.channel === "luma" ? "neutral / muted / vivid stacks" : "shadow / mid / highlight stacks";
@@ -992,21 +1092,78 @@ export function createDiagnosticsPanel({
     </div>`;
   }
 
+  function activateHistogramNeutral(event) {
+    const target = event.target?.closest?.("[data-histogram-neutral-scope]");
+    if (!target) return false;
+    const next = histogramNeutralOverlayFromScope(target.dataset.histogramNeutralScope);
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    requestDiagnosticOverlay(histogramNeutralOverlayIsActive(next.histogramScope) ? {mode: "none"} : next);
+    return true;
+  }
+
+  function histogramBinOverlayFromElement(element) {
+    if (!element) return null;
+    const binCount = Math.max(1, Math.round(Number(element.dataset.histogramBinCount) || histogramBinCountState()));
+    const binIndex = Math.max(0, Math.min(binCount - 1, Math.round(Number(element.dataset.histogramBinIndex) || 0)));
+    const domainMax = Math.max(1e-5, Number(element.dataset.histogramDomainMax) || 100);
+    const start = Number(element.dataset.histogramStart) || 0;
+    const end = Number(element.dataset.histogramEnd) || ((binIndex + 1) / binCount) * domainMax;
+    return {
+      mode: "histogram",
+      histogramScope: element.dataset.histogramScope === "output" ? "output" : "source",
+      histogramChannel: ["chroma", "hue"].includes(element.dataset.histogramChannel) ? element.dataset.histogramChannel : "luma",
+      histogramBinIndex: binIndex,
+      histogramBinCount: binCount,
+      histogramDomainMax: domainMax,
+      histogramStart: start,
+      histogramEnd: end,
+      histogramMin: start,
+      histogramMax: binIndex >= binCount - 1 ? DIAGNOSTIC.histogramOverlayOverflowMax : end
+    };
+  }
+
+  function histogramBinOverlayIsActive(next) {
+    const overlay = diagnosticsOverlayState();
+    return overlay.mode === "histogram"
+      && overlay.histogramScope === next.histogramScope
+      && overlay.histogramChannel === next.histogramChannel
+      && overlay.histogramBinIndex === next.histogramBinIndex
+      && overlay.histogramBinCount === next.histogramBinCount
+      && Math.abs((overlay.histogramDomainMax || 0) - next.histogramDomainMax) < 0.0001;
+  }
+
+  function activateHistogramBin(event) {
+    const target = event.target?.closest?.("[data-histogram-bin-index]");
+    if (!target) return false;
+    const next = histogramBinOverlayFromElement(target);
+    if (!next) return false;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    requestDiagnosticOverlay(histogramBinOverlayIsActive(next) ? {mode: "none"} : next);
+    return true;
+  }
+
   function bindHistogramGraphEvents() {
     const container = els.diagnosticsHistogram;
     if (!container?.addEventListener || overlayBoundElements.has(container)) return;
     overlayBoundElements.add(container);
     container.addEventListener("click", event => {
+      if (activateHistogramNeutral(event)) return;
+      if (activateHistogramBin(event)) return;
       activateGraphSwatch(event, histogramGraphActivationRecords);
     });
     container.addEventListener("keydown", event => {
       if (!["Enter", " "].includes(event.key)) return;
+      if (activateHistogramNeutral(event)) return;
+      if (activateHistogramBin(event)) return;
       activateGraphSwatch(event, histogramGraphActivationRecords);
     });
   }
 
   function renderHistogramPanel(histogramStats = getState().diagnostics?.histogramStats) {
     renderHistogramTabs();
+    renderHistogramControls();
     if (!els.diagnosticsHistogram) return;
     bindHistogramGraphEvents();
     const channel = activeHistogramTab();

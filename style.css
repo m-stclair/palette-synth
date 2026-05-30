@@ -1926,6 +1926,36 @@ canvas {
   min-height: 0;
   padding: 0;
 }
+.diagnostics-histogram-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.diagnostics-histogram-bin-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: min(100%, 265px);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.diagnostics-histogram-bin-control input {
+  flex: 1 1 105px;
+  min-width: 90px;
+}
+.diagnostics-histogram-bin-control output {
+  min-width: 52px;
+  text-align: right;
+  color: var(--text);
+}
+#diagnosticsHistogramHint {
+  margin-top: -2px;
+}
 .diagnostics-histogram-pair {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
@@ -2042,6 +2072,28 @@ canvas {
   letter-spacing: .02em;
   line-height: 1.25;
 }
+.diagnostics-histogram-neutral-skip {
+  appearance: none;
+  border: 0;
+  border-bottom: 1px dotted currentColor;
+  border-radius: 0;
+  padding: 0 1px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.diagnostics-histogram-neutral-skip:hover,
+.diagnostics-histogram-neutral-skip:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+.diagnostics-histogram-neutral-skip.is-diagnostic-overlay {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
 .pixel-inspector-pane #inspectorPanelHistogram {
   display: flex;
   flex-direction: column;
@@ -2081,6 +2133,28 @@ canvas {
 }
 .diagnostics-histogram-quantile {
   fill: rgba(143,180,223,.08);
+}
+.diagnostics-histogram-bin {
+  cursor: pointer;
+  outline: none;
+}
+.diagnostics-histogram-bin-hit-target {
+  fill: transparent;
+  pointer-events: all;
+}
+.diagnostics-histogram-bin .diagnostics-histogram-bar {
+  transition: opacity .12s ease, filter .12s ease;
+}
+.diagnostics-histogram-bin:hover .diagnostics-histogram-bar,
+.diagnostics-histogram-bin:focus-visible .diagnostics-histogram-bar {
+  opacity: .95;
+  filter: brightness(1.18);
+}
+.diagnostics-histogram-bin.is-diagnostic-overlay .diagnostics-histogram-bar {
+  opacity: 1;
+  filter: brightness(1.35);
+  stroke: var(--text);
+  stroke-width: .65;
 }
 .diagnostics-histogram-bar {
   opacity: .72;

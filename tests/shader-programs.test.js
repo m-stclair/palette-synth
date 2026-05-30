@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createShaderProgramController, shaderDefineLinesForConfig } from "../src/runtime/shader-programs.js";
+import {
+  createShaderProgramController,
+  diagnosticShaderDefineLines,
+  shaderDefineLinesForConfig
+} from "../src/runtime/shader-programs.js";
 
 test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
   const config = {
@@ -18,7 +22,10 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define CYCLE_MODE 3",
     "#define DITHER_PATTERN 2",
     "#define NEUTRAL_IS_CATEGORY 0",
-    "#define FIDELITY_GUARD 0"
+    "#define FIDELITY_GUARD 0",
+    "#define DIAGNOSTIC_OVERLAY_MODE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
   ]);
 
   assert.deepEqual(shaderDefineLinesForConfig(config, {
@@ -30,7 +37,42 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define CYCLE_MODE 0",
     "#define DITHER_PATTERN 2",
     "#define NEUTRAL_IS_CATEGORY 0",
-    "#define FIDELITY_GUARD 0"
+    "#define FIDELITY_GUARD 0",
+    "#define DIAGNOSTIC_OVERLAY_MODE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
+  ]);
+});
+
+test("diagnosticShaderDefineLines maps overlay state to compile-time defines", () => {
+  assert.deepEqual(diagnosticShaderDefineLines({
+    diagnosticOverlayMode: "histogram",
+    diagnosticOverlayHistogramScope: "output",
+    diagnosticOverlayHistogramChannel: "hue"
+  }), [
+    "#define DIAGNOSTIC_OVERLAY_MODE 3",
+    "#define DIAGNOSTIC_HISTOGRAM_SCOPE 1",
+    "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 2"
+  ]);
+
+  assert.deepEqual(diagnosticShaderDefineLines({
+    diagnosticOverlayMode: "histogram",
+    diagnosticOverlayHistogramScope: "source",
+    diagnosticOverlayHistogramChannel: "neutral"
+  }), [
+    "#define DIAGNOSTIC_OVERLAY_MODE 3",
+    "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 3"
+  ]);
+
+  assert.deepEqual(diagnosticShaderDefineLines({
+    diagnosticOverlayMode: "unknown",
+    diagnosticOverlayHistogramScope: "unknown",
+    diagnosticOverlayHistogramChannel: "unknown"
+  }), [
+    "#define DIAGNOSTIC_OVERLAY_MODE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
   ]);
 });
 
@@ -64,7 +106,10 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define CYCLE_MODE 0",
     "#define DITHER_PATTERN 6",
     "#define NEUTRAL_IS_CATEGORY 0",
-    "#define FIDELITY_GUARD 0"
+    "#define FIDELITY_GUARD 0",
+    "#define DIAGNOSTIC_OVERLAY_MODE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
   ]);
 
   assert.deepEqual(shaderDefineLinesForConfig({
@@ -78,7 +123,10 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define CYCLE_MODE 0",
     "#define DITHER_PATTERN 9",
     "#define NEUTRAL_IS_CATEGORY 0",
-    "#define FIDELITY_GUARD 0"
+    "#define FIDELITY_GUARD 0",
+    "#define DIAGNOSTIC_OVERLAY_MODE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
+    "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
   ]);
 });
 
@@ -115,7 +163,10 @@ test("shader program controller builds cached programs with injected defines", (
       "#define CYCLE_MODE 2",
       "#define DITHER_PATTERN 1",
       "#define NEUTRAL_IS_CATEGORY 0",
-      "#define FIDELITY_GUARD 0"
+      "#define FIDELITY_GUARD 0",
+      "#define DIAGNOSTIC_OVERLAY_MODE 0",
+      "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
+      "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
     ],
     linkErrorMessage: "unknown program link error"
   });
@@ -124,6 +175,36 @@ test("shader program controller builds cached programs with injected defines", (
   controller.buildProgramForContext({id: "export"}, cache, {showPalette: "none"});
   assert.equal(calls[1].gl.id, "export");
   assert.equal(calls[1].cache, cache);
+});
+
+test("shader program controller includes diagnostic override defines in the cache key", () => {
+  const calls = [];
+  const state = {gl: {id: "main"}, program: null, programKey: ""};
+  const controller = createShaderProgramController({
+    config: {
+      assignMode: "blend",
+      outputMode: "fullReplace",
+      CYCLE_MODE: 0,
+      ditherPattern: "ordered4"
+    },
+    state,
+    vertexSource: "vertex shader",
+    fragmentSource: "fragment shader",
+    buildCachedProgramFn: (_gl, _cache, options) => {
+      calls.push(options.defineLines);
+      return "program";
+    }
+  });
+
+  controller.buildProgram({
+    diagnosticOverlayMode: "histogram",
+    diagnosticOverlayHistogramScope: "source",
+    diagnosticOverlayHistogramChannel: "chroma"
+  });
+
+  assert.ok(calls[0].includes("#define DIAGNOSTIC_OVERLAY_MODE 3"));
+  assert.ok(calls[0].includes("#define DIAGNOSTIC_HISTOGRAM_SCOPE 0"));
+  assert.ok(calls[0].includes("#define DIAGNOSTIC_HISTOGRAM_CHANNEL 1"));
 });
 
 test("shaderDefineLinesForConfig maps categorical neutral mode", () => {
@@ -139,10 +220,29 @@ test("shaderDefineLinesForConfig maps categorical neutral mode", () => {
 test("palette shader gates hue pressure for near-neutral colors", () => {
   const source = readFileSync(new URL("../src/shaders/palette.frag", import.meta.url), "utf8");
   assert.match(source, /NEUTRAL_CHROMA_EPSILON = 2\.0/);
-  assert.match(source, /ENDPOINT_NEUTRAL_CHROMA_EPSILON = 8\.0/);
+  assert.match(source, /ENDPOINT_NEUTRAL_CHROMA_EPSILON = 6\.0/);
   assert.match(source, /bool labHasReliableHue\(float L, float chroma\)/);
   assert.match(source, /bool labHasHue = labHasReliableHue\(labL, labC\)/);
   assert.match(source, /#if NEUTRAL_IS_CATEGORY/);
+});
+
+test("palette shader histogram overlay can early-out before assignment for source bins", () => {
+  const source = readFileSync(new URL("../src/shaders/palette.frag", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /uniform int u_diagnosticOverlayMode/);
+  assert.doesNotMatch(source, /uniform int u_diagnosticOverlayHistogramScope/);
+  assert.doesNotMatch(source, /uniform int u_diagnosticOverlayHistogramChannel/);
+  assert.match(source, /uniform float u_diagnosticOverlayHistogramMin/);
+  assert.match(source, /uniform float u_diagnosticOverlayHistogramMax/);
+  assert.doesNotMatch(source, /uniform int u_diagnosticOverlayHistogramBin/);
+  assert.match(source, /value >= rangeMin && value < rangeMax/);
+  assert.match(source, /#if DIAGNOSTIC_HISTOGRAM_CHANNEL == 3/);
+  assert.match(source, /return !labHasReliableHue\(diagnosticLab\.x, chroma\)/);
+  assert.match(source, /bool diagnosticHistogramBinMatches\(vec3 diagnosticLab\)/);
+  assert.match(source, /#if DIAGNOSTIC_OVERLAY_MODE == 3 && DIAGNOSTIC_HISTOGRAM_SCOPE == 0/);
+  assert.ok(
+    source.indexOf("#if DIAGNOSTIC_OVERLAY_MODE == 3 && DIAGNOSTIC_HISTOGRAM_SCOPE == 0") < source.indexOf("softAssign(lab"),
+    "source histogram overlay should return before palette assignment"
+  );
 });
 
 test("palette shader difference overlay measures displayed OKLab output distance", () => {

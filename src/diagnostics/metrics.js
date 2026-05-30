@@ -1,4 +1,4 @@
-import { HUE_DISTANCE_SCALE, MAX_PALETTE_SIZE, NEUTRAL_CHROMA_EPSILON } from "../constants.js";
+import { HUE_DISTANCE_SCALE, MAX_PALETTE_SIZE } from "../constants.js";
 import {
   byteRgbToHex,
   clamp,
@@ -36,6 +36,12 @@ export const DIAGNOSTIC = {
   // stay focused on
   // palette assignment instead of also paying a histogram tax.
   histogramBins: 80,
+  histogramBinMin: 4,
+  histogramBinMax: 160,
+  histogramBinStep: 4,
+  // Upper shader bound used for the final histogram bin, which intentionally
+  // includes values clamped into the displayed domain such as chroma overflow.
+  histogramOverlayOverflowMax: 1e20,
   // Underused: contribution below this fraction of the uniform baseline 1/N.
   // Scales with palette size so a 50-swatch palette is judged proportionally.
   underusedBaselineFraction: 0.10,
@@ -54,6 +60,25 @@ export const DIAGNOSTIC = {
   // actually contributing to the pixel.
   ditherMinShare: 0.0625
 };
+
+export function normalizeHistogramBinCount(value, fallback = DIAGNOSTIC.histogramBins) {
+  const base = Number.isFinite(Number(value)) ? Number(value) : fallback;
+  const min = DIAGNOSTIC.histogramBinMin;
+  const step = DIAGNOSTIC.histogramBinStep;
+  const snapped = min + Math.round((base - min) / step) * step;
+  return clamp(snapped, min, DIAGNOSTIC.histogramBinMax);
+}
+
+function defaultHistogramBinCount(channel) {
+  return resolvedHistogramChannel(channel) === "hue" ? 72 : DIAGNOSTIC.histogramBins;
+}
+
+function resolvedHistogramBinCount(channel, requestedBinCount) {
+  const fallback = defaultHistogramBinCount(channel);
+  return Number.isFinite(Number(requestedBinCount))
+    ? normalizeHistogramBinCount(requestedBinCount, fallback)
+    : fallback;
+}
 
 function safeScaledHue(hue) {
   return Array.isArray(hue) && hue.length >= 2
@@ -630,14 +655,12 @@ function outputHistogramSampleForSourceSample(sample, entries, records, config =
   return {...histogramSampleFromLab(finalLab), x: sample.x, y: sample.y, sourceRgb};
 }
 
-export function computeHistogramFromSamples({samples = [], records = [], channel = "luma", scope = "source", step = 1, signature = "", now = () => Date.now(), domainMaxOverride = undefined} = {}) {
+export function computeHistogramFromSamples({samples = [], records = [], channel = "luma", scope = "source", step = 1, signature = "", now = () => Date.now(), domainMaxOverride = undefined, binCount: requestedBinCount = undefined} = {}) {
   const safeRecords = Array.isArray(records) ? records : [];
   const safeSamples = Array.isArray(samples) ? samples : [];
   const resolvedChannel = resolvedHistogramChannel(channel);
   const resolvedScope = scope === "output" ? "output" : "source";
-  const binCount = resolvedChannel === "hue"
-    ? 72
-    : Math.max(12, Math.round(Number(DIAGNOSTIC.histogramBins) || 80));
+  const binCount = resolvedHistogramBinCount(resolvedChannel, requestedBinCount);
 
   let sumL = 0;
   let sumC = 0;
@@ -743,7 +766,8 @@ export function computeHistogramFromSamples({samples = [], records = [], channel
       domain: {min: 0, max: domainMax},
       overflowCount,
       omittedLowChromaCount: resolvedChannel === "hue" ? neutralHueCount : 0,
-      lowChromaThreshold: resolvedChannel === "hue" ? NEUTRAL_CHROMA_EPSILON : undefined,
+      omittedNeutralCount: resolvedChannel === "hue" ? neutralHueCount : 0,
+      hueOmittedReason: resolvedChannel === "hue" ? "neutral / unreliable hue" : undefined,
       stats: {
         p10: p10Value,
         median: medianValue,
@@ -763,7 +787,7 @@ export function computeHistogramFromSamples({samples = [], records = [], channel
   };
 }
 
-export function computeImageHistogramDiagnostics({imageData, samples = null, records = [], channel = "luma", scope = "source", step = undefined, signature = "", now = () => Date.now()} = {}) {
+export function computeImageHistogramDiagnostics({imageData, samples = null, records = [], channel = "luma", scope = "source", step = undefined, signature = "", now = () => Date.now(), binCount = undefined} = {}) {
   const collected = Array.isArray(samples) ? {samples, step: Math.max(1, Math.round(Number(step) || 1))} : collectSourceHistogramSamples(imageData);
   if (!collected) return null;
   return computeHistogramFromSamples({
@@ -773,7 +797,8 @@ export function computeImageHistogramDiagnostics({imageData, samples = null, rec
     scope,
     step: collected.step,
     signature,
-    now
+    now,
+    binCount
   });
 }
 
@@ -790,7 +815,7 @@ function collectOutputHistogramSamples({imageData, records = [], entries = [], c
   }));
 }
 
-export function computeOutputHistogramDiagnostics({imageData, records = [], entries = [], config = {}, channel = "luma", signature = "", now = () => Date.now()} = {}) {
+export function computeOutputHistogramDiagnostics({imageData, records = [], entries = [], config = {}, channel = "luma", signature = "", now = () => Date.now(), binCount = undefined} = {}) {
   const collected = collectOutputHistogramSamples({imageData, records, entries, config});
   if (!collected) return null;
   return computeHistogramFromSamples({
@@ -800,11 +825,12 @@ export function computeOutputHistogramDiagnostics({imageData, records = [], entr
     scope: "output",
     step: collected.step,
     signature,
-    now
+    now,
+    binCount
   });
 }
 
-export function computePairedHistogramDiagnostics({imageData, records = [], entries = [], config = {}, channel = "luma", sourceSignature = "", outputSignature = "", now = () => Date.now()} = {}) {
+export function computePairedHistogramDiagnostics({imageData, records = [], entries = [], config = {}, channel = "luma", sourceSignature = "", outputSignature = "", now = () => Date.now(), binCount = undefined} = {}) {
   const collected = collectSourceHistogramSamples(imageData);
   if (!collected) return {source: null, output: null};
   const resolvedChannel = resolvedHistogramChannel(channel);
@@ -825,7 +851,8 @@ export function computePairedHistogramDiagnostics({imageData, records = [], entr
       step: collected.step,
       signature: sourceSignature,
       now,
-      domainMaxOverride
+      domainMaxOverride,
+      binCount
     }),
     output: computeHistogramFromSamples({
       samples: outputSamples,
@@ -835,7 +862,8 @@ export function computePairedHistogramDiagnostics({imageData, records = [], entr
       step: collected.step,
       signature: outputSignature,
       now,
-      domainMaxOverride
+      domainMaxOverride,
+      binCount
     })
   };
 }
@@ -900,27 +928,33 @@ function histogramConfigSignature(config = {}) {
     .join("|");
 }
 
-export function createDiagnosticMetrics({getConfig, getImageData, getRecords, getEntries, includeCycleOffset = () => false, now = () => Date.now()} = {}) {
+export function createDiagnosticMetrics({getConfig, getImageData, getRecords, getEntries, getHistogramBinCount = () => undefined, includeCycleOffset = () => false, now = () => Date.now()} = {}) {
   const config = () => getConfig?.() || {};
   const imageData = () => getImageData?.() || null;
   const records = fallback => fallback === undefined ? (getRecords?.() ?? []) : fallback;
   const entriesFor = inputRecords => getEntries?.(inputRecords) ?? [];
   const histogramPairCache = new Map();
 
-  function histogramBaseSignature({inputRecords, entries, scope, safeConfig}) {
+  function histogramBaseSignature({inputRecords, entries, scope, safeConfig, binCount}) {
     return `${diagnosticsSignature({
       imageData: imageData(),
       records: inputRecords,
       entries,
       config: safeConfig,
       includeCycleOffset: includeCycleOffset()
-    })}~${scope}-histogram-v4-cpu~${histogramConfigSignature(safeConfig)}`;
+    })}~${scope}-histogram-v5-cpu~bins:${binCount || "auto"}~${histogramConfigSignature(safeConfig)}`;
+  }
+
+  function currentHistogramBinCount() {
+    const value = getHistogramBinCount?.();
+    return Number.isFinite(Number(value)) ? normalizeHistogramBinCount(value) : undefined;
   }
 
   function pairedHistogramFor({inputRecords, entries, channel, safeConfig}) {
     const resolvedChannel = resolvedHistogramChannel(channel);
-    const sourceBaseSignature = histogramBaseSignature({inputRecords, entries, scope: "source", safeConfig});
-    const outputBaseSignature = histogramBaseSignature({inputRecords, entries, scope: "output", safeConfig});
+    const binCount = currentHistogramBinCount();
+    const sourceBaseSignature = histogramBaseSignature({inputRecords, entries, scope: "source", safeConfig, binCount});
+    const outputBaseSignature = histogramBaseSignature({inputRecords, entries, scope: "output", safeConfig, binCount});
     const sourceSignature = `${sourceBaseSignature}~${resolvedChannel}`;
     const outputSignature = `${outputBaseSignature}~${resolvedChannel}`;
     const cacheKey = `${sourceSignature}::${outputSignature}`;
@@ -934,7 +968,8 @@ export function createDiagnosticMetrics({getConfig, getImageData, getRecords, ge
         channel: resolvedChannel,
         sourceSignature,
         outputSignature,
-        now
+        now,
+        binCount
       }));
     }
     return histogramPairCache.get(cacheKey) || {source: null, output: null};
@@ -964,11 +999,11 @@ export function createDiagnosticMetrics({getConfig, getImageData, getRecords, ge
     },
     sourceHistogramSignature: (inputRecords = records(), entries = entriesFor(inputRecords), channel = "luma") => {
       const safeConfig = config();
-      return `${histogramBaseSignature({inputRecords, entries, scope: "source", safeConfig})}~${resolvedHistogramChannel(channel)}`;
+      return `${histogramBaseSignature({inputRecords, entries, scope: "source", safeConfig, binCount: currentHistogramBinCount()})}~${resolvedHistogramChannel(channel)}`;
     },
     outputHistogramSignature: (inputRecords = records(), entries = entriesFor(inputRecords), channel = "luma") => {
       const safeConfig = config();
-      return `${histogramBaseSignature({inputRecords, entries, scope: "output", safeConfig})}~${resolvedHistogramChannel(channel)}`;
+      return `${histogramBaseSignature({inputRecords, entries, scope: "output", safeConfig, binCount: currentHistogramBinCount()})}~${resolvedHistogramChannel(channel)}`;
     },
     computeSourceHistogramDiagnostics: (inputRecords = records(), channel = "luma") => {
       const safeRecords = Array.isArray(inputRecords) ? inputRecords : [];

@@ -14,6 +14,16 @@ uniform vec2 u_viewSpan;
 #define MASK_BEHAVIOR_CYCLE_WITHIN 1
 #define MASK_BEHAVIOR_FORBID_COLORS 2
 
+#ifndef DIAGNOSTIC_OVERLAY_MODE
+#define DIAGNOSTIC_OVERLAY_MODE 0
+#endif
+#ifndef DIAGNOSTIC_HISTOGRAM_SCOPE
+#define DIAGNOSTIC_HISTOGRAM_SCOPE 0
+#endif
+#ifndef DIAGNOSTIC_HISTOGRAM_CHANNEL
+#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0
+#endif
+
 uniform vec4 paletteFeatures[MAX_PALETTE_SIZE];
 
 uniform vec4 paletteColors[MAX_PALETTE_SIZE];
@@ -39,8 +49,9 @@ uniform float u_highlightCutoff;
 uniform float u_ditherAngle;
 uniform float u_ditherLumaAmount;
 uniform float u_ditherScale;
-uniform int u_diagnosticOverlayMode;
 uniform int u_diagnosticOverlaySwatch;
+uniform float u_diagnosticOverlayHistogramMin;
+uniform float u_diagnosticOverlayHistogramMax;
 uniform float u_compareSplit;
 uniform int u_compareEnabled;
 uniform int u_pixelArtEnabled;
@@ -355,6 +366,43 @@ bool paletteEntryMatchesDiagnosticSwatch(int entryIndex, int selectedSwatch) {
         return false;
     }
     return paletteSourceIndices[entryIndex] == selectedSwatch;
+}
+
+float diagnosticHistogramChannelValue(vec3 diagnosticLab) {
+    float chroma = length(diagnosticLab.yz);
+#if DIAGNOSTIC_HISTOGRAM_CHANNEL == 1
+    return chroma;
+#elif DIAGNOSTIC_HISTOGRAM_CHANNEL == 2
+    if (!labHasReliableHue(diagnosticLab.x, chroma)) {
+        return -1.0;
+    }
+    float hueDegrees = degrees(atan(diagnosticLab.z, diagnosticLab.y));
+    return hueDegrees < 0.0 ? hueDegrees + 360.0 : hueDegrees;
+#else
+    return clamp(diagnosticLab.x, 0.0, 100.0);
+#endif
+}
+
+bool diagnosticHistogramBinMatches(vec3 diagnosticLab) {
+#if DIAGNOSTIC_HISTOGRAM_CHANNEL == 3
+    float chroma = length(diagnosticLab.yz);
+    return !labHasReliableHue(diagnosticLab.x, chroma);
+#else
+    float value = diagnosticHistogramChannelValue(diagnosticLab);
+    if (value < 0.0) {
+        return false;
+    }
+    float rangeMin = min(u_diagnosticOverlayHistogramMin, u_diagnosticOverlayHistogramMax);
+    float rangeMax = max(u_diagnosticOverlayHistogramMin, u_diagnosticOverlayHistogramMax);
+    if (rangeMax <= rangeMin) {
+        return false;
+    }
+    return value >= rangeMin && value < rangeMax;
+#endif
+}
+
+vec3 diagnosticHistogramOutputColor(bool hit, vec3 visibleColor) {
+    return hit ? visibleColor : vec3(0.0);
 }
 
 vec2 safeHueUnit(float L, vec2 ab, vec2 fallback) {
@@ -1106,6 +1154,12 @@ void main() {
     vec3 color = texture(u_image, sample_.uv).rgb;
     vec3 lab = rgb2lab(srgb2linear(color));
 
+#if DIAGNOSTIC_OVERLAY_MODE == 3 && DIAGNOSTIC_HISTOGRAM_SCOPE == 0
+    bool sourceHistogramHit = diagnosticHistogramBinMatches(lab);
+    outColor = vec4(diagnosticHistogramOutputColor(sourceHistogramHit, color), 1.0);
+    return;
+#endif
+
     bool maskPaintedHere = u_maskEnabled == 1 && texture(u_mask, uv).a > 0.01;
     bool cycleMutedHere = u_maskEnabled == 1 && u_maskBehavior == MASK_BEHAVIOR_CYCLE_WITHIN && !maskPaintedHere;
     int effectiveCycleOffset = cycleMutedHere ? 0 : u_cycleOffset;
@@ -1126,25 +1180,32 @@ void main() {
 
     vec3 finalColor = blendWithColorSpace(color, srgbOut, u_blendAmount);
 
-    if (u_diagnosticOverlayMode == 1) {
-        float swatchSignal = 0.0;
-    #if ASSIGNMODE == ASSIGN_BLEND
-        swatchSignal = selectedBlendWeight(lab, u_diagnosticOverlaySwatch);
-    #elif ASSIGNMODE == ASSIGN_DITHER
-        swatchSignal = selectedDitherWeight(lab, u_diagnosticOverlaySwatch, ditherCoord);
-    #else
-        swatchSignal = selectedNearestWeight(lab, u_diagnosticOverlaySwatch);
-    #endif
-        outColor = vec4(vec3(clamp(swatchSignal, 0.0, 1.0)), 1.0);
-        return;
-    }
+#if DIAGNOSTIC_OVERLAY_MODE == 1
+    float swatchSignal = 0.0;
+  #if ASSIGNMODE == ASSIGN_BLEND
+    swatchSignal = selectedBlendWeight(lab, u_diagnosticOverlaySwatch);
+  #elif ASSIGNMODE == ASSIGN_DITHER
+    swatchSignal = selectedDitherWeight(lab, u_diagnosticOverlaySwatch, ditherCoord);
+  #else
+    swatchSignal = selectedNearestWeight(lab, u_diagnosticOverlaySwatch);
+  #endif
+    outColor = vec4(vec3(clamp(swatchSignal, 0.0, 1.0)), 1.0);
+    return;
+#endif
 
-    if (u_diagnosticOverlayMode == 2) {
-        vec3 finalLab = rgb2lab(srgb2linear(finalColor));
-        float diffAmount = clamp(length(finalLab - lab) / OKLAB_SCALE, 0.0, 1.0);
-        outColor = vec4(vec3(diffAmount), 1.0);
-        return;
-    }
+#if DIAGNOSTIC_OVERLAY_MODE == 2
+    vec3 finalLab = rgb2lab(srgb2linear(finalColor));
+    float diffAmount = clamp(length(finalLab - lab) / OKLAB_SCALE, 0.0, 1.0);
+    outColor = vec4(vec3(diffAmount), 1.0);
+    return;
+#endif
+
+#if DIAGNOSTIC_OVERLAY_MODE == 3 && DIAGNOSTIC_HISTOGRAM_SCOPE == 1
+    vec3 finalLab = rgb2lab(srgb2linear(finalColor));
+    bool outputHistogramHit = diagnosticHistogramBinMatches(finalLab);
+    outColor = vec4(diagnosticHistogramOutputColor(outputHistogramHit, finalColor), 1.0);
+    return;
+#endif
 
 
     if (u_compareEnabled == 1 && u_compareSplit >= 0.0) {

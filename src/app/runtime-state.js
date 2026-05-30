@@ -103,6 +103,7 @@ export function createRuntimeState({document: doc = globalThis.document, maxImag
       histogramSignature: "",
       histogramSignatures: {},
       histogramStats: {},
+      histogramBinCount: 80,
       panelTab: "contribution",
       histogramTab: "luma",
       pixel: null,

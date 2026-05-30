@@ -80,7 +80,7 @@ function makeSession(overrides = {}) {
     getViewRect: () => ({x: 10, y: 5, w: 180, h: 90}),
     getViewSpan: () => [0.5, 0.25],
     clampViewCenter: overrides.clampViewCenter || (() => {}),
-    buildProgram: () => "program",
+    buildProgram: overrides.buildProgram ?? (() => "program"),
     vertexSource: overrides.vertexSource ?? "",
     postProcessFragmentSource: overrides.postProcessFragmentSource ?? "",
     edgeTightenFragmentSource: overrides.edgeTightenFragmentSource ?? "",
@@ -566,6 +566,71 @@ test("draw bypasses post-process when a diagnostic overlay is active", () => {
     Array.isArray(call) && call[0] === "render" && call[1].viewport && call[1].viewport.w === 180
   );
   assert.ok(directRender, "direct render should run when overlay is active");
+});
+
+test("draw forwards histogram diagnostic overlay uniforms", () => {
+  const state = makeState({
+    diagnostics: {
+      signature: "",
+      pixel: null,
+      histogramBinCount: 40,
+      overlay: {
+        mode: "histogram",
+        histogramScope: "output",
+        histogramChannel: "chroma",
+        histogramBinIndex: 7,
+        histogramBinCount: 40,
+        histogramDomainMax: 64,
+        histogramMin: 11.2,
+        histogramMax: 12.8
+      }
+    }
+  });
+  const {session, calls} = makeSession({state});
+
+  session.draw();
+
+  const directRender = calls.find(call =>
+    Array.isArray(call) && call[0] === "render" && call[1].viewport && call[1].viewport.w === 180
+  );
+  assert.ok(directRender);
+  assert.equal(directRender[1].diagnosticOverlayMode, "histogram");
+  assert.equal(directRender[1].diagnosticOverlayHistogramScope, "output");
+  assert.equal(directRender[1].diagnosticOverlayHistogramChannel, "chroma");
+  assert.equal(directRender[1].diagnosticOverlayHistogramMin, 11.2);
+  assert.equal(directRender[1].diagnosticOverlayHistogramMax, 12.8);
+});
+
+test("draw builds a shader variant for the active diagnostic overlay", () => {
+  const buildCalls = [];
+  const state = makeState({
+    diagnostics: {
+      signature: "",
+      pixel: null,
+      overlay: {
+        mode: "histogram",
+        histogramScope: "output",
+        histogramChannel: "hue",
+        histogramMin: 120,
+        histogramMax: 130
+      }
+    }
+  });
+  const {session} = makeSession({
+    state,
+    buildProgram: overrides => {
+      buildCalls.push(overrides);
+      return "program";
+    }
+  });
+
+  session.draw();
+
+  assert.deepEqual(buildCalls[0], {
+    diagnosticOverlayMode: "histogram",
+    diagnosticOverlayHistogramScope: "output",
+    diagnosticOverlayHistogramChannel: "hue"
+  });
 });
 
 test("draw falls back to direct path when post-process shaders are missing", () => {

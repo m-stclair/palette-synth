@@ -570,7 +570,15 @@
     <section id="inspectorPanelHistogram" class="inspector-tab-panel diagnostics-panel" role="tabpanel" aria-labelledby="inspectorTabHistogram" data-inspector-tab-panel="histogram" data-panel-key="histogram" hidden>
       <div id="diagnosticsTabs" class="diagnostics-tabs" role="tablist" aria-label="Histogram views"></div>
       <div id="diagnosticsHistogramPanel" class="diagnostics-tab-panel" role="tabpanel">
-        <div id="diagnosticsHistogramHeading" class="diagnostics-subhead">Luma histograms</div>
+        <div class="diagnostics-histogram-toolbar">
+          <div id="diagnosticsHistogramHeading" class="diagnostics-subhead">Luma histograms</div>
+          <label class="diagnostics-histogram-bin-control" title="Adjust histogram bin detail; lower values are coarser, higher values are finer.">
+            <span>Bin detail</span>
+            <input id="diagnosticsHistogramBinCount" type="range" min="16" max="160" step="8" value="80" aria-label="Histogram bin detail">
+            <output id="diagnosticsHistogramBinCountValue" for="diagnosticsHistogramBinCount">80 bins</output>
+          </label>
+        </div>
+        <div id="diagnosticsHistogramHint" class="inline-note">Click a bar to isolate pixels in that bin.</div>
         <div id="diagnosticsHistogram" class="diagnostics-histogram" role="img" aria-label="Sampled source and output image histograms"></div>
       </div>
     </section>

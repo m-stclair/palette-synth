@@ -299,6 +299,10 @@ export interface PaletteRenderPassOptions {
   manualCycleEnabled?: boolean;
   diagnosticOverlayMode?: string;
   diagnosticOverlaySwatch?: number;
+  diagnosticOverlayHistogramScope?: string;
+  diagnosticOverlayHistogramChannel?: string;
+  diagnosticOverlayHistogramMin?: number;
+  diagnosticOverlayHistogramMax?: number;
   compareEnabled?: boolean;
   compareSplit?: number;
   settings?: RenderSettings;
@@ -439,6 +443,8 @@ export interface HistogramDiagnosticsPayload {
   };
   overflowCount: number;
   omittedLowChromaCount: number;
+  omittedNeutralCount?: number;
+  hueOmittedReason?: string;
   lowChromaThreshold: number | undefined;
   stats: Record<string, unknown>;
 }
@@ -635,6 +641,7 @@ export interface DiagnosticsState {
   histogramSignature: string;
   histogramSignatures: Record<string, string>;
   histogramStats: Record<string, HistogramDiagnostics>;
+  histogramBinCount: number;
   panelTab: LooseString<"contribution" | "histogram">;
   histogramTab: LooseString<"luma" | "chroma" | "hue">;
   pixel: PixelInspection | null;
@@ -650,6 +657,15 @@ export interface DiagnosticsState {
   overlay: {
     mode: string;
     swatchIndex: number | null;
+    histogramScope?: "source" | "output";
+    histogramChannel?: "luma" | "chroma" | "hue" | "neutral";
+    histogramBinIndex?: number;
+    histogramBinCount?: number;
+    histogramDomainMax?: number;
+    histogramStart?: number;
+    histogramEnd?: number;
+    histogramMin?: number;
+    histogramMax?: number;
   };
   inspectorOpen?: boolean;
   inspectorTab?: LooseString<"pixel" | "selection" | "diagnostics" | "xray" | "histogram">;

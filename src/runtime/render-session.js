@@ -27,6 +27,15 @@ import {
 /** @typedef {import("../types.d.ts").RenderSettings} RenderSettings */
 /** @typedef {import("../types.d.ts").RuntimeState} RuntimeState */
 
+
+function diagnosticShaderOverridesForOverlay(overlay = {}) {
+  return {
+    diagnosticOverlayMode: overlay?.mode || "none",
+    diagnosticOverlayHistogramScope: overlay?.histogramScope || "source",
+    diagnosticOverlayHistogramChannel: overlay?.histogramChannel || "luma"
+  };
+}
+
 function fallbackPaletteSourceIndices(entries = []) {
   const out = new Int32Array(MAX_PALETTE_SIZE);
   out.fill(-1);
@@ -329,6 +338,10 @@ export function createRenderSession({
       manualCycleEnabled: options.manualCycleEnabled ?? manualCycleModeEnabled(),
       diagnosticOverlayMode: options.diagnosticOverlayMode ?? (state.diagnostics?.overlay?.mode || "none"),
       diagnosticOverlaySwatch: options.diagnosticOverlaySwatch ?? state.diagnostics?.overlay?.swatchIndex ?? -1,
+      diagnosticOverlayHistogramScope: options.diagnosticOverlayHistogramScope ?? state.diagnostics?.overlay?.histogramScope ?? "source",
+      diagnosticOverlayHistogramChannel: options.diagnosticOverlayHistogramChannel ?? state.diagnostics?.overlay?.histogramChannel ?? "luma",
+      diagnosticOverlayHistogramMin: options.diagnosticOverlayHistogramMin ?? state.diagnostics?.overlay?.histogramMin ?? state.diagnostics?.overlay?.histogramStart ?? 0,
+      diagnosticOverlayHistogramMax: options.diagnosticOverlayHistogramMax ?? state.diagnostics?.overlay?.histogramMax ?? state.diagnostics?.overlay?.histogramEnd ?? 0,
       settings
     });
   }
@@ -429,9 +442,11 @@ export function createRenderSession({
     ensureTexture();
     ensurePalette();
 
+    const overlay = state.diagnostics?.overlay || {mode: "none"};
+
     let program;
     try {
-      program = buildProgram();
+      program = buildProgram(diagnosticShaderOverridesForOverlay(overlay));
       els.error.hidden = true;
     } catch (err) {
       els.error.textContent = `Shader failed: ${err.message}`;
@@ -439,7 +454,6 @@ export function createRenderSession({
       throw err;
     }
 
-    const overlay = state.diagnostics?.overlay || {mode: "none"};
     const runPostProcess = postProcessActive(config, overlay);
     const runCompositePass = runPostProcess;
     if (runCompositePass) {

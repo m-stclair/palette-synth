@@ -37,6 +37,7 @@ test("runtime state creates isolated canvas-backed defaults", () => {
     histogramSignature: "",
     histogramSignatures: {},
     histogramStats: {},
+    histogramBinCount: 80,
     panelTab: "contribution",
     histogramTab: "luma",
     pixel: null,
