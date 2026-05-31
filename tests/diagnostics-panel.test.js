@@ -309,7 +309,7 @@ test("histogram swatch markers use visible swatch color for placement and toolti
 
   panel.renderHistogramPanel(state.diagnostics.histogramStats);
 
-  assert.match(els.diagnosticsHistogram.innerHTML, /swatch 1 · C 3\.04 · #000003 · LCH 4\.4 3\.0 0°/);
+  assert.match(els.diagnosticsHistogram.innerHTML, /swatch 1 · C 3\.04 · #000003 · LCH 4\.4 3\.0 —/);
   assert.doesNotMatch(els.diagnosticsHistogram.innerHTML, /swatch 1 · C 7\.4/);
 });
 

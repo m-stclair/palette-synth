@@ -23,16 +23,18 @@ export function $(id) { return document.getElementById(id); }
 export function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
 export function clamp01(x) { return clamp(x, 0, 1); }
 
-export function lightnessHeadroom(lightness) {
-    const L = clamp(Number(lightness) || 0, 0, 100);
-    return Math.min(L, 100 - L);
+export function shadowHueEndpointDepth(lightness) {
+    return clamp(Number(lightness) || 0, 0, 100);
   }
 
+// Hue becomes unreliable near black much faster than it does near white.
+// Keep the neutral-chroma widening on the shadow side only so pale sky/haze
+// colors keep their hue instead of being collapsed into bright neutrals.
 export function hueEndpointFactorForLightness(lightness) {
     return 1 - smoothstep(
       HUE_LIGHTNESS_HEADROOM_LOW,
       HUE_LIGHTNESS_HEADROOM_HIGH,
-      lightnessHeadroom(lightness)
+      shadowHueEndpointDepth(lightness)
     );
   }
 
@@ -192,7 +194,7 @@ export function labToHex(lab) {
 
 export function labToOklch([L, a, b]) {
     const C = Math.hypot(a, b);
-    const h = hasReliableHue(L, C) ? Math.atan2(b, a) : 0;
+    const h = Math.atan2(b, a);
     return [L, C, h < 0 ? h + TAU : h];
   }
 
@@ -200,8 +202,8 @@ export function formatLch(lab, {prefix = "LCH"} = {}) {
     const safe = normalizeManualLab(lab);
     if (!safe) return "";
     const [L, C, h] = labToOklch(safe);
-    const degrees = hasReliableHue(L, C) ? h * 360 / TAU : 0;
-    return `${prefix} ${L.toFixed(1)} ${C.toFixed(1)} ${degrees.toFixed(0)}°`;
+    const degrees = hasReliableHue(L, C) ? `${(h * 360 / TAU).toFixed(0)}°` : "—";
+    return `${prefix} ${L.toFixed(1)} ${C.toFixed(1)} ${degrees}`;
   }
 
 export function visibleSwatchLab(record) {

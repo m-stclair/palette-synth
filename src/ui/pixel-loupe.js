@@ -155,10 +155,10 @@ function setHidden(el, hidden) {
 
 function formatLoupeLch(hex) {
   const safeHex = normalizeHexColor(hex, "");
-  if (!safeHex) return "— / — / —°";
+  if (!safeHex) return "— / — / —";
   const [L, C, h] = labToOklch(hexToLab(safeHex));
-  const degrees = hasReliableHue(L, C) ? h * 360 / TAU : 0;
-  return `${L.toFixed(1)} / ${C.toFixed(1)} / ${degrees.toFixed(0)}°`;
+  const degrees = hasReliableHue(L, C) ? `${(h * 360 / TAU).toFixed(0)}°` : "—";
+  return `${L.toFixed(1)} / ${C.toFixed(1)} / ${degrees}`;
 }
 
 function formatDistance(value) {

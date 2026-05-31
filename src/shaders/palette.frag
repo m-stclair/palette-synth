@@ -186,16 +186,18 @@ int positiveMod(int x, int m) {
     return (r < 0) ? r + m : r;
 }
 
-float lightnessHeadroom(float L) {
-    float safeL = clamp(L, 0.0, 100.0);
-    return min(safeL, 100.0 - safeL);
+float shadowHueEndpointDepth(float L) {
+    return clamp(L, 0.0, 100.0);
 }
 
+// Hue becomes unreliable near black much faster than it does near white.
+// Keep the neutral-chroma widening on the shadow side only so pale sky/haze
+// colors keep their hue instead of being collapsed into bright neutrals.
 float hueEndpointFactorForLightness(float L) {
     return 1.0 - smoothstep(
         HUE_LIGHTNESS_HEADROOM_LOW,
         HUE_LIGHTNESS_HEADROOM_HIGH,
-        lightnessHeadroom(L)
+        shadowHueEndpointDepth(L)
     );
 }
 

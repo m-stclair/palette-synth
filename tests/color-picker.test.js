@@ -133,6 +133,15 @@ function findByClass(root, className) {
   return null;
 }
 
+function findByAriaLabel(root, label) {
+  if (root.getAttribute?.("aria-label") === label) return root;
+  for (const child of root.children || []) {
+    const found = findByAriaLabel(child, label);
+    if (found) return found;
+  }
+  return null;
+}
+
 function pointerEvent(type, x, y) {
   return {
     type,
@@ -200,6 +209,26 @@ test("color picker preserves max chroma intent while rotating hue", () => {
   }
 });
 
+
+
+test("color picker preserves underlying hue for low-chroma colors on open", () => {
+  const restore = installDocument();
+  try {
+    const input = makeElement("input", document);
+    input.value = "#c7d5ef";
+    document.body.append(input);
+
+    const picker = attachColorPicker(input, {label: "Test color"});
+    picker.open({focus: false});
+
+    const hueInput = findByAriaLabel(document.body, "OKLCh hue degrees");
+    assert.ok(hueInput);
+    assert.notEqual(hueInput.value, "0");
+    assert.equal(hueInput.value, "263");
+  } finally {
+    restore();
+  }
+});
 function makeCountingContext(counter) {
   return {
     createImageData(width, height) {

@@ -84,7 +84,7 @@ function oklchFromHex(hex, fallbackHue = 0) {
   return {
     l: clampLightness(l),
     c: Math.max(0, c),
-    h: hasReliableHue(l, c) ? normalizeHueRadians(h) : normalizeHueRadians(fallbackHue)
+    h: c > 1e-6 ? normalizeHueRadians(h) : normalizeHueRadians(fallbackHue)
   };
 }
 
