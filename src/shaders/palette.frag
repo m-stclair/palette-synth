@@ -72,6 +72,7 @@ const float HUE_LIGHTNESS_HEADROOM_LOW = 7.0;
 const float HUE_LIGHTNESS_HEADROOM_HIGH = 23.0;
 const float HUE_DISTANCE_SCALE = 10.0;
 const float NEUTRAL_CATEGORY_HUE_SEPARATION = 1.41421356237;
+const float DIAGNOSTIC_DIFF_OVERLAY_TEMPERATURE = 2.5;
 
 // OKLab is stored in the legacy palette slots as [L*100, a*100, b*100].
 // That keeps existing lightness sliders, thresholds, and palette records on a 0–100-ish scale.
@@ -1195,7 +1196,7 @@ void main() {
 
 #if DIAGNOSTIC_OVERLAY_MODE == 2
     vec3 finalLab = rgb2lab(srgb2linear(finalColor));
-    float diffAmount = clamp(length(finalLab - lab) / OKLAB_SCALE, 0.0, 1.0);
+    float diffAmount = tanh(length(finalLab - lab) / OKLAB_SCALE * DIAGNOSTIC_DIFF_OVERLAY_TEMPERATURE);
     outColor = vec4(vec3(diffAmount), 1.0);
     return;
 #endif

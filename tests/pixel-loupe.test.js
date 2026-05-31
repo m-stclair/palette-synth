@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { bindPixelLoupe } from "../src/ui/pixel-loupe.js";
 import { rgb8ToLab } from "../src/color-utils.js";
-import { OKLAB_SCALE } from "../src/constants.js";
+import {DIAGNOSTIC_DIFF_OVERLAY_TEMPERATURE, OKLAB_SCALE} from "../src/constants.js";
 
 function makeEventTarget(overrides = {}) {
   const listeners = new Map();
@@ -85,11 +85,11 @@ function makeDocument() {
 function expectedOklabDiffByte(sourceRgb, finalRgb) {
   const sourceLab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
   const finalLab = rgb8ToLab(finalRgb[0], finalRgb[1], finalRgb[2]);
-  const amount = Math.min(1, Math.max(0, Math.hypot(
+  const amount = Math.tanh(Math.hypot(
     finalLab[0] - sourceLab[0],
     finalLab[1] - sourceLab[1],
     finalLab[2] - sourceLab[2]
-  ) / OKLAB_SCALE));
+  ) / OKLAB_SCALE * DIAGNOSTIC_DIFF_OVERLAY_TEMPERATURE);
   return Math.round(amount * 255);
 }
 

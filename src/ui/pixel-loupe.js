@@ -1,5 +1,5 @@
 import { hasReliableHue, hexToByteRgb, hexToLab, labToOklch, normalizeHexColor, rgb8ToLab } from "../color-utils.js";
-import { MAX_PALETTE_SIZE, OKLAB_SCALE, TAU } from "../constants.js";
+import {DIAGNOSTIC_DIFF_OVERLAY_TEMPERATURE, MAX_PALETTE_SIZE, OKLAB_SCALE, TAU} from "../constants.js";
 import { effectivePixelBlockSize, isPixelArtEnabled } from "../state/config.js";
 
 function clamp(value, min, max) {
@@ -225,14 +225,12 @@ function differenceByteForRgb(sourceRgb, finalRgb) {
   if (!sourceRgb || !finalRgb) return 0;
   const sourceLab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
   const finalLab = rgb8ToLab(finalRgb[0], finalRgb[1], finalRgb[2]);
-  const amount = clamp(
+  const amount = Math.tanh(
     Math.hypot(
       finalLab[0] - sourceLab[0],
       finalLab[1] - sourceLab[1],
       finalLab[2] - sourceLab[2]
-    ) / OKLAB_SCALE,
-    0,
-    1
+    ) / OKLAB_SCALE * DIAGNOSTIC_DIFF_OVERLAY_TEMPERATURE
   );
   return Math.round(amount * 255);
 }

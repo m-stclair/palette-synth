@@ -13,7 +13,7 @@ import {
   sampleImageDiagnostics,
   topPaletteMatches
 } from "../src/diagnostics/metrics.js";
-import { labDistanceComponents } from "../src/color-utils.js";
+import { labDistanceComponents, rgb8ToLab } from "../src/color-utils.js";
 
 const baseConfig = {
   lumaWeight: 1,
@@ -288,6 +288,51 @@ test("sampleImageDiagnostics measures usage and normalizes contribution entropy"
   assert.ok(sample.worst?.sourceHex);
   assert.equal(sample.histogram, undefined);
 });
+
+test("sampleImageDiagnostics reports source-to-final distance after blend amount", () => {
+  const records = [record([100, 0, 0], 0)];
+  const entries = records.map(entry);
+  const imageData = {
+    width: 1,
+    height: 1,
+    data: new Uint8ClampedArray([0, 0, 0, 255])
+  };
+
+  const unblended = sampleImageDiagnostics(imageData, entries, records, {...baseConfig, blendAmount: 0});
+  const fullyApplied = sampleImageDiagnostics(imageData, entries, records, {...baseConfig, blendAmount: 1});
+
+  assertApproximatelyEqual(unblended.meanDistance, 0);
+  assertApproximatelyEqual(unblended.p95Distance, 0);
+  assertApproximatelyEqual(unblended.meanLuma, 0);
+  assert.ok(fullyApplied.meanDistance > 90);
+});
+
+test("sampleImageDiagnostics reports weighted blend output distance instead of nearest-match distance", () => {
+  const sourceLab = rgb8ToLab(128, 128, 128);
+  const records = [
+    record([sourceLab[0] - 10, 0, 0], 0),
+    record([sourceLab[0] + 10, 0, 0], 1)
+  ];
+  const entries = records.map(entry);
+  const imageData = {
+    width: 1,
+    height: 1,
+    data: new Uint8ClampedArray([128, 128, 128, 255])
+  };
+
+  const sample = sampleImageDiagnostics(imageData, entries, records, {
+    ...baseConfig,
+    assignMode: "blend",
+    blendK: 2,
+    blendAmount: 1
+  });
+
+  assert.ok(sample.meanDistance < 1, `expected blended output distance near zero, got ${sample.meanDistance}`);
+  assert.ok(sample.p95Distance < 1, `expected blended p95 near zero, got ${sample.p95Distance}`);
+  assert.ok(sample.usage[0].percent > 0);
+  assert.ok(sample.usage[1].percent > 0);
+});
+
 
 test("source histogram diagnostics sample only the histogram view payload", () => {
   const records = [record([50, 0, 0], 0)];

@@ -2170,11 +2170,11 @@ export function createDiagnosticsPanel({
     const closest = collisions?.closest || null;
     const recordCount = stats.records?.length || 0;
 
-    // The "mean" cell carries the principled per-axis breakdown of error.
-    // Because the distance metric is a weighted sum lumaW·|ΔL| +
-    // chromaW·|ΔC| + hueW·hueBias, the means of the L/C/H components sum
-    // to the mean of the total, so this is a true decomposition of where
-    // the error lives — not a side-statistic.
+    // The "mean" cell carries the principled per-axis breakdown of the
+    // final displayed source-to-output error. Because the distance metric is
+    // a weighted sum lumaW·|ΔL| + chromaW·|ΔC| + hueW·hueBias, the means of
+    // the L/C/H components sum to the mean of the total, so this is a true
+    // decomposition of where the error lives — not a side-statistic.
     const meanBreakdown = `<small>ΔL ${formatDistance(sample.meanLuma)} · ΔC ${formatDistance(sample.meanChroma)} · ΔH ${formatDistance(sample.meanHue)}</small>`;
 
     let collisionLine = "";
@@ -2196,8 +2196,8 @@ export function createDiagnosticsPanel({
 
     els.diagnosticsSummary.innerHTML = `<dl class="diagnostics-summary-grid">
         <dt>samples</dt><dd>${sample.sampleCount.toLocaleString()}<small>step ${sample.step}px</small></dd>
-        <dt title="Mean weighted OKLab distance between sampled pixels and their assigned palette swatch.">mean</dt><dd>${formatDistance(sample.meanDistance)}${meanBreakdown}</dd>
-        <dt title="95th percentile distance: how bad the long tail of mismatches gets.">p95</dt><dd>${formatDistance(sample.p95Distance)}</dd>
+        <dt title="Mean weighted OKLab distance between sampled source pixels and the final blended output.">mean</dt><dd>${formatDistance(sample.meanDistance)}${meanBreakdown}</dd>
+        <dt title="95th percentile source-to-final distance: how bad the long tail of displayed mismatches gets.">p95</dt><dd>${formatDistance(sample.p95Distance)}</dd>
         <dt title="Normalized contribution entropy. 1.00 means usage is perfectly even across swatches; near 0 means a single swatch dominates.">uniformity</dt><dd>${sample.coverageEntropy.toFixed(2)}<small>${recordCount} swatches</small></dd>
         <dt title="Sampled pixels whose best-vs-second-best distance gap is small enough to count as a tie.">ambiguous</dt><dd>${formatUsagePercent(sample.ambiguousPercent)}</dd>
         ${collisionLine}

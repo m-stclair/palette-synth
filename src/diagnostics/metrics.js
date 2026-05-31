@@ -394,10 +394,48 @@ export function assignmentWeights(matches, lab, config = {}) {
   return weights;
 }
 
-export function applyAssignmentContributions(matches, lab, contributionCounts, aliasContributionCounts, {config = {}, recordCount = 0} = {}) {
-  const weights = assignmentWeights(matches, lab, config);
+function mappedPaletteLabForWeights(matches, weights, fallbackLab) {
+  const mappedLab = [0, 0, 0];
+  let totalWeight = 0;
   for (let i = 0; i < matches.length; i++) {
-    if (weights[i] > 0) addMatchContribution(contributionCounts, aliasContributionCounts, matches[i], weights[i], recordCount);
+    const weight = weights[i];
+    if (!(weight > 0)) continue;
+    const lab = renderLabForMatch(matches[i]);
+    totalWeight += weight;
+    mappedLab[0] += lab[0] * weight;
+    mappedLab[1] += lab[1] * weight;
+    mappedLab[2] += lab[2] * weight;
+  }
+  if (totalWeight <= 0) return Array.isArray(fallbackLab) ? [...fallbackLab] : [0, 0, 0];
+  return mappedLab.map(channel => channel / totalWeight);
+}
+
+function outputDistanceBreakdown(sourceLab, sourceRgb, matches, weights, config = {}) {
+  const mappedLab = mappedPaletteLabForWeights(matches, weights, sourceLab);
+  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+  const finalLab = finalOutputLabForLab(sourceRgb, outputLab, config.blendAmount);
+  const sourceParts = labDistanceComponents(sourceLab);
+  const finalParts = labDistanceComponents(finalLab);
+  return {
+    mappedLab,
+    outputLab,
+    finalLab,
+    parts: cpuDistanceBreakdown(
+      sourceParts.lightness,
+      sourceParts.chroma,
+      sourceParts.scaledHue,
+      finalParts.lightness,
+      finalParts.chroma,
+      finalParts.scaledHue,
+      config
+    )
+  };
+}
+
+export function applyAssignmentContributions(matches, lab, contributionCounts, aliasContributionCounts, {config = {}, recordCount = 0, weights = null} = {}) {
+  const resolvedWeights = Array.isArray(weights) ? weights : assignmentWeights(matches, lab, config);
+  for (let i = 0; i < matches.length; i++) {
+    if (resolvedWeights[i] > 0) addMatchContribution(contributionCounts, aliasContributionCounts, matches[i], resolvedWeights[i], recordCount);
   }
 }
 
@@ -429,22 +467,26 @@ export function sampleImageDiagnostics(imageData, entries, records, config = {})
       const px = (y * imageData.width + x) * 4;
       const alpha = imageData.data[px + 3];
       if (alpha <= 4) continue;
-      const lab = rgb8ToLab(imageData.data[px], imageData.data[px + 1], imageData.data[px + 2]);
+      const sourceRgb = [imageData.data[px], imageData.data[px + 1], imageData.data[px + 2]];
+      const lab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
       const matches = topPaletteMatches(lab, entries, {config, records: safeRecords, limit: matchLimit});
       const best = matches[0];
+      if (!best) continue;
       const second = matches[1] || null;
-      const rejectedByMaxDistance = maxDistanceRejectsMatch(best, config);
+      const weights = assignmentWeights(matches, lab, config);
+      const rejectedByMaxDistance = !weights.some(weight => weight > 0);
       if (!rejectedByMaxDistance) {
         const displayIndex = clamp(best.displayIndex, 0, Math.max(0, recordCount - 1));
         territoryCounts[displayIndex] += 1;
         if (best.alias) aliasTerritoryCounts[displayIndex] += 1;
-        applyAssignmentContributions(matches, lab, contributionCounts, aliasContributionCounts, {config, recordCount});
+        applyAssignmentContributions(matches, lab, contributionCounts, aliasContributionCounts, {config, recordCount, weights});
       }
-      totalDistance += best.distance;
-      totalLuma += best.parts.luma;
-      totalChroma += best.parts.chroma;
-      totalHue += best.parts.hue;
-      distances.push(best.distance);
+      const outputDistance = outputDistanceBreakdown(lab, sourceRgb, matches, weights, config);
+      totalDistance += outputDistance.parts.total;
+      totalLuma += outputDistance.parts.luma;
+      totalChroma += outputDistance.parts.chroma;
+      totalHue += outputDistance.parts.hue;
+      distances.push(outputDistance.parts.total);
       sampleCount += 1;
       if (second) {
         const gap = second.distance - best.distance;
@@ -452,13 +494,14 @@ export function sampleImageDiagnostics(imageData, entries, records, config = {})
           ambiguousCount += 1;
         }
       }
-      if (!worst || best.distance > worst.distance) {
+      if (!worst || outputDistance.parts.total > worst.distance) {
         worst = {
           x, y,
-          distance: best.distance,
-          parts: best.parts,
+          distance: outputDistance.parts.total,
+          parts: outputDistance.parts,
           lab,
-          sourceHex: byteRgbToHex(imageData.data[px], imageData.data[px + 1], imageData.data[px + 2]),
+          finalLab: outputDistance.finalLab,
+          sourceHex: byteRgbToHex(sourceRgb[0], sourceRgb[1], sourceRgb[2]),
           match: best
         };
       }
@@ -632,18 +675,7 @@ function mappedPaletteLabForSample(sourceLab, sourceRgb, entries, records, confi
     : 2;
   const matches = topPaletteMatches(sourceLab, safeEntries, {config, records, limit: matchLimit});
   const weights = assignmentWeights(matches, sourceLab, config);
-  let mappedLab = [0, 0, 0];
-  let totalWeight = 0;
-  for (let i = 0; i < matches.length; i++) {
-    const weight = weights[i];
-    if (!(weight > 0)) continue;
-    totalWeight += weight;
-    mappedLab[0] += matches[i].renderLab[0] * weight;
-    mappedLab[1] += matches[i].renderLab[1] * weight;
-    mappedLab[2] += matches[i].renderLab[2] * weight;
-  }
-  if (totalWeight <= 0) return sourceLab;
-  return mappedLab;
+  return mappedPaletteLabForWeights(matches, weights, sourceLab);
 }
 
 function outputHistogramSampleForSourceSample(sample, entries, records, config = {}) {
