@@ -705,7 +705,11 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
             totalWeight += w;
         }
 
-        vec3 mapped = result / max(totalWeight, 1e-5);
+        if (totalWeight <= 0.0) {
+            return labColor;
+        }
+
+        vec3 mapped = result / totalWeight;
         vec3 mappedOutput = applyOutputMode(labColor, mapped);
 #if FIDELITY_GUARD
         vec3 nearest = paletteOutputColor(i0, cycleOffset, cycleMuted);
@@ -832,8 +836,12 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
             if (paletteEntryMatchesDiagnosticSwatch(i4, selectedSwatch)) selectedWeight += w;
         }
 
+        if (totalWeight <= 0.0) {
+            return 0.0;
+        }
+
 #if FIDELITY_GUARD
-        mapped /= max(totalWeight, 1e-5);
+        mapped /= totalWeight;
         vec3 mappedOutput = applyOutputMode(labColor, mapped);
         vec3 nearestOutput = applyOutputMode(labColor, paletteColors[i0].rgb);
         if (monotoneOutputGuardRejects(labColor, mappedOutput, nearestOutput)) {
@@ -864,7 +872,7 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
             return paletteEntryMatchesDiagnosticSwatch(i0, selectedSwatch) ? 1.0 : 0.0;
         }
 #endif
-        return selectedWeight / max(totalWeight, 1e-5);
+        return selectedWeight / totalWeight;
     }
 #endif
 
@@ -1167,7 +1175,8 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
         float bestWeight = 1.0 / pow(bestDist + 1e-5, u_softness);
         float secondWeight = 1.0 / pow(secondDist + 1e-5, u_softness);
 
-        float chooseSecond = secondWeight / max(bestWeight + secondWeight, 1e-5);
+        float totalWeight = bestWeight + secondWeight;
+        float chooseSecond = totalWeight > 0.0 ? secondWeight / totalWeight : 0.0;
         chooseSecond = applyLumaDitherFalloff(chooseSecond, lab.x);
 
 #if FIDELITY_GUARD
@@ -1239,7 +1248,8 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
         if (u_paletteSize > 1 && u_blendK > 1) {
             float bestWeight = 1.0 / pow(bestDist + 1e-5, u_softness);
             float secondWeight = 1.0 / pow(secondDist + 1e-5, u_softness);
-            float chooseSecond = secondWeight / max(bestWeight + secondWeight, 1e-5);
+            float totalWeight = bestWeight + secondWeight;
+            float chooseSecond = totalWeight > 0.0 ? secondWeight / totalWeight : 0.0;
             chooseSecond = applyLumaDitherFalloff(chooseSecond, lab.x);
 
 #if FIDELITY_GUARD

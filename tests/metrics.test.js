@@ -119,6 +119,43 @@ test("assignmentWeights follows nearest, blend, and dither contribution rules", 
   assertApproximatelyEqual(dither[1], 0.5, 1e-4);
 });
 
+
+test("blend and dither assignment normalize tiny high-softness weights", () => {
+  const matches = [
+    {distance: 30, displayIndex: 0, renderLab: [20, 0, 0]},
+    {distance: 30, displayIndex: 1, renderLab: [80, 0, 0]}
+  ];
+  const sourceLab = [50, 0, 0];
+
+  const blend = assignmentWeights(matches, sourceLab, {
+    ...baseConfig,
+    assignMode: "blend",
+    blendK: 2,
+    softness: 4
+  });
+  assertApproximatelyEqual(blend[0], 0.5, 1e-6);
+  assertApproximatelyEqual(blend[1], 0.5, 1e-6);
+  assertApproximatelyEqual(blend[0] + blend[1], 1, 1e-6);
+
+  const blendMapping = assignmentMapping(matches, sourceLab, {
+    ...baseConfig,
+    assignMode: "blend",
+    blendK: 2,
+    softness: 4
+  });
+  assertApproximatelyEqual(blendMapping.mappedLab[0], 50, 1e-6);
+
+  const dither = assignmentWeights(matches, sourceLab, {
+    ...baseConfig,
+    assignMode: "dither",
+    blendK: 2,
+    softness: 4
+  });
+  assertApproximatelyEqual(dither[0], 0.5, 1e-6);
+  assertApproximatelyEqual(dither[1], 0.5, 1e-6);
+  assertApproximatelyEqual(dither[0] + dither[1], 1, 1e-6);
+});
+
 test("monotone blend/dither collapses same-side assignments that worsen fidelity", () => {
   const matches = [
     {distance: 10, displayIndex: 0, renderLab: [90, 0, 0]},

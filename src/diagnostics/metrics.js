@@ -256,7 +256,8 @@ export function ditherSecondShare(best, second, labL, config = {}) {
   const softness = Math.max(0.001, Number(config.softness) || 1);
   const bestWeight = 1 / Math.pow(best.distance + 1e-5, softness);
   const secondWeight = 1 / Math.pow(second.distance + 1e-5, softness);
-  let chooseSecond = secondWeight / Math.max(bestWeight + secondWeight, 1e-5);
+  const totalWeight = bestWeight + secondWeight;
+  let chooseSecond = totalWeight > 0 ? secondWeight / totalWeight : 0;
   const luma01 = clamp(labL / 100, 0, 1);
   const midtone = 1 - Math.abs(luma01 * 2 - 1);
   const scale = 1 + (midtone - 1) * clamp(Number(config.ditherLumaAmount) || 0, 0, 1);
@@ -395,7 +396,8 @@ function blendAssignmentResult(matches, sourceLab, config = {}) {
     raw[i] = 1 / Math.pow(safeMatches[i].distance + 1e-5, softness);
     total += raw[i];
   }
-  for (let i = 0; i < k; i++) weights[i] = raw[i] / Math.max(total, 1e-5);
+  if (!(total > 0)) return {weights, mappedLab: [...sourceLab], outputLab: applyOutputModeCpu(sourceLab, sourceLab, config), rescued: false};
+  for (let i = 0; i < k; i++) weights[i] = raw[i] / total;
 
   const mappedLab = weightedMappedLab(safeMatches, weights) || [...sourceLab];
   const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
