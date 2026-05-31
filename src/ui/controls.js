@@ -78,6 +78,7 @@ export const SIMPLE_CONTROL_KEYS = [
   "hueWeight",
   "neutralIsCategory",
   "monotoneBlendDither",
+  "blendPairRescue",
   "maxDistanceEnabled",
   "maxDistance",
   "tonalZoneWeight",
@@ -126,6 +127,7 @@ const CONDITIONAL_PANEL_KEYS = new Set([
   "cosinePreset",
   "assignMode",
   "outputMode",
+  "monotoneBlendDither",
   "CYCLE_MODE",
   "generatedTintShadeFamilies",
   "cosineCustomTintShadeFamilies"
@@ -136,12 +138,17 @@ function generatedPaletteUsesFamilySizes(config) {
     && config?.generatedTintShadeFamilies !== false;
 }
 
+function paletteSizeMinimum(config) {
+  return generatedPaletteUsesFamilySizes(config) || ["harmony", "cosine"].includes(config?.paletteMode) ? 3 : 2;
+}
+
 export function syncGeneratedPaletteSizeControl(config, {root = document, setOutputText = null, snapToFamilies = false} = {}) {
   const el = $("paletteSize", root);
   if (!el || !config) return false;
   const usesFamilies = generatedPaletteUsesFamilySizes(config);
+  const min = paletteSizeMinimum(config);
   el.step = usesFamilies ? "3" : "1";
-  el.min = usesFamilies ? "3" : "2";
+  el.min = String(min);
 
   let sizeChanged = false;
   if (usesFamilies && snapToFamilies) {
@@ -150,6 +157,9 @@ export function syncGeneratedPaletteSizeControl(config, {root = document, setOut
       config.paletteSize = snapped;
       sizeChanged = true;
     }
+  } else if (config.paletteSize < min) {
+    config.paletteSize = min;
+    sizeChanged = true;
   }
 
   el.value = config.paletteSize;

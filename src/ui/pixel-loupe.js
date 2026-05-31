@@ -54,6 +54,7 @@ function loupeOutputConfigSignature(config = {}) {
     config.outputMode ?? "",
     signatureBool(config.neutralIsCategory),
     signatureBool(config.monotoneBlendDither),
+    signatureBool(config.blendPairRescue),
     signatureNumber(config.lumaWeight),
     signatureNumber(config.chromaWeight),
     signatureNumber(config.hueWeight),

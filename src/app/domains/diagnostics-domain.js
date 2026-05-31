@@ -159,6 +159,7 @@ export function createDiagnosticsDomain({
     getViewSpan,
     topPaletteMatches: metrics.topPaletteMatches,
     assignmentWeights: metrics.assignmentWeights,
+    assignmentMapping: metrics.assignmentMapping,
     setStatus,
     requestFrame,
     cancelFrame

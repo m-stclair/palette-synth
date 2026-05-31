@@ -23,6 +23,7 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define DITHER_PATTERN 2",
     "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0",
+    "#define BLEND_PAIR_RESCUE 0",
     "#define DIAGNOSTIC_OVERLAY_MODE 0",
     "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
     "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
@@ -38,6 +39,7 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define DITHER_PATTERN 2",
     "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0",
+    "#define BLEND_PAIR_RESCUE 0",
     "#define DIAGNOSTIC_OVERLAY_MODE 0",
     "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
     "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
@@ -77,13 +79,16 @@ test("diagnosticShaderDefineLines maps overlay state to compile-time defines", (
 });
 
 test("shaderDefineLinesForConfig maps monotone blend/dither to a compile-time guard", () => {
-  assert.ok(shaderDefineLinesForConfig({
+  const guardedBlendDefines = shaderDefineLinesForConfig({
     assignMode: "blend",
     outputMode: "fullReplace",
     CYCLE_MODE: 0,
     ditherPattern: "ordered4",
-    monotoneBlendDither: true
-  }).includes("#define FIDELITY_GUARD 1"));
+    monotoneBlendDither: true,
+    blendPairRescue: true
+  });
+  assert.ok(guardedBlendDefines.includes("#define FIDELITY_GUARD 1"));
+  assert.ok(guardedBlendDefines.includes("#define BLEND_PAIR_RESCUE 1"));
 
   assert.ok(shaderDefineLinesForConfig({
     assignMode: "nearest",
@@ -107,6 +112,7 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define DITHER_PATTERN 6",
     "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0",
+    "#define BLEND_PAIR_RESCUE 0",
     "#define DIAGNOSTIC_OVERLAY_MODE 0",
     "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
     "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
@@ -124,6 +130,7 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define DITHER_PATTERN 9",
     "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0",
+    "#define BLEND_PAIR_RESCUE 0",
     "#define DIAGNOSTIC_OVERLAY_MODE 0",
     "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
     "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
@@ -164,6 +171,7 @@ test("shader program controller builds cached programs with injected defines", (
       "#define DITHER_PATTERN 1",
       "#define NEUTRAL_IS_CATEGORY 0",
       "#define FIDELITY_GUARD 0",
+      "#define BLEND_PAIR_RESCUE 0",
       "#define DIAGNOSTIC_OVERLAY_MODE 0",
       "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
       "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"

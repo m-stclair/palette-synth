@@ -225,6 +225,7 @@ export function analyzePixelAtImagePoint({
   paletteContext = null,
   topPaletteMatches,
   assignmentWeights,
+  assignmentMapping,
   matchLimit = DIAGNOSTIC.matchLimit
 } = {}) {
   if (!imageData) return null;
@@ -245,27 +246,34 @@ export function analyzePixelAtImagePoint({
     paletteUniformEntries
   });
   const matches = topPaletteMatches?.(sourceLab, entries, matchLimit) || [];
-  const weights = assignmentWeights?.(matches, sourceLab) || matches.map(() => 0);
+  const mapping = typeof assignmentMapping === "function" ? assignmentMapping(matches, sourceLab) : null;
+  const weights = mapping?.weights || assignmentWeights?.(matches, sourceLab) || matches.map(() => 0);
 
   // Principled mapped Lab using the same weights the sampler uses.
-  //   blend  : actual weighted mix (matches the shader's blended output).
+  //   blend  : actual weighted mix, except pair rescue can supply an already
+  //            projected output Lab because the rescue happens in guarded
+  //            output space.
   //   dither : per-pixel expectation (the shader picks best-or-second
   //            discretely per pixel via a GPU-side threshold matrix; the
   //            inspector reports the expected color and exposes the share
   //            via the per-row mix percentage).
   //   nearest: equals the winner.
-  let mappedLab = [0, 0, 0];
+  let mappedLab = mapping?.mappedLab || [0, 0, 0];
   let totalWeight = 0;
-  for (let i = 0; i < matches.length; i++) {
-    const w = weights[i];
-    if (!(w > 0)) continue;
-    totalWeight += w;
-    mappedLab[0] += matches[i].renderLab[0] * w;
-    mappedLab[1] += matches[i].renderLab[1] * w;
-    mappedLab[2] += matches[i].renderLab[2] * w;
+  if (!mapping) {
+    for (let i = 0; i < matches.length; i++) {
+      const w = weights[i];
+      if (!(w > 0)) continue;
+      totalWeight += w;
+      mappedLab[0] += matches[i].renderLab[0] * w;
+      mappedLab[1] += matches[i].renderLab[1] * w;
+      mappedLab[2] += matches[i].renderLab[2] * w;
+    }
+    if (totalWeight <= 0) mappedLab = [...sourceLab];
+  } else {
+    totalWeight = weights.some(weight => weight > 0) ? 1 : 0;
   }
-  if (totalWeight <= 0) mappedLab = [...sourceLab];
-  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+  const outputLab = mapping?.outputLab || applyOutputModeCpu(sourceLab, mappedLab, config);
   const fxHex = outputLabToHex(outputLab);
   const finalHex = finalOutputHexForLab([r, g, b], outputLab, config.blendAmount);
   const finalLab = finalOutputLabForLab([r, g, b], outputLab, config.blendAmount);
@@ -325,6 +333,7 @@ export function sampleFinalOutputPixelAtImagePoint({
   paletteUniformEntries,
   topPaletteMatches,
   assignmentWeights,
+  assignmentMapping,
   matchLimit = DIAGNOSTIC.matchLimit
 } = {}) {
   if (!imageData) return null;
@@ -342,19 +351,22 @@ export function sampleFinalOutputPixelAtImagePoint({
     paletteUniformEntries
   });
   const matches = topPaletteMatches?.(sourceLab, entries, matchLimit) || [];
-  const weights = assignmentWeights?.(matches, sourceLab) || matches.map(() => 0);
-  let mappedLab = [0, 0, 0];
+  const mapping = typeof assignmentMapping === "function" ? assignmentMapping(matches, sourceLab) : null;
+  const weights = mapping?.weights || assignmentWeights?.(matches, sourceLab) || matches.map(() => 0);
+  let mappedLab = mapping?.mappedLab || [0, 0, 0];
   let totalWeight = 0;
-  for (let i = 0; i < matches.length; i++) {
-    const w = weights[i];
-    if (!(w > 0)) continue;
-    totalWeight += w;
-    mappedLab[0] += matches[i].renderLab[0] * w;
-    mappedLab[1] += matches[i].renderLab[1] * w;
-    mappedLab[2] += matches[i].renderLab[2] * w;
+  if (!mapping) {
+    for (let i = 0; i < matches.length; i++) {
+      const w = weights[i];
+      if (!(w > 0)) continue;
+      totalWeight += w;
+      mappedLab[0] += matches[i].renderLab[0] * w;
+      mappedLab[1] += matches[i].renderLab[1] * w;
+      mappedLab[2] += matches[i].renderLab[2] * w;
+    }
+    if (totalWeight <= 0) mappedLab = [...sourceLab];
   }
-  if (totalWeight <= 0) mappedLab = [...sourceLab];
-  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+  const outputLab = mapping?.outputLab || applyOutputModeCpu(sourceLab, mappedLab, config);
   const rgb = finalOutputRgbForLab([r, g, b], outputLab, config.blendAmount);
   return {
     x: sourceColor.x,

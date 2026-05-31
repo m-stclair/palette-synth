@@ -50,6 +50,7 @@ export function shaderDefineLinesForConfig(config, {
     `#define DITHER_PATTERN ${DITHER_PATTERN[config?.ditherPattern] ?? 1}`,
     `#define NEUTRAL_IS_CATEGORY ${config?.neutralIsCategory ? 1 : 0}`,
     `#define FIDELITY_GUARD ${config?.monotoneBlendDither && config?.assignMode !== "nearest" ? 1 : 0}`,
+    `#define BLEND_PAIR_RESCUE ${config?.monotoneBlendDither && config?.blendPairRescue && config?.assignMode === "blend" ? 1 : 0}`,
     ...diagnosticShaderDefineLines({
       diagnosticOverlayMode,
       diagnosticOverlayHistogramScope,

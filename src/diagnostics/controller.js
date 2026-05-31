@@ -52,6 +52,7 @@ export function createDiagnosticsController({
   getViewSpan = () => [1, 1],
   topPaletteMatches,
   assignmentWeights,
+  assignmentMapping,
   setStatus = () => {},
   requestFrame = null,
   cancelFrame = null
@@ -282,7 +283,8 @@ export function createDiagnosticsController({
       renderPaletteLabs,
       paletteUniformEntries,
       topPaletteMatches,
-      assignmentWeights
+      assignmentWeights,
+      assignmentMapping
     });
   }
 
@@ -342,7 +344,8 @@ export function createDiagnosticsController({
         paletteContext,
         config,
         topPaletteMatches,
-        assignmentWeights
+        assignmentWeights,
+        assignmentMapping
       });
     };
   }

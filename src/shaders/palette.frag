@@ -173,6 +173,10 @@ vec3 blendWithColorSpace(vec3 baseRGB, vec3 fxRGB, float blendAmount) {
 #define FIDELITY_GUARD 0
 #endif
 
+#ifndef BLEND_PAIR_RESCUE
+#define BLEND_PAIR_RESCUE 0
+#endif
+
 bool is_finite(float x) {
     return abs(x) < 1e20;
 }
@@ -518,6 +522,107 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
         }
     }
 
+#if (FIDELITY_GUARD && BLEND_PAIR_RESCUE)
+    int topIndexAt(int slot, int i0, int i1, int i2, int i3, int i4) {
+        if (slot == 0) return i0;
+        if (slot == 1) return i1;
+        if (slot == 2) return i2;
+        if (slot == 3) return i3;
+        return i4;
+    }
+
+    vec3 pairRescuePaletteLab(int idx, int cycleOffset, bool cycleMuted, bool useCycle) {
+        int safeIndex = clamp(idx, 0, MAX_PALETTE_SIZE - 1);
+        return useCycle ? paletteOutputColor(safeIndex, cycleOffset, cycleMuted) : paletteColors[safeIndex].rgb;
+    }
+
+    float pairProjectionT(vec3 sourceLab, vec3 aOutputLab, vec3 bOutputLab) {
+        vec3 span = bOutputLab - aOutputLab;
+        float denom = dot(span, span);
+        if (denom <= 1e-8) return 0.0;
+        return clamp(dot(sourceLab - aOutputLab, span) / denom, 0.0, 1.0);
+    }
+
+    void considerPairRescueCandidate(
+        vec3 sourceLab,
+        vec3 aOutputLab,
+        vec3 bOutputLab,
+        int aIndex,
+        int bIndex,
+        inout vec3 bestOutputLab,
+        inout float bestDistance,
+        inout int bestA,
+        inout int bestB,
+        inout float bestT,
+        inout bool improved
+    ) {
+        float t = pairProjectionT(sourceLab, aOutputLab, bOutputLab);
+        vec3 candidateOutputLab = mix(aOutputLab, bOutputLab, t);
+        float candidateDistance = assignmentDistanceBetweenLabs(sourceLab, candidateOutputLab);
+        if (candidateDistance < bestDistance - FIDELITY_GUARD_EPSILON) {
+            bestOutputLab = candidateOutputLab;
+            bestDistance = candidateDistance;
+            bestA = aIndex;
+            bestB = bIndex;
+            bestT = t;
+            improved = true;
+        }
+    }
+
+    vec3 rescuePairOutput(
+        vec3 sourceLab,
+        int candidateCount,
+        int i0,
+        int i1,
+        int i2,
+        int i3,
+        int i4,
+        int cycleOffset,
+        bool cycleMuted,
+        bool useCycle,
+        out int bestA,
+        out int bestB,
+        out float bestT,
+        out bool improved
+    ) {
+        int pairCount = min(max(candidateCount, 1), 5);
+        bestA = i0;
+        bestB = i0;
+        bestT = 0.0;
+        improved = false;
+
+        vec3 nearestOutputLab = applyOutputMode(sourceLab, pairRescuePaletteLab(i0, cycleOffset, cycleMuted, useCycle));
+        vec3 bestOutputLab = nearestOutputLab;
+        float bestDistance = assignmentDistanceBetweenLabs(sourceLab, nearestOutputLab);
+
+        for (int aSlot = 0; aSlot < 5; ++aSlot) {
+            if (aSlot >= pairCount) break;
+            int aIndex = topIndexAt(aSlot, i0, i1, i2, i3, i4);
+            vec3 aOutputLab = applyOutputMode(sourceLab, pairRescuePaletteLab(aIndex, cycleOffset, cycleMuted, useCycle));
+            for (int bSlot = aSlot + 1; bSlot < 5; ++bSlot) {
+                if (bSlot >= pairCount) break;
+                int bIndex = topIndexAt(bSlot, i0, i1, i2, i3, i4);
+                vec3 bOutputLab = applyOutputMode(sourceLab, pairRescuePaletteLab(bIndex, cycleOffset, cycleMuted, useCycle));
+                considerPairRescueCandidate(
+                    sourceLab,
+                    aOutputLab,
+                    bOutputLab,
+                    aIndex,
+                    bIndex,
+                    bestOutputLab,
+                    bestDistance,
+                    bestA,
+                    bestB,
+                    bestT,
+                    improved
+                );
+            }
+        }
+
+        return bestOutputLab;
+    }
+#endif
+
     vec3 softAssign(vec3 labColor, int cycleOffset, bool maskActive, bool cycleMuted) {
         if (u_paletteSize <= 0) {
             return labColor;
@@ -599,13 +704,36 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
         }
 
         vec3 mapped = result / max(totalWeight, 1e-5);
+        vec3 mappedOutput = applyOutputMode(labColor, mapped);
 #if FIDELITY_GUARD
         vec3 nearest = paletteOutputColor(i0, cycleOffset, cycleMuted);
-        if (monotoneGuardRejects(labColor, mapped, nearest)) {
-            return nearest;
+        vec3 nearestOutput = applyOutputMode(labColor, nearest);
+        if (monotoneOutputGuardRejects(labColor, mappedOutput, nearestOutput)) {
+#if BLEND_PAIR_RESCUE
+            int rescueA = i0;
+            int rescueB = i0;
+            float rescueT = 0.0;
+            bool rescued = false;
+            vec3 rescueOutput = rescuePairOutput(
+                labColor,
+                min(acceptedCount, 5),
+                i0, i1, i2, i3, i4,
+                cycleOffset,
+                cycleMuted,
+                true,
+                rescueA,
+                rescueB,
+                rescueT,
+                rescued
+            );
+            if (rescued && !monotoneOutputGuardRejects(labColor, rescueOutput, nearestOutput)) {
+                return rescueOutput;
+            }
+#endif
+            return nearestOutput;
         }
 #endif
-        return mapped;
+        return mappedOutput;
     }
 
     float selectedBlendWeight(vec3 labColor, int selectedSwatch) {
@@ -704,7 +832,33 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
 
 #if FIDELITY_GUARD
         mapped /= max(totalWeight, 1e-5);
-        if (monotoneGuardRejects(labColor, mapped, paletteColors[i0].rgb)) {
+        vec3 mappedOutput = applyOutputMode(labColor, mapped);
+        vec3 nearestOutput = applyOutputMode(labColor, paletteColors[i0].rgb);
+        if (monotoneOutputGuardRejects(labColor, mappedOutput, nearestOutput)) {
+#if BLEND_PAIR_RESCUE
+            int rescueA = i0;
+            int rescueB = i0;
+            float rescueT = 0.0;
+            bool rescued = false;
+            vec3 rescueOutput = rescuePairOutput(
+                labColor,
+                min(u_paletteSize, 5),
+                i0, i1, i2, i3, i4,
+                0,
+                false,
+                false,
+                rescueA,
+                rescueB,
+                rescueT,
+                rescued
+            );
+            if (rescued && !monotoneOutputGuardRejects(labColor, rescueOutput, nearestOutput)) {
+                float rescuedWeight = 0.0;
+                if (paletteEntryMatchesDiagnosticSwatch(rescueA, selectedSwatch)) rescuedWeight += 1.0 - rescueT;
+                if (paletteEntryMatchesDiagnosticSwatch(rescueB, selectedSwatch)) rescuedWeight += rescueT;
+                return rescuedWeight;
+            }
+#endif
             return paletteEntryMatchesDiagnosticSwatch(i0, selectedSwatch) ? 1.0 : 0.0;
         }
 #endif
@@ -1170,11 +1324,11 @@ void main() {
     vec3 labMapped = softAssign(lab, effectiveCycleOffset, maskActiveHere, cycleMutedHere);
 #elif ASSIGNMODE == ASSIGN_DITHER
     vec3 labMapped = ditherAssign(lab, effectiveCycleOffset, ditherCoord, maskActiveHere, cycleMutedHere);
+    labMapped = applyOutputMode(lab, labMapped);
 #else
     vec3 labMapped = matchNearest(lab, effectiveCycleOffset, maskActiveHere, cycleMutedHere);
-#endif
-
     labMapped = applyOutputMode(lab, labMapped);
+#endif
 
     vec3 srgbOut = linear2srgb(lab2rgb(labMapped));
     srgbOut = clamp(srgbOut, 0.0, 1.0);

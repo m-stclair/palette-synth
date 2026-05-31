@@ -231,6 +231,7 @@ export function diagnosticsSignature({imageData, records = [], entries = [], con
     config.outputMode,
     config.neutralIsCategory ? 1 : 0,
     config.monotoneBlendDither ? 1 : 0,
+    config.blendPairRescue ? 1 : 0,
     config.blendK,
     config.softness,
     config.ditherLumaAmount,
@@ -311,6 +312,116 @@ function monotoneGuardEnabled(config = {}) {
   return !!config.monotoneBlendDither && (config.assignMode === "blend" || config.assignMode === "dither");
 }
 
+
+function blendPairRescueEnabled(config = {}) {
+  return !!config.blendPairRescue && !!config.monotoneBlendDither && config.assignMode === "blend";
+}
+
+function diagnosticMatchLimitForAssignment(config = {}) {
+  if (config.assignMode === "blend") {
+    return blendPairRescueEnabled(config)
+      ? DIAGNOSTIC.matchLimit
+      : Math.min(Math.max(Math.round(Number(config.blendK) || 1), 1), DIAGNOSTIC.matchLimit);
+  }
+  return 2;
+}
+
+function projectLabToSegmentT(sourceLab, aLab, bLab) {
+  const ab0 = bLab[0] - aLab[0];
+  const ab1 = bLab[1] - aLab[1];
+  const ab2 = bLab[2] - aLab[2];
+  const denom = ab0 * ab0 + ab1 * ab1 + ab2 * ab2;
+  if (!(denom > 1e-8)) return 0;
+  const t = ((sourceLab[0] - aLab[0]) * ab0 + (sourceLab[1] - aLab[1]) * ab1 + (sourceLab[2] - aLab[2]) * ab2) / denom;
+  return clamp01(t);
+}
+
+function blendPairRescueResult(matches, sourceLab, config = {}) {
+  const safeMatches = Array.isArray(matches) ? matches : [];
+  if (!safeMatches.length) return null;
+  const pairLimit = Math.min(safeMatches.length, DIAGNOSTIC.matchLimit);
+  const nearestOutputLab = applyOutputModeCpu(sourceLab, renderLabForMatch(safeMatches[0]), config);
+  let bestDistance = assignmentDistanceBetweenLabs(sourceLab, nearestOutputLab, config);
+  let bestOutputLab = nearestOutputLab;
+  let bestA = 0;
+  let bestB = 0;
+  let bestT = 0;
+  let improved = false;
+
+  for (let a = 0; a < pairLimit; a++) {
+    const aOutputLab = applyOutputModeCpu(sourceLab, renderLabForMatch(safeMatches[a]), config);
+    for (let b = a + 1; b < pairLimit; b++) {
+      const bOutputLab = applyOutputModeCpu(sourceLab, renderLabForMatch(safeMatches[b]), config);
+      const t = projectLabToSegmentT(sourceLab, aOutputLab, bOutputLab);
+      const candidateOutputLab = mixLabs(aOutputLab, bOutputLab, t);
+      const candidateDistance = assignmentDistanceBetweenLabs(sourceLab, candidateOutputLab, config);
+      if (candidateDistance < bestDistance - MONOTONE_GUARD_EPSILON) {
+        bestDistance = candidateDistance;
+        bestOutputLab = candidateOutputLab;
+        bestA = a;
+        bestB = b;
+        bestT = t;
+        improved = true;
+      }
+    }
+  }
+
+  if (!improved) return null;
+  const weights = safeMatches.map(() => 0);
+  weights[bestA] += 1 - bestT;
+  weights[bestB] += bestT;
+  return {
+    weights,
+    mappedLab: mappedPaletteLabForWeights(safeMatches, weights, sourceLab),
+    outputLab: bestOutputLab,
+    rescued: true,
+    pair: [bestA, bestB],
+    pairT: bestT,
+    distance: bestDistance
+  };
+}
+
+function blendAssignmentResult(matches, sourceLab, config = {}) {
+  const safeMatches = Array.isArray(matches) ? matches : [];
+  const weights = safeMatches.map(() => 0);
+  if (!safeMatches.length) return {weights, mappedLab: [...sourceLab], outputLab: [...sourceLab], rescued: false};
+  if (maxDistanceRejectsMatch(safeMatches[0], config)) return {weights, mappedLab: [...sourceLab], outputLab: applyOutputModeCpu(sourceLab, sourceLab, config), rescued: false};
+
+  const k = Math.min(Math.max(Math.round(Number(config.blendK) || 1), 1), safeMatches.length, DIAGNOSTIC.matchLimit);
+  const softness = Math.max(0.001, Number(config.softness) || 1);
+  let total = 0;
+  const raw = new Array(k);
+  for (let i = 0; i < k; i++) {
+    raw[i] = 1 / Math.pow(safeMatches[i].distance + 1e-5, softness);
+    total += raw[i];
+  }
+  for (let i = 0; i < k; i++) weights[i] = raw[i] / Math.max(total, 1e-5);
+
+  const mappedLab = weightedMappedLab(safeMatches, weights) || [...sourceLab];
+  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+
+  if (monotoneGuardEnabled(config)) {
+    const nearestLab = renderLabForMatch(safeMatches[0]);
+    const nearestOutputLab = applyOutputModeCpu(sourceLab, nearestLab, config);
+    if (monotoneOutputGuardRejects(sourceLab, outputLab, nearestOutputLab, config)) {
+      if (blendPairRescueEnabled(config)) {
+        const rescued = blendPairRescueResult(safeMatches, sourceLab, config);
+        if (rescued && !monotoneOutputGuardRejects(sourceLab, rescued.outputLab, nearestOutputLab, config)) {
+          return rescued;
+        }
+      }
+      return {
+        weights: nearestOnlyWeights(safeMatches.length),
+        mappedLab: nearestLab,
+        outputLab: nearestOutputLab,
+        rescued: false
+      };
+    }
+  }
+
+  return {weights, mappedLab, outputLab, rescued: false};
+}
+
 function nearestOnlyWeights(length) {
   const weights = Array.from({length}, () => 0);
   if (length > 0) weights[0] = 1;
@@ -347,31 +458,14 @@ function weightedMappedLab(matches, weights) {
 export function assignmentWeights(matches, lab, config = {}) {
   const safeMatches = Array.isArray(matches) ? matches : [];
   const sourceLab = Array.isArray(lab) ? lab : [0, 0, 0];
-  const weights = safeMatches.map(() => 0);
-  if (!safeMatches.length) return weights;
-  if (maxDistanceRejectsMatch(safeMatches[0], config)) return weights;
+  if (!safeMatches.length) return [];
 
   if (config.assignMode === "blend") {
-    const k = Math.min(Math.max(Math.round(Number(config.blendK) || 1), 1), safeMatches.length, DIAGNOSTIC.matchLimit);
-    const softness = Math.max(0.001, Number(config.softness) || 1);
-    let total = 0;
-    const raw = new Array(k);
-    for (let i = 0; i < k; i++) {
-      raw[i] = 1 / Math.pow(safeMatches[i].distance + 1e-5, softness);
-      total += raw[i];
-    }
-    for (let i = 0; i < k; i++) weights[i] = raw[i] / Math.max(total, 1e-5);
-
-    if (monotoneGuardEnabled(config)) {
-      const mappedLab = weightedMappedLab(safeMatches, weights);
-      const nearestLab = renderLabForMatch(safeMatches[0]);
-      if (mappedLab && monotoneGuardRejects(sourceLab, mappedLab, nearestLab, config)) {
-        return nearestOnlyWeights(safeMatches.length);
-      }
-    }
-
-    return weights;
+    return blendAssignmentResult(safeMatches, sourceLab, config).weights;
   }
+
+  const weights = safeMatches.map(() => 0);
+  if (maxDistanceRejectsMatch(safeMatches[0], config)) return weights;
 
   if (config.assignMode === "dither") {
     let share = ditherSecondShare(safeMatches[0], safeMatches[1] || null, sourceLab[0], config);
@@ -394,6 +488,22 @@ export function assignmentWeights(matches, lab, config = {}) {
   return weights;
 }
 
+export function assignmentMapping(matches, lab, config = {}) {
+  const safeMatches = Array.isArray(matches) ? matches : [];
+  const sourceLab = Array.isArray(lab) ? lab : [0, 0, 0];
+  if (!safeMatches.length) {
+    return {weights: [], mappedLab: [...sourceLab], outputLab: applyOutputModeCpu(sourceLab, sourceLab, config), rescued: false};
+  }
+  if (config.assignMode === "blend") {
+    return blendAssignmentResult(safeMatches, sourceLab, config);
+  }
+  const weights = assignmentWeights(safeMatches, sourceLab, config);
+  const mappedLab = mappedPaletteLabForWeights(safeMatches, weights, sourceLab);
+  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+  return {weights, mappedLab, outputLab, rescued: false};
+}
+
+
 function mappedPaletteLabForWeights(matches, weights, fallbackLab) {
   const mappedLab = [0, 0, 0];
   let totalWeight = 0;
@@ -410,9 +520,12 @@ function mappedPaletteLabForWeights(matches, weights, fallbackLab) {
   return mappedLab.map(channel => channel / totalWeight);
 }
 
-function outputDistanceBreakdown(sourceLab, sourceRgb, matches, weights, config = {}) {
-  const mappedLab = mappedPaletteLabForWeights(matches, weights, sourceLab);
-  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+function outputDistanceBreakdown(sourceLab, sourceRgb, matches, assignment = null, config = {}) {
+  const mapping = assignment && !Array.isArray(assignment)
+    ? assignment
+    : assignmentMapping(matches, sourceLab, config);
+  const mappedLab = mapping.mappedLab;
+  const outputLab = mapping.outputLab;
   const finalLab = finalOutputLabForLab(sourceRgb, outputLab, config.blendAmount);
   const sourceParts = labDistanceComponents(sourceLab);
   const finalParts = labDistanceComponents(finalLab);
@@ -451,9 +564,7 @@ export function sampleImageDiagnostics(imageData, entries, records, config = {})
   const step = Math.max(1, Math.ceil(Math.sqrt((imageData.width * imageData.height) / DIAGNOSTIC.targetSamples)));
   const startX = Math.floor(step / 2);
   const startY = Math.floor(step / 2);
-  const matchLimit = config.assignMode === "blend"
-    ? Math.min(Math.max(Math.round(Number(config.blendK) || 1), 1), DIAGNOSTIC.matchLimit)
-    : 2;
+  const matchLimit = diagnosticMatchLimitForAssignment(config);
   let sampleCount = 0;
   let totalDistance = 0;
   let totalLuma = 0;
@@ -473,7 +584,8 @@ export function sampleImageDiagnostics(imageData, entries, records, config = {})
       const best = matches[0];
       if (!best) continue;
       const second = matches[1] || null;
-      const weights = assignmentWeights(matches, lab, config);
+      const mapping = assignmentMapping(matches, lab, config);
+      const weights = mapping.weights;
       const rejectedByMaxDistance = !weights.some(weight => weight > 0);
       if (!rejectedByMaxDistance) {
         const displayIndex = clamp(best.displayIndex, 0, Math.max(0, recordCount - 1));
@@ -481,7 +593,7 @@ export function sampleImageDiagnostics(imageData, entries, records, config = {})
         if (best.alias) aliasTerritoryCounts[displayIndex] += 1;
         applyAssignmentContributions(matches, lab, contributionCounts, aliasContributionCounts, {config, recordCount, weights});
       }
-      const outputDistance = outputDistanceBreakdown(lab, sourceRgb, matches, weights, config);
+      const outputDistance = outputDistanceBreakdown(lab, sourceRgb, matches, mapping, config);
       totalDistance += outputDistance.parts.total;
       totalLuma += outputDistance.parts.luma;
       totalChroma += outputDistance.parts.chroma;
@@ -667,23 +779,22 @@ function collectSourceHistogramSamples(imageData) {
   });
 }
 
-function mappedPaletteLabForSample(sourceLab, sourceRgb, entries, records, config = {}) {
+function assignmentMappingForSample(sourceLab, sourceRgb, entries, records, config = {}) {
   const safeEntries = Array.isArray(entries) ? entries : [];
-  if (!safeEntries.length) return sourceLab;
-  const matchLimit = config.assignMode === "blend"
-    ? Math.min(Math.max(Math.round(Number(config.blendK) || 1), 1), DIAGNOSTIC.matchLimit)
-    : 2;
-  const matches = topPaletteMatches(sourceLab, safeEntries, {config, records, limit: matchLimit});
-  const weights = assignmentWeights(matches, sourceLab, config);
-  return mappedPaletteLabForWeights(matches, weights, sourceLab);
+  if (!safeEntries.length) return {weights: [], mappedLab: sourceLab, outputLab: applyOutputModeCpu(sourceLab, sourceLab, config), rescued: false};
+  const matches = topPaletteMatches(sourceLab, safeEntries, {config, records, limit: diagnosticMatchLimitForAssignment(config)});
+  return assignmentMapping(matches, sourceLab, config);
+}
+
+function mappedPaletteLabForSample(sourceLab, sourceRgb, entries, records, config = {}) {
+  return assignmentMappingForSample(sourceLab, sourceRgb, entries, records, config).mappedLab;
 }
 
 function outputHistogramSampleForSourceSample(sample, entries, records, config = {}) {
   const sourceLab = Array.isArray(sample?.lab) ? sample.lab : [sample.lightness || 0, 0, 0];
   const sourceRgb = Array.isArray(sample?.sourceRgb) ? sample.sourceRgb : [0, 0, 0];
-  const mappedLab = mappedPaletteLabForSample(sourceLab, sourceRgb, entries, records, config);
-  const fxLab = applyOutputModeCpu(sourceLab, mappedLab, config);
-  const finalLab = finalOutputLabForLab(sourceRgb, fxLab, config.blendAmount);
+  const mapping = assignmentMappingForSample(sourceLab, sourceRgb, entries, records, config);
+  const finalLab = finalOutputLabForLab(sourceRgb, mapping.outputLab, config.blendAmount);
   return {...histogramSampleFromLab(finalLab), x: sample.x, y: sample.y, sourceRgb};
 }
 
@@ -1017,6 +1128,7 @@ export function createDiagnosticMetrics({getConfig, getImageData, getRecords, ge
       includeCycleOffset: includeCycleOffset()
     }),
     assignmentWeights: (matches, lab) => assignmentWeights(matches, lab, config()),
+    assignmentMapping: (matches, lab) => assignmentMapping(matches, lab, config()),
     computeDiagnostics: (inputRecords = records()) => {
       const safeRecords = Array.isArray(inputRecords) ? inputRecords : [];
       const entries = entriesFor(safeRecords);

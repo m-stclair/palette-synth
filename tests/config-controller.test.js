@@ -153,7 +153,7 @@ test("config controller replaces snapshots and syncs the app surface", () => {
   ]);
 });
 
-test("config controller keeps direct-color sizes freeform and snaps family sizes", () => {
+test("config controller keeps two-color image sizes and clamps procedural minimums", () => {
   const config = cloneDefaultConfig();
   const elements = {
     paletteSize: makeElement({type: "range"}),
@@ -166,23 +166,26 @@ test("config controller keeps direct-color sizes freeform and snaps family sizes
     root: makeRoot(elements)
   });
 
-  controller.replaceConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: false});
-  assert.equal(config.paletteSize, 20);
-  assert.equal(elements.paletteSize.value, 20);
+  controller.replaceConfigSnapshot({paletteMode: "generated", paletteSize: 2, generatedTintShadeFamilies: false});
+  assert.equal(config.paletteSize, 2);
+  assert.equal(elements.paletteSize.value, 2);
+  assert.equal(elements.paletteSize.min, "2");
   assert.equal(elements.paletteSize.step, "1");
-  assert.equal(elements.paletteSizeValue.textContent, "20");
+  assert.equal(elements.paletteSizeValue.textContent, "2");
 
-  controller.replaceConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: true});
-  assert.equal(config.paletteSize, 21);
-  assert.equal(elements.paletteSize.value, 21);
+  controller.replaceConfigSnapshot({paletteMode: "generated", paletteSize: 2, generatedTintShadeFamilies: true});
+  assert.equal(config.paletteSize, 3);
+  assert.equal(elements.paletteSize.value, 3);
+  assert.equal(elements.paletteSize.min, "3");
   assert.equal(elements.paletteSize.step, "3");
-  assert.equal(elements.paletteSizeValue.textContent, "21");
+  assert.equal(elements.paletteSizeValue.textContent, "3");
 
-  controller.replaceConfigSnapshot({paletteMode: "harmony", paletteSize: 20, generatedTintShadeFamilies: true});
-  assert.equal(config.paletteSize, 20);
-  assert.equal(elements.paletteSize.value, 20);
+  controller.replaceConfigSnapshot({paletteMode: "harmony", paletteSize: 2, generatedTintShadeFamilies: true});
+  assert.equal(config.paletteSize, 3);
+  assert.equal(elements.paletteSize.value, 3);
+  assert.equal(elements.paletteSize.min, "3");
   assert.equal(elements.paletteSize.step, "1");
-  assert.equal(elements.paletteSizeValue.textContent, "20");
+  assert.equal(elements.paletteSizeValue.textContent, "3");
 });
 
 test("config controller can replace snapshots without cancelling pending history", () => {

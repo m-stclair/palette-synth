@@ -875,6 +875,8 @@ body[data-assign-mode="nearest"] .dither-only,
 body[data-assign-mode="nearest"] .non-nearest-only,
 body[data-assign-mode="blend"] .dither-only,
 body[data-assign-mode="dither"] .blend-only,
+body[data-assign-mode]:not([data-assign-mode="blend"]) .blend-pair-rescue-only,
+body[data-monotone-blend-dither="false"] .blend-pair-rescue-only,
 body[data-output-mode]:not([data-output-mode="shadowHighlight"]) .shadow-only,
 body:not([data-cosine-preset="custom"]) .cosine-custom-only {
   display: none;

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   assignmentWeights,
+  assignmentMapping,
   cpuDistanceBreakdown,
   computeDiagnostics,
   computePaletteCollisions,
@@ -27,6 +28,7 @@ const baseConfig = {
   ditherLumaAmount: 0,
   blendAmount: 1,
   monotoneBlendDither: false,
+  blendPairRescue: false,
   maxDistanceEnabled: false,
   maxDistance: 30,
   minDistance: 18,
@@ -205,6 +207,37 @@ test("monotone blend/dither compares after output mode", () => {
 
   assert.ok(guardedBlend[0] > 0);
   assert.ok(guardedBlend[1] > 0);
+});
+
+test("blend pair rescue can recover a better local two-swatch projection after monotone rejection", () => {
+  const sourceLab = [50, 8, 0];
+  const matches = [
+    {distance: 3, displayIndex: 0, renderLab: [50, 11, 0]},
+    {distance: 5, displayIndex: 1, renderLab: [50, 13, 0]},
+    {distance: 6, displayIndex: 2, renderLab: [50, 2, 0]}
+  ];
+  const config = {
+    ...baseConfig,
+    assignMode: "blend",
+    blendK: 2,
+    lumaWeight: 1,
+    chromaWeight: 1,
+    hueWeight: 0,
+    monotoneBlendDither: true
+  };
+
+  const guarded = assignmentMapping(matches, sourceLab, {...config, blendPairRescue: false});
+  assert.deepEqual(guarded.weights, [1, 0, 0]);
+  assertApproximatelyEqual(guarded.outputLab[1], 11, 1e-6);
+
+  const rescued = assignmentMapping(matches, sourceLab, {...config, blendPairRescue: true});
+  assert.ok(rescued.rescued);
+  assert.ok(rescued.weights[0] > 0);
+  assert.equal(rescued.weights[1], 0);
+  assert.ok(rescued.weights[2] > 0);
+  assertApproximatelyEqual(rescued.outputLab[0], 50, 1e-6);
+  assertApproximatelyEqual(rescued.outputLab[1], 8, 1e-6);
+  assertApproximatelyEqual(rescued.outputLab[2], 0, 1e-6);
 });
 
 test("near-neutral source colors do not invent hue pressure", () => {

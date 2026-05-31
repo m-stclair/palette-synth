@@ -32,6 +32,7 @@ test("conditional panels normalize palette mode, sync datasets, and refresh depe
     paletteMode: "manual",
     assignMode: "blend",
     outputMode: "preserveLuma",
+    monotoneBlendDither: "false",
     generatedTintShadeFamilies: "true",
     cosineCustomTintShadeFamilies: "true"
   });

@@ -81,6 +81,7 @@ export const DEFAULT_CONFIG = {
   hueWeight: 1,
   neutralIsCategory: false,
   monotoneBlendDither: true,
+  blendPairRescue: true,
   maxDistanceEnabled: false,
   maxDistance: 30,
   // Generated-image candidate appeal nudges. These are independent, secondary
@@ -301,22 +302,26 @@ function finiteNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
-export function clampPaletteSize(value) {
-  return clamp(Math.round(Number(value) || DEFAULT_CONFIG.paletteSize), 3, 42);
+export function clampPaletteSize(value, {min = 2} = {}) {
+  return clamp(Math.round(Number(value) || DEFAULT_CONFIG.paletteSize), min, 42);
 }
 
 export function snapPaletteSizeToFamilyMultiple(value) {
-  return Math.max(3, Math.round(clampPaletteSize(value) / 3) * 3);
+  return Math.max(3, Math.round(clampPaletteSize(value, {min: 3}) / 3) * 3);
 }
 
-export function sanitizePaletteSize(value, {tintShadeFamilies = true} = {}) {
-  const size = clampPaletteSize(value);
-  return tintShadeFamilies ? snapPaletteSizeToFamilyMultiple(size) : size;
+export function sanitizePaletteSize(value, {tintShadeFamilies = true, min = 2} = {}) {
+  if (tintShadeFamilies) return snapPaletteSizeToFamilyMultiple(value);
+  return clampPaletteSize(value, {min});
 }
 
 function generatedPaletteUsesFamilySizes(config) {
   return ["generated", "generatedReference"].includes(config?.paletteMode)
     && config?.generatedTintShadeFamilies !== false;
+}
+
+function paletteSizeMinimum(config) {
+  return generatedPaletteUsesFamilySizes(config) || ["harmony", "cosine"].includes(config?.paletteMode) ? 3 : 2;
 }
 
 export function normalizeCosineCustomVectors(value) {
@@ -351,7 +356,10 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.paletteSwatchScale = normalizePaletteSwatchScale(base.paletteSwatchScale);
   base.generatedTintShadeFamilies = base.generatedTintShadeFamilies !== false;
   base.cosineCustomTintShadeFamilies = base.cosineCustomTintShadeFamilies !== false;
-  base.paletteSize = sanitizePaletteSize(base.paletteSize, {tintShadeFamilies: generatedPaletteUsesFamilySizes(base)});
+  base.paletteSize = sanitizePaletteSize(base.paletteSize, {
+    tintShadeFamilies: generatedPaletteUsesFamilySizes(base),
+    min: paletteSizeMinimum(base)
+  });
   base.seedSwatch = normalizeHexColor(base.seedSwatch, DEFAULT_CONFIG.seedSwatch);
   base.harmonyRelationship = Object.prototype.hasOwnProperty.call(HARMONY_RELATIONSHIPS, base.harmonyRelationship) ? base.harmonyRelationship : DEFAULT_CONFIG.harmonyRelationship;
   base.harmonyRegionContrast = Object.prototype.hasOwnProperty.call(HARMONY_REGION_CONTRASTS, base.harmonyRegionContrast) ? base.harmonyRegionContrast : DEFAULT_CONFIG.harmonyRegionContrast;
@@ -379,6 +387,7 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.hueWeight = clamp(Number(base.hueWeight) || 0, 0, 3);
   base.neutralIsCategory = !!base.neutralIsCategory;
   base.monotoneBlendDither = !!base.monotoneBlendDither;
+  base.blendPairRescue = base.blendPairRescue !== false;
   base.maxDistanceEnabled = !!base.maxDistanceEnabled;
   {
     const maxDistance = Number(base.maxDistance);

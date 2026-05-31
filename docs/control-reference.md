@@ -156,6 +156,7 @@ Mapping controls decide how source pixels choose palette colors and what final c
 | **Wet/Dry Mix** | Blends the processed output back over the source image. `0` is dry/source; `1` is fully processed. |
 | **Neutral is category** | Treats achromatic colors as their own match category instead of letting hue distance vanish near neutral. Useful when grays/blacks/whites should not freely match colored swatches. |
 | **Monotone blend/dither** | For Blend and Dither, rejects blend/dither choices that would land farther from the source than the nearest palette choice. In plain terms: it stops fancy mixing from making a worse match than boring nearest. |
+| **Pair rescue** | Visible for Blend when **Monotone blend/dither** is on. If a width blend would be rejected, tries the best two-swatch projection from the local top matches before falling back to nearest. |
 | **Max distance** | Enables a match-distance cutoff. Pixels whose nearest palette color is too far away are left as source color. |
 | **Distance limit** | Sets the cutoff used by **Max distance**. Lower values reject more pixels; higher values allow rougher matches. |
 | **Shadow** | In Shadow/highlight output mode, sets the low-light cutoff below which pixels are replaced by palette output. |

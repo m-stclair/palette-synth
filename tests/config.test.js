@@ -223,19 +223,24 @@ test("config sanitization migrates old tonal need bonus multiplier", () => {
   assert.equal(sanitizeConfigSnapshot({tonalZoneWeight: 0.5, tonalNeedBonusWeight: 1.75}).tonalZoneWeight, 0.5);
 });
 
-test("config sanitization keeps direct-color palette sizes and snaps family sizes", () => {
-  const direct = sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: false});
-  const family = sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: true});
-  const harmony = sanitizeConfigSnapshot({paletteMode: "harmony", paletteSize: 20, generatedTintShadeFamilies: true});
+test("config sanitization keeps two-color image palettes and snaps family sizes", () => {
+  const direct = sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 2, generatedTintShadeFamilies: false});
+  const referenceDirect = sanitizeConfigSnapshot({paletteMode: "generatedReference", paletteSize: 2, generatedTintShadeFamilies: false});
+  const manual = sanitizeConfigSnapshot({paletteMode: "manual", paletteSize: 2});
+  const family = sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 2, generatedTintShadeFamilies: true});
+  const harmony = sanitizeConfigSnapshot({paletteMode: "harmony", paletteSize: 2, generatedTintShadeFamilies: true});
+  const cosine = sanitizeConfigSnapshot({paletteMode: "cosine", cosinePreset: "custom", paletteSize: 2, cosineCustomTintShadeFamilies: false});
 
-  const customCosineDirect = sanitizeConfigSnapshot({paletteMode: "cosine", cosinePreset: "custom", paletteSize: 20, cosineCustomTintShadeFamilies: false});
-  const customCosineFamilies = sanitizeConfigSnapshot({paletteMode: "cosine", cosinePreset: "custom", paletteSize: 20, cosineCustomTintShadeFamilies: true});
+  assert.equal(direct.paletteSize, 2);
+  assert.equal(referenceDirect.paletteSize, 2);
+  assert.equal(manual.paletteSize, 2);
+  assert.equal(family.paletteSize, 3);
+  assert.equal(harmony.paletteSize, 3);
+  assert.equal(cosine.paletteSize, 3);
 
-  assert.equal(direct.paletteSize, 20);
-  assert.equal(family.paletteSize, 21);
-  assert.equal(harmony.paletteSize, 20);
-  assert.equal(customCosineDirect.paletteSize, 20);
-  assert.equal(customCosineFamilies.paletteSize, 20);
+  assert.equal(sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: false}).paletteSize, 20);
+  assert.equal(sanitizeConfigSnapshot({paletteMode: "generated", paletteSize: 20, generatedTintShadeFamilies: true}).paletteSize, 21);
+  assert.equal(sanitizeConfigSnapshot({paletteMode: "harmony", paletteSize: 20}).paletteSize, 20);
 });
 
 test("palette swatch scale normalizes and cycles through allowed sizes", () => {

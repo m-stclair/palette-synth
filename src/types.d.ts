@@ -128,6 +128,7 @@ export interface AppConfig {
   hueWeight: number;
   neutralIsCategory: boolean;
   monotoneBlendDither: boolean;
+  blendPairRescue: boolean;
   maxDistanceEnabled: boolean;
   maxDistance: number;
   selectionMidtoneWeight: number;
