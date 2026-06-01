@@ -72,7 +72,9 @@ Hold **Shift** while Alt-dragging to do exactly this.
 
 At the moment your pointer moves, the swatch's original color is pinned as a match anchor. X-Ray draws that anchor as a rotated diamond connected to the swatch by a dashed line. The swatch's new position becomes the rendered output. Source pixels near both the original position and the new position will route to this swatch.
 
-This is particularly useful after capturing a generated palette. You can nudge swatches toward better target colors while preserving the image's original color routing.
+That diamond is editable too. In **Scatter**, **Wheel**, and **Tonal**, hold **Alt** and drag the match anchor itself to move the catch point without moving the rendered swatch. Same deal as swatch dragging: Scatter changes hue/lightness, Wheel changes hue/chroma, Tonal changes lightness only.
+
+This is particularly useful after capturing a generated palette. You can nudge swatches toward better target colors while preserving the image's original color routing, then move the anchor until the source catch is exactly where you need it.
 
 ## Promoting a match anchor back into the source
 

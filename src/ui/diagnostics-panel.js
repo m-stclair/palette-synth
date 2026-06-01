@@ -444,6 +444,7 @@ export function createDiagnosticsPanel({
   setDiagnosticOverlay = () => {},
   onPaletteSwatchClick = () => {},
   onGraphSwatchReposition = () => false,
+  onGraphMatchAnchorReposition = () => false,
   onGraphSwatchPromoteAnchor = () => false,
   onDiagnosticsTabChange = () => {}
 } = {}) {
@@ -618,6 +619,24 @@ export function createDiagnosticsPanel({
     return (stats?.entries || []).filter(entry => entry?.alias && Array.isArray(entry.featureLab) && entry.sourceRecord);
   }
 
+  function graphMatchAnchorEntries() {
+    const diagnostic = getState().diagnostics || {};
+    return xrayMatchAliasEntries(diagnostic.xrayStats || diagnostic.stats);
+  }
+
+  function xrayMatchAnchorEditable(entry) {
+    // Auto source anchors explain provenance and are regenerated from the
+    // swatch's original source color. Explicit per-swatch match anchors are
+    // the editable anchors: they live in manualPalette[].aliasHex and can move.
+    return entry?.aliasKind !== "source";
+  }
+
+  function xrayMatchAnchorAttrs(entry, index, records = []) {
+    if (!xrayMatchAnchorEditable(entry)) return "";
+    const label = `Drag match anchor for swatch ${xrayMatchAliasDisplayIndex(entry, records)}`;
+    return `data-xray-match-anchor-index="${index}" aria-label="${label}"`;
+  }
+
   function xrayMatchAliasDisplayIndex(entry, records = []) {
     const record = entry?.sourceRecord;
     const fallbackIndex = records.indexOf(record);
@@ -646,6 +665,14 @@ export function createDiagnosticsPanel({
     if (!target) return null;
     const index = Number(target.dataset?.paletteGraphSwatchIndex);
     return Number.isInteger(index) ? {target, index} : null;
+  }
+
+  function graphMatchAnchorTarget(event) {
+    const target = event?.target?.closest?.("[data-xray-match-anchor-index]");
+    if (!target) return null;
+    const index = Number(target.dataset?.xrayMatchAnchorIndex);
+    const entry = Number.isInteger(index) ? graphMatchAnchorEntries()[index] : null;
+    return entry ? {target, index, entry} : null;
   }
 
   function graphSwatchPlotMode(target) {
@@ -708,12 +735,17 @@ export function createDiagnosticsPanel({
     return null;
   }
 
-  function xrayWheelMaxChroma(records = []) {
+  function xrayWheelMaxChroma(records = [], aliasEntries = graphMatchAnchorEntries()) {
     let maxChroma = 18;
     for (const record of records) {
       const swatchLab = visibleSwatchLab(record) || record?.lab;
       if (!Array.isArray(swatchLab)) continue;
       const [, C] = labToOklch(swatchLab);
+      if (C > maxChroma) maxChroma = C;
+    }
+    for (const entry of aliasEntries || []) {
+      if (!Array.isArray(entry?.featureLab)) continue;
+      const [, C] = labToOklch(entry.featureLab);
       if (C > maxChroma) maxChroma = C;
     }
     return maxChroma;
@@ -758,6 +790,15 @@ export function createDiagnosticsPanel({
       return {x: padX + clamp(record.lab[0] / 100, 0, 1) * (width - padX * 2), y: 0};
     }
     return null;
+  }
+
+  function xrayMatchAnchorDragRecord(entry) {
+    if (!entry || !Array.isArray(entry.featureLab)) return null;
+    return {
+      ...(entry.sourceRecord || {}),
+      lab: [...entry.featureLab],
+      hex: null
+    };
   }
 
   function xrayDragPointFromEvent(event, drag) {
@@ -1297,9 +1338,42 @@ export function createDiagnosticsPanel({
       onGraphSwatchPromoteAnchor(record, {event, index: picked.index});
     });
     container.addEventListener("pointerdown", event => {
-      const swatchTarget = event.altKey ? event.target?.closest?.("[data-palette-graph-swatch-index]") : null;
-      const svg = swatchTarget?.closest?.("svg.xray-plot") || swatchTarget?.closest?.(".xray-plot");
+      const anchorPick = event.altKey ? graphMatchAnchorTarget(event) : null;
+      const swatchTarget = event.altKey && !anchorPick ? event.target?.closest?.("[data-palette-graph-swatch-index]") : null;
+      const graphTarget = anchorPick?.target || swatchTarget;
+      const svg = graphTarget?.closest?.("svg.xray-plot") || graphTarget?.closest?.(".xray-plot");
       const dragMode = svg?.dataset?.xrayPlotMode || xrayMode;
+      if (anchorPick && ["scatter", "wheel", "ramp"].includes(dragMode)) {
+        const records = graphSwatchRecords();
+        const entry = anchorPick.entry;
+        const record = xrayMatchAnchorDragRecord(entry);
+        const lab = Array.isArray(entry.featureLab) ? entry.featureLab : null;
+        const startPoint = xrayDragStartPoint(dragMode, record, records);
+        if (Array.isArray(lab) && startPoint && onGraphMatchAnchorReposition(entry, lab, {phase: "start", mode: dragMode, event, index: anchorPick.index}) !== false) {
+          event.preventDefault?.();
+          event.stopPropagation?.();
+          anchorPick.target.setPointerCapture?.(event.pointerId);
+          xrayGraphDrag = {
+            kind: "matchAnchor",
+            target: anchorPick.target,
+            svg,
+            mode: dragMode,
+            record,
+            entry,
+            index: anchorPick.index,
+            records,
+            moved: false,
+            dropMatchAnchor: false,
+            matchAnchorDropped: false,
+            startLab: [...lab],
+            x: Number(event.clientX) || 0,
+            y: Number(event.clientY) || 0,
+            startPoint,
+            scale: xrayDragScale(svg)
+          };
+          return;
+        }
+      }
       if (swatchTarget && ["scatter", "wheel", "ramp"].includes(dragMode)) {
         const records = graphSwatchRecords();
         const index = Number(swatchTarget.dataset.paletteGraphSwatchIndex);
@@ -1311,6 +1385,7 @@ export function createDiagnosticsPanel({
           event.stopPropagation?.();
           swatchTarget.setPointerCapture?.(event.pointerId);
           xrayGraphDrag = {
+            kind: "swatch",
             target: swatchTarget,
             svg,
             mode: dragMode,
@@ -1365,13 +1440,22 @@ export function createDiagnosticsPanel({
             });
             xrayGraphDrag.matchAnchorDropped = true;
           }
-          onGraphSwatchReposition(xrayGraphDrag.record, lab, {
-            phase: "move",
-            mode: xrayGraphDrag.mode,
-            event,
-            index: xrayGraphDrag.index,
-            matchAnchorDropped: xrayGraphDrag.matchAnchorDropped
-          });
+          if (xrayGraphDrag.kind === "matchAnchor") {
+            onGraphMatchAnchorReposition(xrayGraphDrag.entry, lab, {
+              phase: "move",
+              mode: xrayGraphDrag.mode,
+              event,
+              index: xrayGraphDrag.index
+            });
+          } else {
+            onGraphSwatchReposition(xrayGraphDrag.record, lab, {
+              phase: "move",
+              mode: xrayGraphDrag.mode,
+              event,
+              index: xrayGraphDrag.index,
+              matchAnchorDropped: xrayGraphDrag.matchAnchorDropped
+            });
+          }
         }
         return;
       }
@@ -1391,7 +1475,10 @@ export function createDiagnosticsPanel({
       const lab = finalPhase === "cancel"
         ? (visibleSwatchLab(drag.record) || drag.record?.lab)
         : labForXrayDrag(drag.mode, point, drag.record, drag.records);
-      if (lab) onGraphSwatchReposition(drag.record, lab, {phase: finalPhase, mode: drag.mode, event, index: drag.index, matchAnchorDropped: drag.matchAnchorDropped});
+      if (lab) {
+        if (drag.kind === "matchAnchor") onGraphMatchAnchorReposition(drag.entry, lab, {phase: finalPhase, mode: drag.mode, event, index: drag.index});
+        else onGraphSwatchReposition(drag.record, lab, {phase: finalPhase, mode: drag.mode, event, index: drag.index, matchAnchorDropped: drag.matchAnchorDropped});
+      }
       xrayGraphSuppressClick = true;
       if (typeof setTimeout === "function") setTimeout(() => { xrayGraphSuppressClick = false; }, 0);
       drag.target?.releasePointerCapture?.(event.pointerId);
@@ -1509,13 +1596,15 @@ export function createDiagnosticsPanel({
 
     // Manual matcher aliases: drawn as a dashed leader from the source
     // swatch to a diamond marker at the alias hue/lightness.
-    const aliasMarks = entries.filter(entry => entry.alias).map(entry => {
+    const aliasMarks = xrayMatchAliasEntries(stats).map((entry, anchorIndex) => {
       const record = entry.sourceRecord;
       const x1 = hueXForPlot(record.lab, plotLeft, plotRight, pad);
       const y1 = lightnessY(record.lab, height, pad);
       const x2 = hueXForPlot(entry.featureLab, plotLeft, plotRight, pad);
       const y2 = lightnessY(entry.featureLab, height, pad);
-      return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect x="${(x2-3).toFixed(1)}" y="${(y2-3).toFixed(1)}" width="6" height="6" fill="${labToHex(entry.featureLab)}" stroke="rgba(255,255,255,.58)" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/>`;
+      const hex = labToHex(entry.featureLab);
+      const attrs = xrayMatchAnchorAttrs(entry, anchorIndex, records);
+      return `<g class="xray-match-anchor" ${attrs}><title>${xrayMatchAliasTitle(entry, records)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect class="xray-match-anchor-hit" x="${(x2-7).toFixed(1)}" y="${(y2-7).toFixed(1)}" width="14" height="14" fill="transparent"/><rect x="${(x2-3).toFixed(1)}" y="${(y2-3).toFixed(1)}" width="6" height="6" fill="${hex}" stroke="rgba(255,255,255,.58)" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
     }).join("");
 
     // Swatches plotted as circles, sized by chroma, ring-styled by lock/cycle state.
@@ -1652,7 +1741,7 @@ export function createDiagnosticsPanel({
     // polar scale as the visible swatch chips. Anchors can be more saturated
     // than the rendered chip, so maxChroma above includes these alias labs;
     // otherwise a perfectly valid anchor can get shoved beyond the rim.
-    const aliasMarks = aliasEntries.map(entry => {
+    const aliasMarks = aliasEntries.map((entry, anchorIndex) => {
       const record = entry.sourceRecord;
       const swatchLab = visibleSwatchLab(record) || record.lab;
       const [, sourceC, sourceH] = labToOklch(swatchLab);
@@ -1660,7 +1749,8 @@ export function createDiagnosticsPanel({
       const [x1, y1] = polar(radiusFor(sourceC), sourceH);
       const [x2, y2] = polar(radiusFor(aliasC), aliasH);
       const hex = labToHex(entry.featureLab);
-      return `<g class="xray-match-anchor" aria-hidden="true"><title>${xrayMatchAliasTitle(entry, records)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect x="${(x2-3.2).toFixed(1)}" y="${(y2-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
+      const attrs = xrayMatchAnchorAttrs(entry, anchorIndex, records);
+      return `<g class="xray-match-anchor" ${attrs}><title>${xrayMatchAliasTitle(entry, records)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect class="xray-match-anchor-hit" x="${(x2-7).toFixed(1)}" y="${(y2-7).toFixed(1)}" width="14" height="14" fill="transparent"/><rect x="${(x2-3.2).toFixed(1)}" y="${(y2-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
     }).join("");
 
     // Swatches are positioned from the visible chip, not the internal matcher
@@ -1765,7 +1855,7 @@ export function createDiagnosticsPanel({
     // Manual matcher aliases: projected into the same 1D lightness axis as
     // the tonal ramp. The dashed leader makes the alias read as an extra
     // matching coordinate, not as a new output swatch.
-    const aliasMarks = xrayMatchAliasEntries(stats).map(entry => {
+    const aliasMarks = xrayMatchAliasEntries(stats).map((entry, anchorIndex) => {
       const record = entry.sourceRecord;
       const sourceLab = Array.isArray(record?.lab) ? record.lab : (visibleSwatchLab(record) || entry.renderLab || entry.featureLab);
       const x1 = xFor(sourceLab[0]);
@@ -1773,7 +1863,8 @@ export function createDiagnosticsPanel({
       const y1 = trackY - 8;
       const y2 = trackY - 18;
       const hex = labToHex(entry.featureLab);
-      return `<g class="xray-match-anchor" aria-hidden="true"><title>${xrayMatchAliasTitle(entry, records)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect x="${(x2-3.2).toFixed(1)}" y="${(y2-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
+      const attrs = xrayMatchAnchorAttrs(entry, anchorIndex, records);
+      return `<g class="xray-match-anchor" ${attrs}><title>${xrayMatchAliasTitle(entry, records)}</title><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect class="xray-match-anchor-hit" x="${(x2-7).toFixed(1)}" y="${(y2-7).toFixed(1)}" width="14" height="14" fill="transparent"/><rect x="${(x2-3.2).toFixed(1)}" y="${(y2-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${x2.toFixed(1)} ${y2.toFixed(1)})"/></g>`;
     }).join("");
 
     // Swatch markers: a tall vertical bar at the swatch's L position, in the

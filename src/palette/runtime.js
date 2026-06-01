@@ -279,10 +279,11 @@ export function createPaletteRuntime({
       if (!manualSwatchEditable(record) || !recordAssignable(record)) continue;
       const renderLab = safeRenderPalette[i] || record.lab;
       const aliasHex = manualMatchAliasHex(record.swatchId ?? record.sourceIndex);
-      const aliasLabs = [];
-      if (aliasHex) aliasLabs.push(hexToLab(aliasHex));
-      if (config.aliasAllSources && Array.isArray(record.sourceLab)) aliasLabs.push(record.sourceLab);
-      for (const aliasLab of aliasLabs) {
+      const aliasSpecs = [];
+      if (aliasHex) aliasSpecs.push({lab: hexToLab(aliasHex), kind: "manual"});
+      if (config.aliasAllSources && Array.isArray(record.sourceLab)) aliasSpecs.push({lab: record.sourceLab, kind: "source"});
+      for (const aliasSpec of aliasSpecs) {
+        const aliasLab = aliasSpec.lab;
         if (!Array.isArray(aliasLab) || aliasLab.length < 3) continue;
         if (labDistance(aliasLab, record.lab) < 0.1) continue;
         if (entries.some(entry => entry.sourceRecord === record && labDistance(entry.featureLab, aliasLab) < 0.1)) continue;
@@ -294,7 +295,8 @@ export function createPaletteRuntime({
           featureHue: aliasParts.scaledHue,
           renderLab,
           sourceRecord: record,
-          alias: true
+          alias: true,
+          aliasKind: aliasSpec.kind
         });
       }
     }

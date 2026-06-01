@@ -20,6 +20,7 @@ export function createDiagnosticsDomain({
     syncGeneratedLocks,
     activatePaletteSwatch,
     repositionManualGraphSwatch,
+    repositionManualGraphMatchAnchor,
     makeGraphSwatchAnchorSource,
     renderPaletteLabs,
     paletteUniformEntries
@@ -130,6 +131,7 @@ export function createDiagnosticsDomain({
     setDiagnosticOverlay,
     onPaletteSwatchClick: activatePaletteSwatch,
     onGraphSwatchReposition: repositionManualGraphSwatch,
+    onGraphMatchAnchorReposition: repositionManualGraphMatchAnchor,
     onGraphSwatchPromoteAnchor: makeGraphSwatchAnchorSource,
     onDiagnosticsTabChange: () => controller?.updateDiagnostics?.({immediate: true})
   });

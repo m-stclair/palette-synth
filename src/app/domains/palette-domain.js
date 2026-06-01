@@ -99,6 +99,41 @@ export function createPaletteDomain({
     return true;
   }
 
+  function repositionManualGraphMatchAnchor(entry, lab, {phase = "move"} = {}) {
+    const record = entry?.sourceRecord;
+    if (!manualSwatchEditable(record)) {
+      if (phase === "start") setStatus("Alt-drag match anchors works on editable manual swatches with explicit match anchors.");
+      return false;
+    }
+    if (entry?.aliasKind === "source") {
+      if (phase === "start") setStatus("Original-source match anchors are regenerated from the swatch source; drag an explicit match anchor instead.");
+      return false;
+    }
+    const identifier = record.swatchId ?? record.sourceIndex;
+    const index = manualSwatchIndex(identifier);
+    if (index < 0) return false;
+    if (phase === "start") {
+      beginHistory("Alt-drag match anchor");
+      return true;
+    }
+    if (phase === "cancel") {
+      commitHistory("Alt-drag match anchor");
+      return true;
+    }
+    const safeLab = normalizeManualLab(lab);
+    if (!safeLab) return false;
+    const hex = labToHex(safeLab);
+    setManualMatchAlias?.(identifier, hex);
+    syncManualPaletteEditor(state.paletteRecords);
+    markPaletteDirty();
+    queueRender();
+    if (phase === "end") {
+      commitHistory("Alt-drag match anchor");
+      setStatus(`Moved swatch ${index + 1} match anchor to ${colorInfoLabel(hex, safeLab)}.`);
+    }
+    return true;
+  }
+
   function makeGraphSwatchAnchorSource(record) {
     if (!manualSwatchEditable(record)) return false;
     const identifier = record.swatchId ?? record.sourceIndex;
@@ -154,6 +189,7 @@ export function createPaletteDomain({
     runtime,
     preview,
     repositionManualGraphSwatch,
+    repositionManualGraphMatchAnchor,
     makeGraphSwatchAnchorSource,
     ...cycle,
     ...runtime,

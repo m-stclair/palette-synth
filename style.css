@@ -2423,7 +2423,17 @@ canvas {
   filter: drop-shadow(0 1px 0 rgba(3,5,7,.92));
 }
 .diagnostics-xray .xray-match-anchor {
+  cursor: pointer;
+  outline: none;
+}
+.diagnostics-xray .xray-match-anchor:not([data-xray-match-anchor-index]) {
   pointer-events: none;
+}
+.diagnostics-xray .xray-match-anchor:active {
+  cursor: grabbing;
+}
+.diagnostics-xray .xray-match-anchor-hit {
+  pointer-events: fill;
 }
 .diagnostics-histogram-muted-slash {
   stroke-width: 1.5;

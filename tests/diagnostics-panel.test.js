@@ -696,6 +696,61 @@ test("X-Ray marks selected swatches and alt-drags editable graph swatches", () =
   assert.ok(calls.at(-1).lab[0] > 45 && calls.at(-1).lab[0] < 55);
 });
 
+test("X-Ray alt-drags explicit match anchors in swatch-draggable views", () => {
+  const xray = element();
+  const record = {lab: [50, 12, 0], hex: "#8b756b", displayIndex: 0, source: "manual", swatchId: "manual-a"};
+  const anchorLab = [60, -16, 8];
+  const stats = {
+    records: [record],
+    entries: [{alias: true, aliasKind: "manual", sourceRecord: record, featureLab: anchorLab, renderLab: record.lab}]
+  };
+  const calls = [];
+  const panel = createDiagnosticsPanel({
+    els: {diagnosticsXray: xray},
+    getState: () => ({diagnostics: {stats}}),
+    onGraphMatchAnchorReposition: (entry, lab, meta) => {
+      calls.push({entry, lab, phase: meta.phase, mode: meta.mode, index: meta.index});
+      return true;
+    }
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  assert.match(xray.innerHTML, /data-xray-match-anchor-index="0"/);
+
+  const svg = {
+    dataset: {xrayPlotMode: "scatter", xrayViewBox: "0 0 360 220"},
+    getAttribute(name) { return name === "viewBox" ? "0 0 360 220" : null; },
+    getBoundingClientRect() { return {left: 0, top: 0, width: 360, height: 220}; }
+  };
+  let captured = false;
+  let released = false;
+  const target = {
+    dataset: {xrayMatchAnchorIndex: "0"},
+    closest(selector) {
+      if (selector === "[data-xray-match-anchor-index]") return this;
+      if (selector === "svg.xray-plot" || selector === ".xray-plot") return svg;
+      return null;
+    },
+    setPointerCapture() { captured = true; },
+    releasePointerCapture() { released = true; }
+  };
+  const baseEvent = {target, altKey: true, pointerId: 11, clientX: 100, clientY: 88, preventDefault() {}, stopPropagation() {}};
+  const movedEvent = {...baseEvent, clientX: 160, clientY: 110};
+
+  xray.dispatch("pointerdown", baseEvent);
+  xray.dispatch("pointermove", movedEvent);
+  xray.dispatch("pointerup", movedEvent);
+
+  assert.equal(captured, true);
+  assert.equal(released, true);
+  assert.deepEqual(calls.map(call => call.phase), ["start", "move", "end"]);
+  assert.equal(calls[0].entry, stats.entries[0]);
+  assert.equal(calls[0].index, 0);
+  assert.equal(calls[0].mode, "scatter");
+  assert.equal(Array.isArray(calls[1].lab), true);
+  assert.notDeepEqual(calls.at(-1).lab, anchorLab);
+});
+
 test("X-Ray alt-shift drag drops a match anchor before moving", () => {
   const xray = element();
   const records = [
