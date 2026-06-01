@@ -81,6 +81,7 @@ export const SIMPLE_CONTROL_KEYS = [
   "blendPairRescue",
   "maxDistanceEnabled",
   "maxDistance",
+  "maxDistanceSoftness",
   "tonalZoneWeight",
   "widthBonus",
   "hueSpread",

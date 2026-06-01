@@ -153,6 +153,7 @@ test("config sanitization clamps values and honors injected preset lookup", () =
     clarityAmount: 99,
     maxDistanceEnabled: true,
     maxDistance: 250,
+    maxDistanceSoftness: 250,
     compareSplit: 2,
     pixelBlockSize: 99,
     pixelBlockSampleMode: "nonsense",
@@ -181,6 +182,7 @@ test("config sanitization clamps values and honors injected preset lookup", () =
   assert.equal(clean.clarityAmount, 1);
   assert.equal(clean.maxDistanceEnabled, true);
   assert.equal(clean.maxDistance, 100);
+  assert.equal(clean.maxDistanceSoftness, 100);
   assert.equal(clean.compareSplit, 1);
   assert.equal(clean.pixelArtEnabled, true);
   assert.equal(clean.pixelBlockSize, 16);

@@ -131,6 +131,7 @@ export interface AppConfig {
   blendPairRescue: boolean;
   maxDistanceEnabled: boolean;
   maxDistance: number;
+  maxDistanceSoftness: number;
   selectionMidtoneWeight: number;
   selectionOutlierWeight: number;
   selectionChromaWeight: number;
@@ -249,6 +250,7 @@ export interface RenderSettings {
   hueWeight: number;
   maxDistanceEnabled: boolean;
   maxDistance: number;
+  maxDistanceSoftness: number;
   blendAmount: number;
   shadowCutoff: number;
   highlightCutoff: number;

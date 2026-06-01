@@ -63,6 +63,7 @@ function loupeOutputConfigSignature(config = {}) {
     signatureNumber(config.blendAmount),
     signatureBool(config.maxDistanceEnabled),
     signatureNumber(config.maxDistance),
+    signatureNumber(config.maxDistanceSoftness),
     signatureNumber(config.shadowCutoff),
     signatureNumber(config.highlightCutoff),
     signatureNumber(config.ditherLumaAmount),

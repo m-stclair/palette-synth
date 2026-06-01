@@ -84,6 +84,7 @@ export const DEFAULT_CONFIG = {
   blendPairRescue: true,
   maxDistanceEnabled: false,
   maxDistance: 30,
+  maxDistanceSoftness: 0,
   // Generated-image candidate appeal nudges. These are independent, secondary
   // inputs to the preliminary appeal score; spacing, tonal-zone pressure,
   // range/novelty, and hue spread now carry most selection behavior.
@@ -392,6 +393,8 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   {
     const maxDistance = Number(base.maxDistance);
     base.maxDistance = clamp(Number.isFinite(maxDistance) ? maxDistance : DEFAULT_CONFIG.maxDistance, 0, 100);
+    const maxDistanceSoftness = Number(base.maxDistanceSoftness);
+    base.maxDistanceSoftness = clamp(Number.isFinite(maxDistanceSoftness) ? maxDistanceSoftness : DEFAULT_CONFIG.maxDistanceSoftness, 0, 100);
   }
   for (const key of ["selectionMidtoneWeight", "selectionOutlierWeight", "selectionChromaWeight"]) {
     const value = Number(base[key]);

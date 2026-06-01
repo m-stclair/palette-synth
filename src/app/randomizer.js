@@ -127,6 +127,9 @@ function randomizeAssignmentControls(snapshot, rng) {
   snapshot.hueWeight = randStep(rng, 0, 2.2, 0.05);
   snapshot.maxDistanceEnabled = unit(rng) > 0.72;
   snapshot.maxDistance = randStep(rng, 12, 72, 1);
+  snapshot.maxDistanceSoftness = snapshot.maxDistanceEnabled && unit(rng) > 0.55
+    ? randStep(rng, 0, Math.min(snapshot.maxDistance, 24), 1)
+    : 0;
   snapshot.shadowCutoff = randStep(rng, 15, 45, 1);
   snapshot.highlightCutoff = randStep(rng, 55, 88, 1);
   if (snapshot.highlightCutoff <= snapshot.shadowCutoff + 8) snapshot.highlightCutoff = snapshot.shadowCutoff + 8;

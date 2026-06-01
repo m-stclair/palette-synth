@@ -60,6 +60,7 @@ export function renderSettingsFromConfig(config) {
     hueWeight: config.hueWeight,
     maxDistanceEnabled: config.maxDistanceEnabled,
     maxDistance: config.maxDistance,
+    maxDistanceSoftness: config.maxDistanceSoftness,
     blendAmount: config.blendAmount,
     shadowCutoff: config.shadowCutoff,
     highlightCutoff: config.highlightCutoff,

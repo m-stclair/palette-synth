@@ -68,6 +68,7 @@ export function renderPalettePass(gl, program, {
   gl.uniform1f(uniformLocation(gl, program, "u_hueWeight"), Math.max(0, Number(settings.hueWeight)));
   gl.uniform1i(uniformLocation(gl, program, "u_maxDistanceEnabled"), settings.maxDistanceEnabled ? 1 : 0);
   gl.uniform1f(uniformLocation(gl, program, "u_maxDistance"), Math.max(0, Number(settings.maxDistance) || 0));
+  gl.uniform1f(uniformLocation(gl, program, "u_maxDistanceSoftness"), Math.max(0, Number(settings.maxDistanceSoftness) || 0));
   gl.uniform1f(uniformLocation(gl, program, "u_blendAmount"), Number(settings.blendAmount));
   gl.uniform1f(uniformLocation(gl, program, "u_shadowCutoff"), Number(settings.shadowCutoff));
   gl.uniform1f(uniformLocation(gl, program, "u_highlightCutoff"), Number(settings.highlightCutoff));

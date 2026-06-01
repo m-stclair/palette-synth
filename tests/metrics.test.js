@@ -31,6 +31,7 @@ const baseConfig = {
   blendPairRescue: false,
   maxDistanceEnabled: false,
   maxDistance: 30,
+  maxDistanceSoftness: 0,
   minDistance: 18,
   cycleOffset: 0
 };
@@ -328,13 +329,114 @@ test("achromatic hue width expands near black and white", () => {
   assert.equal(nearBlack.hueSuppressed, true);
 });
 
-test("max-distance gate leaves far pixels unassigned", () => {
+test("max-distance gate leaves far computed outputs unassigned", () => {
   const matches = [
-    {distance: 12, displayIndex: 0},
-    {distance: 20, displayIndex: 1}
+    {distance: 12, displayIndex: 0, renderLab: [62, 0, 0]},
+    {distance: 20, displayIndex: 1, renderLab: [70, 0, 0]}
   ];
   assert.deepEqual(assignmentWeights(matches, [50, 0, 0], {...baseConfig, maxDistanceEnabled: true, maxDistance: 10}), [0, 0]);
   assert.deepEqual(assignmentWeights(matches, [50, 0, 0], {...baseConfig, maxDistanceEnabled: true, maxDistance: 12}), [1, 0]);
+});
+
+// The cutoff belongs at the end of the assignment pipeline. The nearest-match
+// feature distance still chooses candidates, but output modes and blend/dither
+// math decide whether the computed result is coherent enough to apply.
+test("max-distance gate compares output mode result instead of nearest feature distance", () => {
+  const matches = [
+    {distance: 30, displayIndex: 0, renderLab: [80, 0, 0]}
+  ];
+
+  assert.deepEqual(assignmentWeights(matches, [50, 0, 0], {
+    ...baseConfig,
+    outputMode: "preserveLuma",
+    maxDistanceEnabled: true,
+    maxDistance: 1
+  }), [1]);
+});
+
+test("max-distance gate compares blended output instead of nearest member", () => {
+  const matches = [
+    {distance: 10, displayIndex: 0, renderLab: [40, 0, 0]},
+    {distance: 10, displayIndex: 1, renderLab: [60, 0, 0]}
+  ];
+
+  assert.deepEqual(assignmentWeights(matches, [50, 0, 0], {
+    ...baseConfig,
+    assignMode: "blend",
+    blendK: 2,
+    maxDistanceEnabled: true,
+    maxDistance: 1
+  }), [0.5, 0.5]);
+});
+
+test("max-distance gate compares dither expected mixture instead of literal dots", () => {
+  const balanced = [
+    {distance: 10, displayIndex: 0, renderLab: [40, 0, 0]},
+    {distance: 10, displayIndex: 1, renderLab: [60, 0, 0]}
+  ];
+  const balancedWeights = assignmentWeights(balanced, [50, 0, 0], {
+    ...baseConfig,
+    assignMode: "dither",
+    blendK: 2,
+    maxDistanceEnabled: true,
+    maxDistance: 1
+  });
+  assertApproximatelyEqual(balancedWeights[0], 0.5, 1e-6);
+  assertApproximatelyEqual(balancedWeights[1], 0.5, 1e-6);
+
+  const misleadingNearest = [
+    {distance: 1, displayIndex: 0, renderLab: [50, 0, 0]},
+    {distance: 1, displayIndex: 1, renderLab: [100, 0, 0]}
+  ];
+  assert.deepEqual(assignmentWeights(misleadingNearest, [50, 0, 0], {
+    ...baseConfig,
+    assignMode: "dither",
+    blendK: 2,
+    maxDistanceEnabled: true,
+    maxDistance: 10
+  }), [0, 0]);
+});
+
+
+test("max-distance softness fades assignment in internal distance units", () => {
+  const matches = [
+    {distance: 15, displayIndex: 0, renderLab: [65, 0, 0]}
+  ];
+  const config = {
+    ...baseConfig,
+    maxDistanceEnabled: true,
+    maxDistance: 20,
+    maxDistanceSoftness: 10
+  };
+
+  const weights = assignmentWeights(matches, [50, 0, 0], config);
+  assertApproximatelyEqual(weights[0], 0.5, 1e-6);
+
+  const mapping = assignmentMapping(matches, [50, 0, 0], config);
+  assertApproximatelyEqual(mapping.outputLab[0], 57.5, 1e-6);
+  assert.equal(mapping.softenedByMaxDistance, true);
+});
+
+test("max-distance softness uses dither expected mixture for the fade", () => {
+  const matches = [
+    {distance: 10, displayIndex: 0, renderLab: [50, 0, 0]},
+    {distance: 10, displayIndex: 1, renderLab: [70, 0, 0]}
+  ];
+  const config = {
+    ...baseConfig,
+    assignMode: "dither",
+    blendK: 2,
+    maxDistanceEnabled: true,
+    maxDistance: 20,
+    maxDistanceSoftness: 20
+  };
+
+  const weights = assignmentWeights(matches, [50, 0, 0], config);
+  assertApproximatelyEqual(weights[0], 0.25, 1e-6);
+  assertApproximatelyEqual(weights[1], 0.25, 1e-6);
+
+  const mapping = assignmentMapping(matches, [50, 0, 0], config);
+  assertApproximatelyEqual(mapping.outputLab[0], 55, 1e-6);
 });
 
 test("sampleImageDiagnostics measures usage and normalizes contribution entropy", () => {

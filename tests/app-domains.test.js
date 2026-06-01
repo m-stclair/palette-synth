@@ -484,6 +484,7 @@ test("diagnostics domain groups metrics, panel, controller, and overlay capabili
     blendAmount: 1,
     maxDistanceEnabled: false,
     maxDistance: 0,
+    maxDistanceSoftness: 0,
     lumaWeight: 1,
     chromaWeight: 1,
     hueWeight: 1,

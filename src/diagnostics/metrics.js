@@ -238,6 +238,7 @@ export function diagnosticsSignature({imageData, records = [], entries = [], con
     config.blendAmount,
     config.maxDistanceEnabled ? 1 : 0,
     Number(config.maxDistance || 0).toFixed(3),
+    Number(config.maxDistanceSoftness || 0).toFixed(3),
     includeCycleOffset ? config.cycleOffset : 0,
     recordKey,
     entryKey
@@ -307,6 +308,57 @@ function mixLabs(a, b, amount) {
     a[1] + (b[1] - a[1]) * t,
     a[2] + (b[2] - a[2]) * t
   ];
+}
+
+function maxDistanceLimit(config = {}) {
+  if (!config.maxDistanceEnabled) return null;
+  const maxDistance = Number(config.maxDistance);
+  return Number.isFinite(maxDistance) ? Math.max(0, maxDistance) : null;
+}
+
+function maxDistanceSoftness(config = {}, limit = null) {
+  const raw = Number(config.maxDistanceSoftness);
+  const softness = Number.isFinite(raw) ? Math.max(0, raw) : 0;
+  return limit === null ? softness : Math.min(softness, Math.max(0, limit));
+}
+
+function smoothstep(edge0, edge1, value) {
+  if (edge1 <= edge0) return value > edge1 ? 1 : 0;
+  const t = clamp01((value - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+function maxOutputDistanceKeep(sourceLab, outputLab, config = {}) {
+  const limit = maxDistanceLimit(config);
+  if (limit === null) return 1;
+  const distance = assignmentDistanceBetweenLabs(sourceLab, outputLab, config);
+  const softness = maxDistanceSoftness(config, limit);
+  if (softness <= 1e-6) return distance > limit ? 0 : 1;
+  return 1 - smoothstep(limit - softness, limit, distance);
+}
+
+function rejectedAssignmentResult(matches, sourceLab, config = {}) {
+  return {
+    weights: (Array.isArray(matches) ? matches : []).map(() => 0),
+    mappedLab: [...sourceLab],
+    outputLab: applyOutputModeCpu(sourceLab, sourceLab, config),
+    rescued: false,
+    rejectedByMaxDistance: true
+  };
+}
+
+function gateAssignmentResultByOutputDistance(result, matches, sourceLab, config = {}) {
+  const keep = maxOutputDistanceKeep(sourceLab, result.outputLab, config);
+  if (keep <= 0) return rejectedAssignmentResult(matches, sourceLab, config);
+  if (keep >= 1) return {...result, maxDistanceKeep: 1};
+  return {
+    ...result,
+    weights: (Array.isArray(result.weights) ? result.weights : []).map(weight => weight * keep),
+    mappedLab: mixLabs(sourceLab, result.mappedLab || result.outputLab || sourceLab, keep),
+    outputLab: mixLabs(sourceLab, result.outputLab || sourceLab, keep),
+    maxDistanceKeep: keep,
+    softenedByMaxDistance: true
+  };
 }
 
 function monotoneGuardEnabled(config = {}) {
@@ -385,8 +437,7 @@ function blendPairRescueResult(matches, sourceLab, config = {}) {
 function blendAssignmentResult(matches, sourceLab, config = {}) {
   const safeMatches = Array.isArray(matches) ? matches : [];
   const weights = safeMatches.map(() => 0);
-  if (!safeMatches.length) return {weights, mappedLab: [...sourceLab], outputLab: [...sourceLab], rescued: false};
-  if (maxDistanceRejectsMatch(safeMatches[0], config)) return {weights, mappedLab: [...sourceLab], outputLab: applyOutputModeCpu(sourceLab, sourceLab, config), rescued: false};
+  if (!safeMatches.length) return {weights, mappedLab: [...sourceLab], outputLab: applyOutputModeCpu(sourceLab, sourceLab, config), rescued: false};
 
   const k = Math.min(Math.max(Math.round(Number(config.blendK) || 1), 1), safeMatches.length, DIAGNOSTIC.matchLimit);
   const softness = Math.max(0.001, Number(config.softness) || 1);
@@ -409,19 +460,19 @@ function blendAssignmentResult(matches, sourceLab, config = {}) {
       if (blendPairRescueEnabled(config)) {
         const rescued = blendPairRescueResult(safeMatches, sourceLab, config);
         if (rescued && !monotoneOutputGuardRejects(sourceLab, rescued.outputLab, nearestOutputLab, config)) {
-          return rescued;
+          return gateAssignmentResultByOutputDistance(rescued, safeMatches, sourceLab, config);
         }
       }
-      return {
+      return gateAssignmentResultByOutputDistance({
         weights: nearestOnlyWeights(safeMatches.length),
         mappedLab: nearestLab,
         outputLab: nearestOutputLab,
         rescued: false
-      };
+      }, safeMatches, sourceLab, config);
     }
   }
 
-  return {weights, mappedLab, outputLab, rescued: false};
+  return gateAssignmentResultByOutputDistance({weights, mappedLab, outputLab, rescued: false}, safeMatches, sourceLab, config);
 }
 
 function nearestOnlyWeights(length) {
@@ -446,13 +497,49 @@ function weightedMappedLab(matches, weights) {
   return mappedLab.map(channel => channel / totalWeight);
 }
 
+function nearestAssignmentResult(matches, sourceLab, config = {}) {
+  const safeMatches = Array.isArray(matches) ? matches : [];
+  if (!safeMatches.length) return {weights: [], mappedLab: [...sourceLab], outputLab: applyOutputModeCpu(sourceLab, sourceLab, config), rescued: false};
+  const weights = nearestOnlyWeights(safeMatches.length);
+  const mappedLab = renderLabForMatch(safeMatches[0]);
+  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
+  return gateAssignmentResultByOutputDistance({weights, mappedLab, outputLab, rescued: false}, safeMatches, sourceLab, config);
+}
+
+function ditherAssignmentResult(matches, sourceLab, config = {}) {
+  const safeMatches = Array.isArray(matches) ? matches : [];
+  const weights = safeMatches.map(() => 0);
+  if (!safeMatches.length) return {weights, mappedLab: [...sourceLab], outputLab: applyOutputModeCpu(sourceLab, sourceLab, config), rescued: false};
+
+  const nearestLab = renderLabForMatch(safeMatches[0]);
+  const nearestOutputLab = applyOutputModeCpu(sourceLab, nearestLab, config);
+  let share = ditherSecondShare(safeMatches[0], safeMatches[1] || null, sourceLab[0], config);
+  let outputLab = nearestOutputLab;
+
+  if (share > 0) {
+    const secondLab = renderLabForMatch(safeMatches[1]);
+    const secondOutputLab = applyOutputModeCpu(sourceLab, secondLab, config);
+    outputLab = mixLabs(nearestOutputLab, secondOutputLab, share);
+    if (monotoneGuardEnabled(config) && monotoneOutputGuardRejects(sourceLab, outputLab, nearestOutputLab, config)) {
+      share = 0;
+      outputLab = nearestOutputLab;
+    }
+  }
+
+  weights[0] = 1 - share;
+  if (safeMatches.length > 1) weights[1] = share;
+  const mappedLab = mappedPaletteLabForWeights(safeMatches, weights, sourceLab);
+  return gateAssignmentResultByOutputDistance({weights, mappedLab, outputLab, rescued: false}, safeMatches, sourceLab, config);
+}
+
 // Single source of truth for how the current assign mode distributes a
 // pixel across its top palette matches. Returns one weight per entry in
 // `matches`, summing to ~1, in the same order as `matches`.
 //
 //  - nearest: [1, 0, 0, ...]
 //  - blend:   normalized inverse-distance weights over the top-k matches
-//  - dither:  [1 - share, share, 0, ...] using the dither second-share
+//  - dither:  [1 - share, share, 0, ...] using the dither second-share;
+//             max distance gates the expected mixture, not each dither dot
 //
 // The diagnostics sampler and the pixel inspector both consume these so
 // their reported contribution numbers and per-row mix percentages stay
@@ -465,29 +552,10 @@ export function assignmentWeights(matches, lab, config = {}) {
   if (config.assignMode === "blend") {
     return blendAssignmentResult(safeMatches, sourceLab, config).weights;
   }
-
-  const weights = safeMatches.map(() => 0);
-  if (maxDistanceRejectsMatch(safeMatches[0], config)) return weights;
-
   if (config.assignMode === "dither") {
-    let share = ditherSecondShare(safeMatches[0], safeMatches[1] || null, sourceLab[0], config);
-    if (share > 0 && monotoneGuardEnabled(config)) {
-      const nearestLab = renderLabForMatch(safeMatches[0]);
-      const secondLab = renderLabForMatch(safeMatches[1]);
-      const nearestOutputLab = applyOutputModeCpu(sourceLab, nearestLab, config);
-      const secondOutputLab = applyOutputModeCpu(sourceLab, secondLab, config);
-      const averageOutputLab = mixLabs(nearestOutputLab, secondOutputLab, share);
-      if (monotoneOutputGuardRejects(sourceLab, averageOutputLab, nearestOutputLab, config)) {
-        share = 0;
-      }
-    }
-    weights[0] = 1 - share;
-    if (safeMatches.length > 1) weights[1] = share;
-    return weights;
+    return ditherAssignmentResult(safeMatches, sourceLab, config).weights;
   }
-
-  weights[0] = 1;
-  return weights;
+  return nearestAssignmentResult(safeMatches, sourceLab, config).weights;
 }
 
 export function assignmentMapping(matches, lab, config = {}) {
@@ -499,10 +567,10 @@ export function assignmentMapping(matches, lab, config = {}) {
   if (config.assignMode === "blend") {
     return blendAssignmentResult(safeMatches, sourceLab, config);
   }
-  const weights = assignmentWeights(safeMatches, sourceLab, config);
-  const mappedLab = mappedPaletteLabForWeights(safeMatches, weights, sourceLab);
-  const outputLab = applyOutputModeCpu(sourceLab, mappedLab, config);
-  return {weights, mappedLab, outputLab, rescued: false};
+  if (config.assignMode === "dither") {
+    return ditherAssignmentResult(safeMatches, sourceLab, config);
+  }
+  return nearestAssignmentResult(safeMatches, sourceLab, config);
 }
 
 

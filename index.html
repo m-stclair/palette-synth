@@ -330,10 +330,14 @@
         <label class="field checkbox-field" for="neutralIsCategory" title="Treat achromatic colors as their own category instead of letting hue disappear at the neutral origin."><span>Neutral is category</span><input id="neutralIsCategory" type="checkbox" /></label>
         <label class="field checkbox-field non-nearest-only" for="monotoneBlendDither" title="Prevent blend/dither choices that are farther from the source than the nearest palette color."><span>Monotone blend/dither</span><input id="monotoneBlendDither" type="checkbox" /></label>
         <label class="field checkbox-field blend-pair-rescue-only" for="blendPairRescue" title="When a guarded blend would fall back to nearest, try the best two-swatch projection from the local top palette matches first."><span>Pair rescue</span><input id="blendPairRescue" type="checkbox" /></label>
-        <label class="field checkbox-field" for="maxDistanceEnabled"><span>Max distance</span><input id="maxDistanceEnabled" type="checkbox" /></label>
+        <label class="field checkbox-field" for="maxDistanceEnabled" title="Leave pixels as source color when the computed palette output is farther than the limit. Blend uses the blended result; Dither uses the expected mixture, not individual dots."><span>Max distance</span><input id="maxDistanceEnabled" type="checkbox" /></label>
         <div class="field">
           <label for="maxDistance">Distance limit <output id="maxDistanceValue"></output></label>
           <input id="maxDistance" type="range" min="0" max="100" step="0.5" />
+        </div>
+        <div class="field" title="Fade the Max distance cutoff over this many internal distance units. 0 keeps a hard cutoff.">
+          <label for="maxDistanceSoftness">Distance softness <output id="maxDistanceSoftnessValue"></output></label>
+          <input id="maxDistanceSoftness" type="range" min="0" max="100" step="0.5" />
         </div>
         <div class="two-col shadow-only">
           <div class="field"><label for="shadowCutoff">Shadow <output id="shadowCutoffValue"></output></label><input id="shadowCutoff" type="range" min="0" max="100" step="0.5" /></div>
