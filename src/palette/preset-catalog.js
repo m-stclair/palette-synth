@@ -47,15 +47,34 @@ export const PALETTE_PRESET_CATALOG = {
         ]
     },
 
-    // IBM CGA bright 16-color palette.
-    // The classic RGBI colors: harsh, electric, and absolutely not subtle.
-    cgaBright: {
+    // IBM CGA / DOS canonical 16-color RGBI palette.
+    // Also the default EGA/VGA text-mode lineage palette; color 6 is brown, not dark yellow.
+    cgaRgbi: {
         category: "Computer hardware",
         colors: [
             "#000000", "#0000aa", "#00aa00", "#00aaaa",
             "#aa0000", "#aa00aa", "#aa5500", "#aaaaaa",
             "#555555", "#5555ff", "#55ff55", "#55ffff",
             "#ff5555", "#ff55ff", "#ffff55", "#ffffff"
+        ]
+    },
+
+    // IBM EGA 64-color gamut representative slice.
+    // EGA could show 16 colors at once, chosen from a 64-color RGB palette;
+    // this preset samples the expanded EGA space rather than repeating CGA defaults.
+    ega64Slice: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#000055", "#0000aa", "#0000ff",
+            "#005500", "#005555", "#0055aa", "#0055ff",
+            "#00aa00", "#00aa55", "#00aaaa", "#00aaff",
+            "#00ff00", "#00ff55", "#00ffaa", "#00ffff",
+            "#550000", "#550055", "#5500aa", "#5500ff",
+            "#555500", "#555555", "#5555aa", "#5555ff",
+            "#55aa00", "#55aa55", "#55aaaa", "#55aaff",
+            "#aa0000", "#aa0055", "#aa00aa", "#aa00ff",
+            "#aa5500", "#aa5555", "#aa55aa", "#aa55ff",
+            "#ffaa00", "#ffaa55", "#ffff55", "#ffffff"
         ]
     },
 
@@ -92,6 +111,154 @@ export const PALETTE_PRESET_CATALOG = {
             "#880000", "#cc4444", "#ffaa55", "#ffff88",
             "#448844", "#66cc66", "#44aaaa", "#88ffff",
             "#224488", "#6688cc", "#8844aa", "#cc88ff"
+        ]
+    },
+
+        // Amstrad CPC hardware palette.
+    // 27 colors: the whole loud little cube. Saturated, blunt, very UK bedroom arcade.
+    amstradCpc: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#000080", "#0000ff",
+            "#800000", "#800080", "#8000ff",
+            "#ff0000", "#ff0080", "#ff00ff",
+            "#008000", "#008080", "#0080ff",
+            "#808000", "#808080", "#8080ff",
+            "#ff8000", "#ff8080", "#ff80ff",
+            "#00ff00", "#00ff80", "#00ffff",
+            "#80ff00", "#80ff80", "#80ffff",
+            "#ffff00", "#ffff80", "#ffffff"
+        ]
+    },
+
+    // BBC Micro / Acorn teletext-inspired palette.
+    // Mode 7 energy: broadcast blocks, primary colors, school-computer authority.
+    bbcMode7Teletext: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#ff0000", "#00ff00", "#ffff00",
+            "#0000ff", "#ff00ff", "#00ffff", "#ffffff",
+            "#111111", "#aa0000", "#00aa00", "#aaaa00",
+            "#0000aa", "#aa00aa", "#00aaaa", "#aaaaaa"
+        ]
+    },
+
+    // Atari 8-bit / GTIA-inspired palette slice.
+    // Hue/luma television color: warm dirt, arcade blues, strange greens, NTSC softness.
+    atari8bitGtia: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#202020", "#404040", "#606060",
+            "#808080", "#a0a0a0", "#c0c0c0", "#e0e0e0",
+            "#402000", "#704000", "#a06020", "#d09040",
+            "#503000", "#806020", "#b09040", "#e0c070",
+            "#204000", "#407020", "#70a040", "#a0d070",
+            "#004030", "#207060", "#40a090", "#70d0c0",
+            "#002050", "#204080", "#4060b0", "#7090e0",
+            "#301050", "#602080", "#9040b0", "#c070e0"
+        ]
+    },
+
+    // IBM CGA composite artifact-color-inspired palette.
+    // Not RGBI purity — this is the smeared NTSC rainbow trick. Sierra-on-a-TV magic.
+    cgaComposite: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#1a1a1a", "#333333", "#ffffff",
+            "#002244", "#004488", "#0066aa", "#33aadd",
+            "#004422", "#008844", "#22aa66", "#66dd99",
+            "#442200", "#884400", "#cc6600", "#ffaa33",
+            "#660000", "#aa2222", "#dd5555", "#ff9999",
+            "#440066", "#7722aa", "#aa55dd", "#dd99ff",
+            "#005566", "#0099aa", "#44ddee", "#aaffff"
+        ]
+    },
+
+    // Hercules monochrome graphics display-inspired palette.
+    // One-bit PC graphics, but softened into phosphor bloom and business-machine severity.
+    herculesMono: {
+        category: "Operating systems + terminals",
+        colors: [
+            "#000000", "#061006", "#0c240c", "#184018",
+            "#2c682c", "#58a058", "#98d898", "#e8ffe8"
+        ]
+    },
+
+    // Apple IIgs Super Hi-Res-inspired palette.
+    // Late Apple II color: pastel GUI, educational fantasy, soft RGB trying to become an Amiga.
+    appleIigsShr: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#1c1c2c", "#383850", "#5c5c78",
+            "#8888a0", "#b8b8c8", "#e8e8f0", "#ffffff",
+            "#402020", "#804040", "#c06060", "#f09090",
+            "#604020", "#a07040", "#d8a060", "#f0d090",
+            "#204020", "#408040", "#70b070", "#a8e0a8",
+            "#204050", "#407090", "#70a8c8", "#b8e0f0",
+            "#302060", "#604090", "#9070c0", "#c8a8f0"
+        ]
+    },
+
+    // NEC PC-88 visual-game palette.
+    // Sharp Japanese microcomputer drama: black fields, hard primaries, menu-window austerity.
+    pc88V2: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#0000aa", "#aa0000", "#aa00aa",
+            "#00aa00", "#00aaaa", "#aaaa00", "#aaaaaa",
+            "#000055", "#550000", "#005500", "#555500",
+            "#005555", "#550055", "#555555", "#ffffff",
+            "#222244", "#442222", "#224422", "#444422",
+            "#225555", "#552255", "#775533", "#ddccaa"
+        ]
+    },
+
+    // PC Engine / TurboGrafx-16-inspired palette.
+    // Glossy tiny-arcade color: candy sprites, clean skies, impossible little machine flex.
+    pcEngine: {
+        category: "Consoles + handhelds",
+        colors: [
+            "#000000", "#242424", "#494949", "#6d6d6d",
+            "#929292", "#b6b6b6", "#dbdbdb", "#ffffff",
+            "#490000", "#920000", "#db2400", "#ff6d24",
+            "#ffb649", "#ffff92", "#004900", "#009224",
+            "#24db49", "#92ff6d", "#004949", "#009292",
+            "#24dbdb", "#92ffff", "#000049", "#002492",
+            "#246ddb", "#92b6ff", "#490092", "#9224db",
+            "#db6dff", "#ffb6ff", "#924900", "#db9249"
+        ]
+    },
+
+    // Sega Master System palette slice.
+    // 8-bit Sega color: cleaner than NES, brighter than it has any right to be.
+    segaMasterSystem: {
+        category: "Consoles + handhelds",
+        colors: [
+            "#000000", "#555555", "#aaaaaa", "#ffffff",
+            "#000055", "#0000aa", "#0000ff", "#5555ff",
+            "#005500", "#00aa00", "#00ff00", "#55ff55",
+            "#005555", "#00aaaa", "#00ffff", "#55ffff",
+            "#550000", "#aa0000", "#ff0000", "#ff5555",
+            "#550055", "#aa00aa", "#ff00ff", "#ff55ff",
+            "#555500", "#aaaa00", "#ffff00", "#ffff55",
+            "#aa5500", "#ffaa00", "#ffaa55", "#ffaaaa"
+        ]
+    },
+
+    // SNES CGRAM-inspired pastel slice.
+    // Not a fixed hardware palette — a representative Super Nintendo color mood:
+    // soft ramps, polished skies, warm RPG towns, less crunch than Genesis.
+    snesCgramPastel: {
+        category: "Consoles + handhelds",
+        colors: [
+            "#000000", "#101018", "#202030", "#383850",
+            "#585870", "#808098", "#b0b0c0", "#f0f0f8",
+            "#301820", "#683040", "#a85058", "#e88080",
+            "#402818", "#785030", "#b88050", "#f0c078",
+            "#203020", "#406040", "#689868", "#a8d890",
+            "#183040", "#305878", "#5890b0", "#98d0e8",
+            "#282050", "#504080", "#8060b0", "#c090e0",
+            "#504020", "#887040", "#c0a060", "#f0e0a8"
         ]
     },
 
