@@ -24,7 +24,6 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0",
     "#define BLEND_PAIR_RESCUE 0",
-    "#define SOURCE_ANALYSIS_ENABLED 0",
     "#define DIAGNOSTIC_OVERLAY_MODE 0",
     "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
     "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
@@ -41,7 +40,6 @@ test("shaderDefineLinesForConfig maps runtime config to shader defines", () => {
     "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0",
     "#define BLEND_PAIR_RESCUE 0",
-    "#define SOURCE_ANALYSIS_ENABLED 0",
     "#define DIAGNOSTIC_OVERLAY_MODE 0",
     "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
     "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
@@ -115,7 +113,6 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0",
     "#define BLEND_PAIR_RESCUE 0",
-    "#define SOURCE_ANALYSIS_ENABLED 0",
     "#define DIAGNOSTIC_OVERLAY_MODE 0",
     "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
     "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
@@ -134,17 +131,10 @@ test("shaderDefineLinesForConfig maps artsier dither patterns", () => {
     "#define NEUTRAL_IS_CATEGORY 0",
     "#define FIDELITY_GUARD 0",
     "#define BLEND_PAIR_RESCUE 0",
-    "#define SOURCE_ANALYSIS_ENABLED 0",
     "#define DIAGNOSTIC_OVERLAY_MODE 0",
     "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
     "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"
   ]);
-});
-
-
-test("shaderDefineLinesForConfig enables source analysis only by explicit override", () => {
-  const lines = shaderDefineLinesForConfig({assignMode: "nearest"}, {sourceAnalysisEnabled: true});
-  assert.ok(lines.includes("#define SOURCE_ANALYSIS_ENABLED 1"));
 });
 
 test("shader program controller builds cached programs with injected defines", () => {
@@ -182,7 +172,6 @@ test("shader program controller builds cached programs with injected defines", (
       "#define NEUTRAL_IS_CATEGORY 0",
       "#define FIDELITY_GUARD 0",
       "#define BLEND_PAIR_RESCUE 0",
-      "#define SOURCE_ANALYSIS_ENABLED 0",
       "#define DIAGNOSTIC_OVERLAY_MODE 0",
       "#define DIAGNOSTIC_HISTOGRAM_SCOPE 0",
       "#define DIAGNOSTIC_HISTOGRAM_CHANNEL 0"

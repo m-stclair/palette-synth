@@ -53,7 +53,6 @@ export function createRenderDomain({
     buildProgram: shaderProgramController.buildProgram,
     vertexSource: shaders.VERTEX_SHADER,
     blockSampleFragmentSource: shaders.BLOCK_SAMPLE_FRAGMENT_SHADER,
-    sourceAnalysisFragmentSource: shaders.SOURCE_ANALYSIS_FRAGMENT_SHADER,
     postProcessFragmentSource: shaders.PALETTE_POST_FRAGMENT_SHADER,
     edgeTightenFragmentSource: shaders.PALETTE_EDGE_TIGHTEN_FRAGMENT_SHADER,
     viewCompositeFragmentSource: shaders.VIEW_COMPOSITE_FRAGMENT_SHADER,

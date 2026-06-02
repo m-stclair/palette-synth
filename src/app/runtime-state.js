@@ -69,17 +69,6 @@ export function createRuntimeState({document: doc = globalThis.document, maxImag
       sampleMode: "",
       dirty: true
     },
-    sourceAnalysis: {
-      texture: null,
-      framebuffer: null,
-      program: null,
-      programKey: "",
-      width: 0,
-      height: 0,
-      sourceTexture: null,
-      gl: null,
-      dirty: true
-    },
     paletteRegion: {
       enabled: false,
       dragging: false,

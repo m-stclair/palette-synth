@@ -2,14 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_CONFIG,
-  DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MAX,
-  DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MIN,
   cloneConfigSnapshot,
   cloneDefaultConfig,
   cloneStoredConfigSnapshot,
-  ditherSourceGuardFlatThresholdFromSlider,
-  ditherSourceGuardFlatThresholdSliderValue,
-  formatDitherSourceGuardFlatThreshold,
   normalizeCosineCustomVectors,
   normalizeCycleManualKeys,
   normalizeManualSwatches,
@@ -34,15 +29,6 @@ test("default config clones are deep copies", () => {
 });
 
 
-
-test("dither source guard flat threshold slider is logarithmic", () => {
-  assert.equal(ditherSourceGuardFlatThresholdFromSlider(0), DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MIN);
-  assert.equal(ditherSourceGuardFlatThresholdFromSlider(1), DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MAX);
-  const midpoint = ditherSourceGuardFlatThresholdFromSlider(0.5);
-  assert.ok(midpoint > 0.02 && midpoint < 0.04);
-  assert.ok(Math.abs(ditherSourceGuardFlatThresholdSliderValue(0.05) - 0.611) < 0.002);
-  assert.equal(formatDitherSourceGuardFlatThreshold(0.0496), "0.050");
-});
 
 test("stored config snapshots omit transient view-only state", () => {
   const config = {
@@ -328,27 +314,10 @@ test("removed outline config keys are ignored during sanitization", () => {
   assert.equal(Object.hasOwn(clean, "outlineOpacity"), false);
 });
 
-test("dither source guard config is sanitized", () => {
-  const clean = sanitizeConfigSnapshot({
-    ditherSourceGuardEnabled: 1,
-    ditherSourceGuardAmount: 2,
-    ditherSourceGuardMinGain: -1,
-    ditherSourceGuardFlatThreshold: 3
-  });
-  assert.equal(clean.ditherSourceGuardEnabled, true);
-  assert.equal(clean.ditherSourceGuardAmount, 1);
-  assert.equal(clean.ditherSourceGuardMinGain, 0);
-  assert.equal(clean.ditherSourceGuardFlatThreshold, 0.3);
-});
-
 test("post-process defaults are off and well-defined", () => {
   assert.equal(DEFAULT_CONFIG.despeckleEnabled, false);
   assert.equal(DEFAULT_CONFIG.despeckleStrength, 1);
   assert.equal(DEFAULT_CONFIG.ditherProtectionEnabled, true);
-  assert.equal(DEFAULT_CONFIG.ditherSourceGuardEnabled, false);
-  assert.equal(DEFAULT_CONFIG.ditherSourceGuardAmount, 0.75);
-  assert.equal(DEFAULT_CONFIG.ditherSourceGuardMinGain, 2.5);
-  assert.equal(DEFAULT_CONFIG.ditherSourceGuardFlatThreshold, 0.05);
   assert.equal(DEFAULT_CONFIG.edgeTightenEnabled, false);
   assert.equal(DEFAULT_CONFIG.edgeTightenStrength, 1);
 });

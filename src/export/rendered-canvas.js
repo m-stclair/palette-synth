@@ -1,12 +1,11 @@
 import { MAX_PALETTE_SIZE } from "../constants.js";
-import { ditherSourceGuardActive, effectivePixelBlockSize } from "../state/config.js";
+import { effectivePixelBlockSize } from "../state/config.js";
 import { maskBehaviorCode, maskForbiddenSourceFlags } from "../ui/cycle-mask.js";
 import { paletteLabs } from "../color-utils.js";
 import { createWebgl2Context, clearFramebuffer } from "../gl/context.js";
 import { disposeCachedProgram } from "../gl/programs.js";
 import { configureTexture, createTexture, uploadCanvasTexture } from "../gl/textures.js";
 import { disposeBlockSampleCache } from "../gl/block-sampler.js";
-import { disposeSourceAnalysisCache } from "../gl/source-analysis-renderer.js";
 import {
   postProcessActive,
   postProcessSettingsFromConfig,
@@ -78,8 +77,7 @@ export function createRenderedCanvasController({
   renderViewCompositeFn = renderViewComposite,
   disposeOffscreenPaletteTargetFn = disposeOffscreenPaletteTarget,
   disposePostProcessCacheFn = disposePostProcessCache,
-  disposeViewCompositeCacheFn = disposeViewCompositeCache,
-  disposeSourceAnalysisCacheFn = disposeSourceAnalysisCache
+  disposeViewCompositeCacheFn = disposeViewCompositeCache
 } = {}) {
   if (!state || !config || !document) {
     throw new TypeError("createRenderedCanvasController requires state, config, and document dependencies");
@@ -105,8 +103,7 @@ export function createRenderedCanvasController({
     viewCenter = [0.5, 0.5],
     viewSpan = [1, 1],
     viewportOrigin = [0, 0],
-    readPixels = false,
-    sourceAnalysisRequired = false
+    readPixels = false
   } = {}) {
     const sourceCanvas = ensureLevelAdjustedPreviewSource() || state.previewSourceCanvas || state.sourceCanvas;
     if (!state.imageData || !sourceCanvas?.width || !sourceCanvas?.height) return null;
@@ -132,11 +129,7 @@ export function createRenderedCanvasController({
 
     const cache = {program: null, programKey: ""};
     const blockSampleCache = {texture: null, framebuffer: null, program: null, programKey: "", dirty: true};
-    const sourceAnalysisCache = {texture: null, framebuffer: null, program: null, programKey: "", width: 0, height: 0, sourceTexture: null, gl: null, dirty: true};
-    const effectiveSourceAnalysisRequired = sourceAnalysisRequired === true || ditherSourceGuardActive(config);
-    const programOverrides = {showPalette};
-    if (effectiveSourceAnalysisRequired) programOverrides.sourceAnalysisEnabled = true;
-    const program = buildProgramForContext(gl, cache, programOverrides);
+    const program = buildProgramForContext(gl, cache, {showPalette});
     const paletteData = paletteUniformData(safeRecords, cycleOffset);
     const manualCycleEnabled = manualCycleModeEnabled();
     const resolvedCycleOffset = manualCycleEnabled ? 0 : normalizedCycleOffset(cycleOffset, safeRecords);
@@ -186,8 +179,6 @@ export function createRenderedCanvasController({
           viewSpan: [1, 1],
           sourceImageSize: [sourceWidth, sourceHeight],
           blockSampleCache,
-          sourceAnalysisCache,
-          sourceAnalysisRequired: effectiveSourceAnalysisRequired,
           paletteBlock: paletteData.paletteBlock,
           paletteFeatures: paletteData.paletteFeatures,
           paletteBaseBlock: paletteData.paletteBaseBlock,
@@ -250,8 +241,6 @@ export function createRenderedCanvasController({
           viewSpan,
           sourceImageSize: [sourceWidth, sourceHeight],
           blockSampleCache,
-          sourceAnalysisCache,
-          sourceAnalysisRequired: effectiveSourceAnalysisRequired,
           paletteBlock: paletteData.paletteBlock,
           paletteFeatures: paletteData.paletteFeatures,
           paletteBaseBlock: paletteData.paletteBaseBlock,
@@ -282,7 +271,6 @@ export function createRenderedCanvasController({
       gl.deleteTexture(texture);
       if (maskTexture) gl.deleteTexture(maskTexture);
       disposeBlockSampleCache(gl, blockSampleCache);
-      disposeSourceAnalysisCacheFn(gl, sourceAnalysisCache);
       disposeCachedProgramFn(gl, cache);
       if (offscreenCache) disposeOffscreenPaletteTargetFn(gl, offscreenCache);
       if (postProcessCache) disposePostProcessCacheFn(gl, postProcessCache);

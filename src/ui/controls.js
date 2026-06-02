@@ -1,15 +1,5 @@
 import { $, SELECTION_APPEAL_WEIGHT_CONTROLS } from "./dom.js";
-import {
-  COSINE_VECTOR_KEYS,
-  ditherSourceGuardFlatThresholdFromSlider,
-  ditherSourceGuardFlatThresholdSliderValue,
-  effectivePixelBlockSize,
-  formatDitherSourceGuardFlatThreshold,
-  isPixelArtEnabled,
-  normalizeCosineCustomVectors,
-  pixelBlockSliderValue,
-  snapPaletteSizeToFamilyMultiple
-} from "../state/config.js";
+import { COSINE_VECTOR_KEYS, effectivePixelBlockSize, isPixelArtEnabled, normalizeCosineCustomVectors, pixelBlockSliderValue, snapPaletteSizeToFamilyMultiple } from "../state/config.js";
 import { createShortcutDispatcher } from "./shortcuts.js";
 import { cyclePaletteSwatchScale, syncPaletteSwatchScaleUi } from "./palette-swatch-scale.js";
 import { attachColorPicker, syncColorPickerInput } from "./color-picker.js";
@@ -112,10 +102,6 @@ export const SIMPLE_CONTROL_KEYS = [
   "ditherAngle",
   "ditherLumaAmount",
   "ditherScale",
-  "ditherSourceGuardEnabled",
-  "ditherSourceGuardAmount",
-  "ditherSourceGuardMinGain",
-  "ditherSourceGuardFlatThreshold",
   "generatedAssist",
   "generatedTintShadeFamilies",
   "cosineCustomTintShadeFamilies",
@@ -217,12 +203,6 @@ function applyPixelBlockSizeSliderValue(config, rawValue) {
   return {enabledChanged, sizeChanged, changed: enabledChanged || sizeChanged};
 }
 
-function syncDitherSourceGuardFlatThresholdControl(config, el, out) {
-  if (!el) return;
-  el.value = ditherSourceGuardFlatThresholdSliderValue(config.ditherSourceGuardFlatThreshold);
-  if (out) out.textContent = formatDitherSourceGuardFlatThreshold(config.ditherSourceGuardFlatThreshold);
-}
-
 
 export function bindControls({
   els,
@@ -247,15 +227,13 @@ export function bindControls({
     if (key === "paletteMode" && config[key] === "preset") config[key] = "manual";
     if (el.type === "checkbox") el.checked = !!config[key];
     else if (key === "pixelBlockSize") el.value = pixelBlockSliderValue(config);
-    else if (key === "ditherSourceGuardFlatThreshold") el.value = ditherSourceGuardFlatThresholdSliderValue(config[key]);
     else el.value = config[key];
     if (COLOR_CONTROL_KEYS.has(key)) {
       attachColorPicker(el, {label: key === "seedSwatch" ? "Seed swatch" : key});
       syncColorPickerInput(el);
     }
     const out = $(`${key}Value`);
-    if (key === "ditherSourceGuardFlatThreshold") syncDitherSourceGuardFlatThresholdControl(config, el, out);
-    else setOutputText(key, out, el.type === "checkbox" ? !!el.checked : el.value);
+    setOutputText(key, out, el.type === "checkbox" ? !!el.checked : el.value);
 
     const applyControlValue = () => {
       if (key === "pixelBlockSize") {
@@ -268,9 +246,7 @@ export function bindControls({
         return true;
       }
 
-      let nextValue = key === "ditherSourceGuardFlatThreshold"
-        ? ditherSourceGuardFlatThresholdFromSlider(el.value)
-        : controlValue(el);
+      let nextValue = controlValue(el);
       if (key === "cycleOffset") {
         nextValue = normalizedCycleOffset(nextValue, state.paletteRecords);
       }
@@ -283,8 +259,7 @@ export function bindControls({
         ? syncGeneratedPaletteSizeControl(config, {setOutputText, snapToFamilies: generatedPaletteUsesFamilySizes(config)})
         : false;
 
-      if (key === "ditherSourceGuardFlatThreshold") syncDitherSourceGuardFlatThresholdControl(config, el, out);
-      else setOutputText(key, out, config[key]);
+      setOutputText(key, out, config[key]);
 
       if (!changed && !sizeChanged) return false;
 
