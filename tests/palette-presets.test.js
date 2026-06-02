@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import "../palette-presets.js";
 import {
   PALETTE_PRESET_CATALOG,
   PALETTE_PRESET_CATEGORY_ORDER,

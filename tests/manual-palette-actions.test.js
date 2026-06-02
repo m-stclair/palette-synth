@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import "../palette-presets.js";
 import { cloneDefaultConfig } from "../src/state/config.js";
 import {
   createManualPaletteActions,
@@ -175,8 +174,8 @@ test("manual palette actions group built-in presets and alphabetize inside categ
 
   assert.deepEqual(groups.map(group => group.label), [
     "Computer hardware",
-    "Fantasy consoles",
-    "Art + mood"
+    "Pixel art",
+    "Minimal + material"
   ]);
   assert.deepEqual(groups[0].names, ["amigaWorkbench", "zxSpectrum"]);
   assert.deepEqual(groups[1].names, ["pico8", "tic80Sweetie16"]);
