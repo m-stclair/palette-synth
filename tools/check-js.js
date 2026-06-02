@@ -13,7 +13,7 @@ async function* jsFiles(dir) {
   }
 }
 
-const files = ["app.js", "palette-presets.js", "src", "tests", "tools"];
+const files = ["app.js", "src", "tests", "tools"];
 const checks = [];
 for (const file of files) {
   if (file.endsWith(".js")) checks.push(file);
