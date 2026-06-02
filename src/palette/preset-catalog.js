@@ -1,14 +1,19 @@
-globalThis.PALETTE_PRESET_CATEGORY_ORDER = [
+export const PALETTE_PRESET_CATEGORY_ORDER = [
     "Computer hardware",
     "Consoles + handhelds",
-    "Fantasy consoles",
+    "Pixel art",
     "Operating systems + terminals",
     "Game worlds",
-    "Art + mood",
+    "Photographic",
+    "Landscape + nature",
+    "Digital nostalgia",
+    "Print + graphic design",
+    "Interiors + liminal",
+    "Minimal + material",
     "Other presets"
 ];
 
-globalThis.PALETTE_PRESET_CATALOG = {
+export const PALETTE_PRESET_CATALOG = {
     // Amiga Workbench-inspired desktop colors.
     // Stark black/white UI contrast, blue system tones, and warm orange accents.
     amigaWorkbench: {
@@ -178,18 +183,6 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
-    // Vaporwave DOS fantasy palette.
-    // Purple shadows, neon cyan, hot pink, lemon yellow — like a command prompt at the mall.
-    vaporwaveDos: {
-        category: "Art + mood",
-        colors: [
-            "#000000", "#120024", "#240046", "#3c096c",
-            "#5a189a", "#7b2cbf", "#9d4edd", "#c77dff",
-            "#ff5d8f", "#ff85a1", "#ffb3c1", "#ffd6ff",
-            "#00f5d4", "#00bbf9", "#fee440", "#ffffff"
-        ]
-    },
-
     // Gothic console palette extracted from emulated NES Castlevania.
     // Candlelight, stone, blood red, haunted blue — cathedral pixels, basically.
     castlevania: {
@@ -254,7 +247,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
     // by GrafxKid. Modern, but a real fixed hardware-like palette
     // shipped with the tool.
     tic80Sweetie16: {
-        category: "Fantasy consoles",
+        category: "Pixel art",
         colors: [
             "#1a1c2c", "#5d275d", "#b13e53", "#ef7d57",
             "#ffcd75", "#a7f070", "#38b764", "#257179",
@@ -266,7 +259,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
     // PICO-8 fantasy console palette.
     // Tight, iconic, and weirdly perfect: 16 colors that can do caves, UI, sunsets, slime, everything.
     pico8: {
-        category: "Fantasy consoles",
+        category: "Pixel art",
         colors: [
             "#000000", "#1d2b53", "#7e2553", "#008751",
             "#ab5236", "#5f574f", "#c2c3c7", "#fff1e8",
@@ -407,30 +400,6 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
-    // Desert CRT palette.
-    // Sand, sun-baked browns, olive shadows, and creamy highlights through a dusty screen.
-    desertCRT: {
-        category: "Art + mood",
-        colors: [
-            "#030201", "#14100b", "#2a2014", "#44301c",
-            "#664525", "#8a6030", "#b88340", "#dca35a",
-            "#f0c078", "#ffe0a8", "#202818", "#405030",
-            "#708050", "#a0a878", "#c8c0a0", "#fff4d0"
-        ]
-    },
-
-    // Haunted monitor palette.
-    // Sickly blue-green CRT gloom with bruised reds and warm ghost-light highlights.
-    hauntedMonitor: {
-        category: "Art + mood",
-        colors: [
-            "#000000", "#080812", "#101828", "#1c2a3a",
-            "#263f4a", "#335c5a", "#4b7a68", "#78a878",
-            "#b4d48c", "#f0f0b0", "#2a1020", "#581830",
-            "#8a2840", "#c85050", "#f09070", "#ffffff"
-        ]
-    },
-
     // Sharp X68000 cyber palette.
     // Japanese computer-club neon: violet hardware shadows, pink blasts, cyan edges, white heat.
     x68000Cyber: {
@@ -555,7 +524,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
     // GeoCities night palette.
     // Web 1.0 maximalism: electric blue links, cyan glow, magenta chaos, yellow hazard text.
     geocitiesNight: {
-        category: "Art + mood",
+        category: "Digital nostalgia",
         colors: [
             "#000000", "#000033", "#000066", "#0000cc",
             "#0033ff", "#00ccff", "#00ffff", "#ffffff",
@@ -564,17 +533,18 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
-    // Synthwave BBS palette.
-    // Dial-up noir with neon magenta, violet ramps, cyan wireframes, and sunset orange.
-    synthwaveBbs: {
-        category: "Art + mood",
+    // Vaporwave DOS fantasy palette.
+    // Purple shadows, neon cyan, hot pink, lemon yellow — like a command prompt at the mall.
+    vaporwaveDos: {
+        category: "Digital nostalgia",
         colors: [
-            "#000000", "#080010", "#160020", "#2a0040",
-            "#480070", "#7010a0", "#a020d0", "#d858ff",
-            "#ff4fa0", "#ff7070", "#ffa040", "#ffd060",
-            "#00b8ff", "#00ffd0", "#a0ff80", "#ffffff"
+            "#000000", "#120024", "#240046", "#3c096c",
+            "#5a189a", "#7b2cbf", "#9d4edd", "#c77dff",
+            "#ff5d8f", "#ff85a1", "#ffb3c1", "#ffd6ff",
+            "#00f5d4", "#00bbf9", "#fee440", "#ffffff"
         ]
     },
+
 
     // Swamp RPG palette.
     // Murky greens, old mud, moss, reeds, lantern yellows — everything smells damp.
@@ -591,7 +561,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
     // Large Lospec community-curated pixel art palette.
     // Broad, flexible ramps for characters, terrain, UI, foliage, skies, metals, and candy highlights.
     lospec500: {
-        category: "Art + mood",
+        category: "Pixel art",
         colors: [
             "#10121c", "#2c1e31", "#6b2643", "#ac2847",
             "#ec273f", "#94493a", "#de5d3a", "#e98537",
@@ -609,7 +579,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // another grafxkid special, sharply muted but weirdly versatile
     dusty11: {
-        category: "Art + mood",
+        category: "Pixel art",
         colors: [
             "#93476d", "#dd8b6f", "#f5db68", "#7cba40",
             "#326599", "#69a7f4", "#9ddffd", "#f9f6eb",
@@ -619,15 +589,53 @@ globalThis.PALETTE_PRESET_CATALOG = {
     
     // 1-bit palette, slightly toned. e-reader energy.
     "1bit": {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#112221", "#eaeadd"
         ]
     },
 
+    
+    // Synthwave BBS palette.
+    // Dial-up noir with neon magenta, violet ramps, cyan wireframes, and sunset orange.
+    synthwaveBbs: {
+        category: "Digital nostalgia",
+        colors: [
+            "#000000", "#080010", "#160020", "#2a0040",
+            "#480070", "#7010a0", "#a020d0", "#d858ff",
+            "#ff4fa0", "#ff7070", "#ffa040", "#ffd060",
+            "#00b8ff", "#00ffd0", "#a0ff80", "#ffffff"
+        ]
+    },
+
+    
+    // Desert CRT palette.
+    // Sand, sun-baked browns, olive shadows, and creamy highlights through a dusty screen.
+    desertCRT: {
+        category: "Digital nostalgia",
+        colors: [
+            "#030201", "#14100b", "#2a2014", "#44301c",
+            "#664525", "#8a6030", "#b88340", "#dca35a",
+            "#f0c078", "#ffe0a8", "#202818", "#405030",
+            "#708050", "#a0a878", "#c8c0a0", "#fff4d0"
+        ]
+    },
+
+    // Haunted monitor palette.
+    // Sickly blue-green CRT gloom with bruised reds and warm ghost-light highlights.
+    hauntedMonitor: {
+        category: "Digital nostalgia",
+        colors: [
+            "#000000", "#080812", "#101828", "#1c2a3a",
+            "#263f4a", "#335c5a", "#4b7a68", "#78a878",
+            "#b4d48c", "#f0f0b0", "#2a1020", "#581830",
+            "#8a2840", "#c85050", "#f09070", "#ffffff"
+        ]
+    },
+
     // Damp woods, bark, moss, shaded stone, and pale misty highlights.
     forestStaircase: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#000300", "#0b1306", "#341e06", "#003f00",
             "#1d3e23", "#4d554a", "#7f624a", "#4f8a26",
@@ -638,7 +646,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Compact magical glamour: violet shadow, royal purple, electric orchid, candle-gold.
     witchLuxe: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#291043", "#4c3a80", "#d364d5", "#f1ae49"
         ]
@@ -646,7 +654,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Extracted from silk painting. Antique fabric tones, faded reds, blue-green shadows, and tarnished earthy neutrals.
     agedSilk: {
-        category: "Art + mood",
+        category: "Photographic",
         colors: [
             "#080503", "#362722", "#65412c", "#9d704e",
             "#af8862", "#bf9c7f", "#a69894", "#a40d1a",
@@ -657,7 +665,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Night blues, cigarette ember oranges, asphalt grays, and washed-out diner warmth.
     smokeBreak: {
-        category: "Art + mood",
+        category: "Photographic",
         colors: [
             "#000004", "#071d31", "#311408", "#413e38",
             "#773631", "#4a4a4d", "#4e6078", "#7c574b",
@@ -668,7 +676,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Flash-lit intimacy: bruised blacks, warm skin, dirty gold, apartment shadows.
     nanGoldin: {
-        category: "Art + mood",
+        category: "Photographic",
         colors: [
             "#030000", "#1f2424", "#352b0c", "#5b1000",
             "#765722", "#19466c", "#605e5c", "#636968",
@@ -679,7 +687,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Desert twilight, dusty violet, far blue, warm camp light, and alkaline pale yellow.
     playaDusk: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#02000f", "#15131d", "#001644", "#392c38",
             "#575460", "#3c568f", "#825f42", "#817380",
@@ -690,7 +698,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Muted flesh tones, cool grays, wine shadows, and soft photographic highlights.
     coolPortrait: {
-        category: "Art + mood",
+        category: "Photographic",
         colors: [
             "#090001", "#191214", "#440000", "#431c11",
             "#4a3a3e", "#724839", "#5b5456", "#94411d",
@@ -702,7 +710,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Mountain darks, pine greens, glacial blues, cloud whites, and rocky tan accents.
     alpineClouds: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#000600", "#111d0f", "#122c00", "#002d6c",
             "#223d33", "#415c7e", "#526151", "#547332",
@@ -714,7 +722,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
     // Extracted from a photo of Lake Merritt.
     // Moonlit water, black trees, distant buildings, orange reflection, pale streetlit edges.
     nightLake: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#000114", "#150000", "#121a26", "#3e290e",
             "#483a28", "#48463e", "#545d6b", "#8c754f",
@@ -725,7 +733,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Dense foliage, dim earth, pink morning haze, and warm yellow light cutting through leaves.
     jungleDawn: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#020100", "#232a07", "#30252f", "#323326",
             "#5e2529", "#766976", "#797a6b", "#b06d6e",
@@ -736,7 +744,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Blackened violet, wine red, muted olive, dusty flesh, pale pink, and bone-yellow light.
     softGoth: {
-        category: "Art + mood",
+        category: "Photographic",
         colors: [
             "#030014", "#2c0000", "#4b111d", "#1f266a",
             "#273800", "#86482c", "#806a53", "#a7656d",
@@ -747,7 +755,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Dark parlor reds, oxidized greens, cloudy blues, dusty rose, and soft porcelain highlights.
     victorianAutumn: {
-        category: "Art + mood",
+        category: "Photographic",
         colors: [
             "#100a0e", "#422623", "#13362e", "#173242",
             "#433742", "#566b41", "#5e699a", "#9a7874",
@@ -758,7 +766,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Neon city darkness: purple-black ramps, hot pinks, warning orange, cyan plasma.
     cyberNight: {
-        category: "Art + mood",
+        category: "Digital nostalgia",
         colors: [
             "#000000", "#06000e", "#10001c", "#1e0030",
             "#38004e", "#5e0d70", "#9330a8", "#c868d8",
@@ -769,7 +777,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Chrome-sky blues, clean whites, launch-orange accents, and teal dashboard glow.
     retrofuture: {
-        category: "Art + mood",
+        category: "Digital nostalgia",
         colors: [
             "#02050a", "#081428", "#102448", "#1c3a78",
             "#2a5aa0", "#4080c0", "#70b0e8", "#b0d8ff",
@@ -780,7 +788,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Pool-tile unease: deep teal shadows, chlorinated greens, wet blues, too-clean highlights.
     liminalWater: {
-        category: "Art + mood",
+        category: "Interiors + liminal",
         colors: [
             "#040c10", "#081820", "#103028", "#184840",
             "#206858", "#309070", "#50b890", "#80d8b0",
@@ -802,19 +810,19 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Minimal icy blue shadows with a hard ochre sun flare.
     coldSun: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: ["#0a0c10", "#1c3050", "#d09020", "#f8e080"]
     },
 
     // Dark wine glass, pink refraction, and creamy highlight.
     roseGlass: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: ["#0e0818", "#4a1848", "#a03888", "#e880c0", "#ffe8f8"]
     },
 
     // Glazed turquoise, cream, ochre, clay, and red-orange ceramic accents.
     moroccanTile: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#0a1418", "#102830", "#1c4858", "#1d6f8a",
             "#2a9ab8", "#3ec0d8", "#7ad8e0", "#b8e8e8",
@@ -825,7 +833,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Nearly black, hard gray, cigarette paper beige, and one blood-red accent.
     noir: {
-        category: "Art + mood",
+        category: "Print + graphic design",
         colors: [
             "#0a0a0c", "#3a3a3e", "#c8c0b0", "#b02020"
         ]
@@ -833,7 +841,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Minimal modernist blocks: black, off-white, red, yellow, and blue.
     bauhaus: {
-        category: "Art + mood",
+        category: "Print + graphic design",
         colors: [
             "#1a1a1a", "#f0ece4", "#d8281c", "#f0c020", "#1c50a0"
         ]
@@ -841,7 +849,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Old paper, ink, and brown halftone warmth.
     sepiaType: {
-        category: "Art + mood",
+        category: "Print + graphic design",
         colors: [
             "#1a1410", "#6e5640", "#f4ebd6"
         ]
@@ -849,7 +857,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Warm plastic, magenta label ink, yellow tape-card nostalgia, and cream highlights.
     cassette: {
-        category: "Art + mood",
+        category: "Digital nostalgia",
         colors: [
             "#1c1410", "#6c2848", "#c84a78", "#f0d058", "#f4ecd8"
         ]
@@ -857,7 +865,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Cool green-black, herbal midtones, and soft mint highlight.
     mint: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#0c2018", "#2e5848", "#88b89c", "#e0f0d8"
         ]
@@ -865,7 +873,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // warm, restrained, earthy, rural
     zuhanden: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#020501", "#341101", "#444c3f", "#8f423a",
             "#8b604d", "#8b8d7f", "#d2a85c", "#ecbba6"
@@ -874,7 +882,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
     // the other side of Lake Merritt, by the Cathedral of
     // Christ the Light
     lakeNight: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#000000", "#030714", "#1d1148", "#332627",
             "#475062", "#8a520e", "#6963a3", "#cd462d",
@@ -884,7 +892,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
     },
     // Tarnished brass, soot, wet olive, and an old ivory label.
     brassLichen: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#080907", "#2a2412", "#4f4a25", "#7b6a32",
             "#8fa06a", "#d8d0a8"
@@ -893,7 +901,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Blue hour concrete, sodium window-glow, and rain caught on glass.
     rainMotel: {
-        category: "Art + mood",
+        category: "Interiors + liminal",
         colors: [
             "#05070c", "#111827", "#26384d", "#5f6f7f",
             "#c27842", "#f0c08a", "#e8e0d2"
@@ -902,7 +910,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Dusty arcade carpet: bruised purple, hot coin-slot red, gum blue.
     arcadeCarpet: {
-        category: "Art + mood",
+        category: "Digital nostalgia",
         colors: [
             "#090611", "#27143f", "#542b6e", "#a43b74",
             "#e84a5f", "#35a7b8", "#f3d06b"
@@ -911,7 +919,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Frosted hospital mint, pale plastic, cold steel, one anxious red LED.
     clinicGlow: {
-        category: "Art + mood",
+        category: "Interiors + liminal",
         colors: [
             "#05090a", "#102022", "#244448", "#78a8a0",
             "#d7eee6", "#f6fff8", "#d93838"
@@ -920,7 +928,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Plum ink, brown paper, candle cream, and foxglove pink.
     paperWitch: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#100812", "#32162d", "#5c3044", "#8b4f54",
             "#c98c86", "#ead8b8", "#fff2d0"
@@ -929,7 +937,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Sea cave green-blacks, mussel blue, foam, and dead-gold sand.
     tidalCave: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#02090a", "#08201f", "#123b3d", "#1c5b62",
             "#4f8890", "#b8d8d6", "#d8c38a"
@@ -938,7 +946,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Old monitor phosphor, matte black plastic, amber terminal burn.
     greenScreen: {
-        category: "Art + mood",
+        category: "Digital nostalgia",
         colors: [
             "#030806", "#07150e", "#0e2a18", "#1f6b36",
             "#63c06b", "#c8ffd0", "#d79a31"
@@ -947,7 +955,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Soft brutalism: concrete, faded blue paint, rust leak, chalky sky.
     concreteRust: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#0c0d0d", "#343735", "#6b7068", "#9a9f94",
             "#31506d", "#b05a35", "#e1ded0"
@@ -955,7 +963,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
     },
     // Sun-bleached pool chair, old sunscreen, turquoise shadow.
     resortGhost: {
-        category: "Art + mood",
+        category: "Interiors + liminal",
         colors: [
             "#061014", "#123440", "#246c78", "#62aeb0",
             "#d2e8df", "#f4dfac", "#e58f6f"
@@ -964,7 +972,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Tiny chapel palette: black wood, wine velvet, gold leaf, candle smoke.
     chapelVelvet: {
-        category: "Art + mood",
+        category: "Interiors + liminal",
         colors: [
             "#050304", "#1a0b10", "#43151e", "#6f2830",
             "#8a6a32", "#d8b86a", "#f3e4bd"
@@ -973,7 +981,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Bad VHS fantasy forest: crushed black, fern, violet fog, fairy peach.
     vhsFern: {
-        category: "Art + mood",
+        category: "Digital nostalgia",
         colors: [
             "#030403", "#10220e", "#27451e", "#5c7042",
             "#55406e", "#9c7caf", "#ffc0a8"
@@ -983,7 +991,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Warm manuscript: ink, oxblood margin note, ochre glue, vellum.
     scriptorium: {
-        category: "Art + mood",
+        category: "Print + graphic design",
         colors: [
             "#120d08", "#352617", "#694522", "#9b6d32",
             "#8e2524", "#d6b878", "#f4ead0"
@@ -992,7 +1000,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Deep lake green, moon zinc, dock wood, and one mosquito-coil orange.
     dockLight: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#010607", "#07191b", "#133436", "#31514c",
             "#6f6a52", "#b7b6a0", "#f28b3c"
@@ -1001,7 +1009,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // half-mint, half-bubblegum, tastes like nothing
     glassCandy: {
-        category: "Art + mood",
+        category: "Minimal + material",
         colors: [
             "#071307", "#093c31", "#00646d", "#3c88b8",
             "#9f9af9", "#ffb7fa"
@@ -1010,7 +1018,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // curl of flame in the sky, fuel black to clean combustion yellow
     fireSeason: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#17150f", "#765c60", "#a7685d", "#d9764f",
             "#fe9d27", "#fee555"
@@ -1019,7 +1027,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Powder room at midnight: black tile, rose soap, brass, milk glass.
     powderRoom: {
-        category: "Art + mood",
+        category: "Interiors + liminal",
         colors: [
             "#08070a", "#241822", "#59324a", "#a85f78",
             "#e2a9b7", "#b58a45", "#fff1e8"
@@ -1028,7 +1036,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Dead mall fountain: tile blue, beige stone, gum pink, shadow under skylights.
     mallFountain: {
-        category: "Art + mood",
+        category: "Interiors + liminal",
         colors: [
             "#07090b", "#183044", "#346a7a", "#8bb8b6",
             "#d6c6aa", "#d98c9f"
@@ -1037,7 +1045,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
      // Black ice and taillights: asphalt blue, slush gray, brake red, sodium haze.
     blackIce: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#020406", "#0b1420", "#233446", "#59646a",
             "#9b9a8f", "#c8322e", "#e6b46a"
@@ -1046,13 +1054,13 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Riso misregistration: fluoro pink, federal blue, sunflower, on cheap cream stock.
     risograph: {
-        category: "Art + mood",
+        category: "Print + graphic design",
         colors: ["#262223", "#ff48b0", "#0050c8", "#ffd400", "#46c8b4", "#f2e9d8"]
     },
 
     // Polar night: black sky, star salt, and slow green-violet curtains overhead.
     aurora: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#02030a", "#0a1424", "#10324a", "#1c6e5a",
             "#3ec88a", "#9ff0b0", "#5a3a8a", "#a878d8", "#e8f0ff"
@@ -1061,7 +1069,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Hokusai weather: Prussian indigo, wave teal, foam, and woodblock tan.
     ukiyoE: {
-        category: "Art + mood",
+        category: "Print + graphic design",
         colors: [
             "#0e1830", "#1d3b6b", "#356a9a", "#6fa2c0",
             "#b9d4d8", "#e7e0cc", "#c89a5e", "#7a4f2c"
@@ -1070,7 +1078,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Reef tank at noon: blue water, fire coral, anemone pink, sand glow.
     coralTank: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#04141e", "#0a3a5a", "#1284b0", "#3ec0d8",
             "#a8ecec", "#ff7a4a", "#ff5a8a", "#ffd06a", "#f4ecc8"
@@ -1079,7 +1087,7 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
     // Forest floor: wet bark, moss, leaf rot, one red cap, a few pale spores.
     amanita: {
-        category: "Art + mood",
+        category: "Landscape + nature",
         colors: [
             "#0a0b07", "#1c2412", "#33401f", "#5a6432",
             "#8a8a4a", "#b03028", "#d8584a", "#e8d8b0", "#fbf4e0"
@@ -1088,6 +1096,6 @@ globalThis.PALETTE_PRESET_CATALOG = {
 
 };
 
-globalThis.PALETTE_PRESETS = Object.fromEntries(
-    Object.entries(globalThis.PALETTE_PRESET_CATALOG).map(([name, preset]) => [name, preset.colors])
+export const PALETTE_PRESETS = Object.fromEntries(
+    Object.entries(PALETTE_PRESET_CATALOG).map(([name, preset]) => [name, preset.colors])
 );

@@ -21,11 +21,11 @@ export const OKLAB_SCALE = 100;
 export const DIAGNOSTIC_DIFF_OVERLAY_TEMPERATURE = 2.5;
 export const OKLAB_CHROMA_REF = 40;
 export const OKLCH_PROCEDURAL_CHROMA_MAX = 42;
-export const PALETTE_PRESET_CATALOG = globalThis.PALETTE_PRESET_CATALOG || {};
-export const PALETTE_PRESET_CATEGORY_ORDER = globalThis.PALETTE_PRESET_CATEGORY_ORDER || ["Other presets"];
-export const PALETTE_PRESETS = globalThis.PALETTE_PRESETS || Object.fromEntries(
-  Object.entries(PALETTE_PRESET_CATALOG).map(([name, preset]) => [name, preset.colors])
-);
+export {
+  PALETTE_PRESET_CATEGORY_ORDER,
+  PALETTE_PRESET_CATALOG,
+  PALETTE_PRESETS
+} from "./palette/preset-catalog.js";
 
 export const HARMONY_RELATIONSHIPS = {
     monochrome: {label: "Monochrome", offsets: [0], spread: 0},
