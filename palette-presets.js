@@ -103,6 +103,60 @@ globalThis.PALETTE_PRESET_CATALOG = {
         ]
     },
 
+    // Atari 2600 TIA (NTSC) — representative subset.
+    // Full hardware palette is 128 colors (16 hues x 8 lumas); this is a
+    // usable cross-section snapped to real TIA values, not the whole set.
+    atari2600: {
+        category: "Consoles + handhelds",
+        colors: [
+            "#000000", "#6c6c6c", "#b0b0b0", "#ececec",
+            "#b8b840", "#fcfc68", "#844414", "#ac783c",
+            "#dcb468", "#880000", "#c05858", "#fcb4b4",
+            "#ac5030", "#a03c88", "#d084c0", "#783ca4",
+            "#b484dc", "#3840b0", "#7c8ce0", "#386890",
+            "#7cb4d4", "#7cd0ac", "#407c40", "#8cd08c"
+        ]
+    },
+
+    // Sega Genesis / Mega Drive — one 16-color bank.
+    // 9-bit VDP: every channel snapped to the hardware-measured ramp
+    // (00 34 57 74 90 ac ce ff), so all colors are hardware-valid.
+    segaGenesis: {
+        category: "Consoles + handhelds",
+        colors: [
+            "#000000", "#343434", "#747474", "#acacac",
+            "#ffffff", "#570000", "#ac0000", "#ff5734",
+            "#ffac57", "#ffff90", "#007400", "#34ac34",
+            "#90ce74", "#003490", "#3474ce", "#57cece"
+        ]
+    },
+
+    // Game Boy Advance "unlit screen" look — NOT a hardware palette.
+    // GBA is 15-bit truecolor; this mimics the washed-out, low-contrast
+    // cast of the original unlit AGB panel that games compensated for.
+    gbaUnlit: {
+        category: "Consoles + handhelds",
+        colors: [
+            "#1c1e26", "#34384a", "#4e5468", "#6e7488",
+            "#9098a4", "#b0b4bc", "#d2d2d0", "#e8e4d8",
+            "#8a7468", "#b09484", "#9a8c6e", "#c0b48c",
+            "#6e8478", "#8aa896", "#6a7c98", "#9aacc0"
+        ]
+    },
+
+    // PlayStation 1 "dithered murk" look — NOT a hardware palette.
+    // PS1 is 15-bit truecolor + dithering; this captures the warm, low-light,
+    // slightly-grimy early-3D mood rather than any fixed color set.
+    ps1Murk: {
+        category: "Consoles + handhelds",
+        colors: [
+            "#0a0a10", "#181824", "#28283a", "#3a3848",
+            "#4e4a52", "#6a5e5a", "#8a7868", "#a89684",
+            "#5a4038", "#7e5848", "#9a7050", "#3a4a50",
+            "#587078", "#7e9aa0", "#c0b49a", "#e0d8c4"
+        ]
+    },
+
     // Game Boy Pocket-inspired palette.
     // Cooler and cleaner than the original DMG.
     gameBoyPocket: {
@@ -987,6 +1041,48 @@ globalThis.PALETTE_PRESET_CATALOG = {
         colors: [
             "#020406", "#0b1420", "#233446", "#59646a",
             "#9b9a8f", "#c8322e", "#e6b46a"
+        ]
+    },
+
+    // Riso misregistration: fluoro pink, federal blue, sunflower, on cheap cream stock.
+    risograph: {
+        category: "Art + mood",
+        colors: ["#262223", "#ff48b0", "#0050c8", "#ffd400", "#46c8b4", "#f2e9d8"]
+    },
+
+    // Polar night: black sky, star salt, and slow green-violet curtains overhead.
+    aurora: {
+        category: "Art + mood",
+        colors: [
+            "#02030a", "#0a1424", "#10324a", "#1c6e5a",
+            "#3ec88a", "#9ff0b0", "#5a3a8a", "#a878d8", "#e8f0ff"
+        ]
+    },
+
+    // Hokusai weather: Prussian indigo, wave teal, foam, and woodblock tan.
+    ukiyoE: {
+        category: "Art + mood",
+        colors: [
+            "#0e1830", "#1d3b6b", "#356a9a", "#6fa2c0",
+            "#b9d4d8", "#e7e0cc", "#c89a5e", "#7a4f2c"
+        ]
+    },
+
+    // Reef tank at noon: blue water, fire coral, anemone pink, sand glow.
+    coralTank: {
+        category: "Art + mood",
+        colors: [
+            "#04141e", "#0a3a5a", "#1284b0", "#3ec0d8",
+            "#a8ecec", "#ff7a4a", "#ff5a8a", "#ffd06a", "#f4ecc8"
+        ]
+    },
+
+    // Forest floor: wet bark, moss, leaf rot, one red cap, a few pale spores.
+    amanita: {
+        category: "Art + mood",
+        colors: [
+            "#0a0b07", "#1c2412", "#33401f", "#5a6432",
+            "#8a8a4a", "#b03028", "#d8584a", "#e8d8b0", "#fbf4e0"
         ]
     }
 
