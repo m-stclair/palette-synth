@@ -3,6 +3,15 @@ precision highp float;
 
 uniform sampler2D u_image;
 uniform sampler2D u_mask;
+#ifndef SOURCE_ANALYSIS_ENABLED
+#define SOURCE_ANALYSIS_ENABLED 0
+#endif
+#if SOURCE_ANALYSIS_ENABLED
+uniform sampler2D u_sourceAnalysis;
+uniform float u_ditherSourceGuardAmount;
+uniform float u_ditherSourceGuardMinGain;
+uniform float u_ditherSourceGuardFlatThreshold;
+#endif
 uniform int u_maskEnabled;
 uniform int u_maskBehavior;
 uniform vec2 u_resolution;
@@ -959,6 +968,54 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
 #endif
 
 
+#if SOURCE_ANALYSIS_ENABLED
+struct SourceAnalysisSample {
+    float edgeEnergy;
+    float textureEnergy;
+    float anisotropy;
+    float varianceEnergy;
+};
+
+SourceAnalysisSample sourceAnalysisForUv(vec2 uv) {
+    vec4 packed = texture(u_sourceAnalysis, uv);
+    return SourceAnalysisSample(packed.r, packed.g, packed.b, packed.a);
+}
+
+float sourceAnalysisStructure(SourceAnalysisSample sample_) {
+    float coherentEdge = clamp(sample_.edgeEnergy, 0.0, 1.0);
+    float isotropicTexture = clamp(sample_.textureEnergy, 0.0, 1.0);
+    float localVariance = clamp(sample_.varianceEnergy, 0.0, 1.0);
+    return clamp(max(coherentEdge, max(isotropicTexture, localVariance * 0.65)), 0.0, 1.0);
+}
+
+float sourceAnalysisFlatness(vec2 uv) {
+    SourceAnalysisSample analysis = sourceAnalysisForUv(uv);
+    float threshold = max(u_ditherSourceGuardFlatThreshold, 0.001);
+    float structure = sourceAnalysisStructure(analysis);
+    return 1.0 - smoothstep(threshold * 0.35, threshold, structure);
+}
+
+float sourceDitherGuardRequiredGain(vec2 uv) {
+    float amount = clamp(u_ditherSourceGuardAmount, 0.0, 1.0);
+    float minGain = max(u_ditherSourceGuardMinGain, 0.0);
+    return minGain * amount * sourceAnalysisFlatness(uv);
+}
+
+float applySourceDitherGuard(float chooseSecond, vec3 sourceLab, vec3 nearestOutput, vec3 averageOutput, vec2 sourceUv) {
+    if (chooseSecond < 0.0625) {
+        return chooseSecond;
+    }
+
+    float nearestError = assignmentDistanceBetweenLabs(sourceLab, nearestOutput);
+    float mixedError = assignmentDistanceBetweenLabs(sourceLab, averageOutput);
+    float usefulGain = max(nearestError - mixedError, 0.0);
+    float requiredGain = sourceDitherGuardRequiredGain(sourceUv);
+
+    return usefulGain >= requiredGain ? chooseSecond : 0.0;
+}
+#endif
+
+
 #if ASSIGNMODE == ASSIGN_DITHER
 
     float orderedDither8x8(vec2 fragCoord, float scale) {
@@ -1134,7 +1191,7 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
     #endif
     }
 
-    vec3 ditherAssign(vec3 lab, int cycleOffset, vec2 fragCoord, bool maskActive, bool cycleMuted) {
+    vec3 ditherAssign(vec3 lab, int cycleOffset, vec2 fragCoord, vec2 sourceUv, bool maskActive, bool cycleMuted) {
         if (u_paletteSize <= 0) {
             return lab;
         }
@@ -1202,6 +1259,13 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
             }
         }
 #endif
+#if SOURCE_ANALYSIS_ENABLED
+        float guardedChooseSecond = applySourceDitherGuard(chooseSecond, lab, nearestOutput, averageOutput, sourceUv);
+        if (guardedChooseSecond <= 0.0) {
+            chooseSecond = 0.0;
+            averageOutput = nearestOutput;
+        }
+#endif
 
         float cutoffKeep = maxOutputDistanceKeep(lab, averageOutput);
         if (cutoffKeep <= 0.0) {
@@ -1220,7 +1284,7 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
         return mix(lab, chosenOutput, cutoffKeep);
     }
 
-    float selectedDitherWeight(vec3 lab, int selectedSwatch, vec2 fragCoord) {
+    float selectedDitherWeight(vec3 lab, int selectedSwatch, vec2 fragCoord, vec2 sourceUv) {
         if (u_paletteSize <= 0 || selectedSwatch < 0) {
             return 0.0;
         }
@@ -1275,6 +1339,13 @@ bool monotoneGuardRejects(vec3 sourceLab, vec3 candidateLab, vec3 nearestLab) {
                     chooseSecond = 0.0;
                     expectedOutput = nearestOutput;
                 }
+            }
+#endif
+#if SOURCE_ANALYSIS_ENABLED
+            float guardedChooseSecond = applySourceDitherGuard(chooseSecond, lab, nearestOutput, expectedOutput, sourceUv);
+            if (guardedChooseSecond <= 0.0) {
+                chooseSecond = 0.0;
+                expectedOutput = nearestOutput;
             }
 #endif
 
@@ -1355,7 +1426,7 @@ void main() {
 #if ASSIGNMODE == ASSIGN_BLEND
     vec3 labMapped = softAssign(lab, effectiveCycleOffset, maskActiveHere, cycleMutedHere);
 #elif ASSIGNMODE == ASSIGN_DITHER
-    vec3 labMapped = ditherAssign(lab, effectiveCycleOffset, ditherCoord, maskActiveHere, cycleMutedHere);
+    vec3 labMapped = ditherAssign(lab, effectiveCycleOffset, ditherCoord, sample_.uv, maskActiveHere, cycleMutedHere);
 #else
     vec3 labMapped = matchNearest(lab, effectiveCycleOffset, maskActiveHere, cycleMutedHere);
 #endif
@@ -1370,7 +1441,7 @@ void main() {
   #if ASSIGNMODE == ASSIGN_BLEND
     swatchSignal = selectedBlendWeight(lab, u_diagnosticOverlaySwatch);
   #elif ASSIGNMODE == ASSIGN_DITHER
-    swatchSignal = selectedDitherWeight(lab, u_diagnosticOverlaySwatch, ditherCoord);
+    swatchSignal = selectedDitherWeight(lab, u_diagnosticOverlaySwatch, ditherCoord, sample_.uv);
   #else
     swatchSignal = selectedNearestWeight(lab, u_diagnosticOverlaySwatch);
   #endif

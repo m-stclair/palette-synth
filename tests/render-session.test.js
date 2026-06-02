@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRenderSession, renderSettingsFromConfig } from "../src/runtime/render-session.js";
+import { createRenderSession, paletteRenderNeedsSourceAnalysis, renderSettingsFromConfig } from "../src/runtime/render-session.js";
 
 function makeConfig(overrides = {}) {
   return {
@@ -22,6 +22,10 @@ function makeConfig(overrides = {}) {
     ditherScale: 4,
     ditherAngle: 30,
     ditherLumaAmount: 0.6,
+    ditherSourceGuardEnabled: false,
+    ditherSourceGuardAmount: 0.7,
+    ditherSourceGuardMinGain: 2.25,
+    ditherSourceGuardFlatThreshold: 0.2,
     pixelArtEnabled: true,
     pixelBlockSize: 3,
     pixelBlockSampleMode: "center",
@@ -83,6 +87,7 @@ function makeSession(overrides = {}) {
     clampViewCenter: overrides.clampViewCenter || (() => {}),
     buildProgram: overrides.buildProgram ?? (() => "program"),
     vertexSource: overrides.vertexSource ?? "",
+    sourceAnalysisFragmentSource: overrides.sourceAnalysisFragmentSource ?? "",
     postProcessFragmentSource: overrides.postProcessFragmentSource ?? "",
     edgeTightenFragmentSource: overrides.edgeTightenFragmentSource ?? "",
     viewCompositeFragmentSource: overrides.viewCompositeFragmentSource ?? "",
@@ -99,6 +104,9 @@ function makeSession(overrides = {}) {
     },
     clearFramebufferFn: (...args) => calls.push(["clear", ...args.slice(1)]),
     renderPalettePassFn: (_gl, _program, options) => calls.push(["render", options]),
+    renderSourceAnalysisPassFn: overrides.renderSourceAnalysisPassFn
+      ?? ((_gl, _program, options) => calls.push(["sourceAnalysis", options])),
+    buildStaticProgramFn: overrides.buildStaticProgramFn ?? (() => "staticProgram"),
     ensureOffscreenPaletteTargetFn: overrides.ensureOffscreenPaletteTargetFn
       ?? ((_gl, _cache, width, height) => {
         calls.push(["offscreen", width, height]);
@@ -141,10 +149,20 @@ test("renderSettingsFromConfig selects only shader render settings", () => {
     ditherScale: 4,
     ditherAngle: 30,
     ditherLumaAmount: 0.6,
+    ditherSourceGuardAmount: 0.7,
+    ditherSourceGuardMinGain: 2.25,
+    ditherSourceGuardFlatThreshold: 0.2,
     pixelArtEnabled: true,
     pixelBlockSize: 3,
     pixelBlockSampleMode: "center"
   });
+});
+
+test("source analysis only for active source texture dither guard", () => {
+  assert.equal(paletteRenderNeedsSourceAnalysis(makeConfig({assignMode: "blend", ditherSourceGuardEnabled: true})), false);
+  assert.equal(paletteRenderNeedsSourceAnalysis(makeConfig({assignMode: "dither", ditherSourceGuardEnabled: false})), false);
+  assert.equal(paletteRenderNeedsSourceAnalysis(makeConfig({assignMode: "dither", ditherSourceGuardEnabled: true, ditherSourceGuardAmount: 0})), false);
+  assert.equal(paletteRenderNeedsSourceAnalysis(makeConfig({assignMode: "dither", ditherSourceGuardEnabled: true, ditherSourceGuardAmount: 0.4})), true);
 });
 
 test("render session dirty flags invalidate only the right cached pieces", () => {
@@ -371,6 +389,66 @@ test("renderPaletteProgram supplies cached palette defaults and render settings"
   assert.equal(renderCall[1].cycleOffset, 3);
   assert.equal(renderCall[1].compareSplit, undefined);
   assert.deepEqual(renderCall[1].settings, renderSettingsFromConfig(config));
+});
+
+
+test("renderPaletteProgram leaves source analysis cold unless requested", () => {
+  const state = makeState({
+    sourceAnalysis: {texture: null, framebuffer: null, program: null, programKey: "", width: 0, height: 0, sourceTexture: null, gl: null, dirty: true}
+  });
+  const {session, calls} = makeSession({state});
+
+  session.renderPaletteProgram(state.gl, "program", {
+    texture: {id: "texture"},
+    viewport: {x: 0, y: 0, w: 10, h: 10},
+    resolution: [10, 10],
+    viewportOrigin: [0, 0],
+    viewCenter: [0.5, 0.5],
+    viewSpan: [1, 1],
+    sourceImageSize: [10, 10]
+  });
+
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === "sourceAnalysis"), false);
+  const renderCall = calls.find(call => Array.isArray(call) && call[0] === "render");
+  assert.equal(renderCall[1].sourceAnalysisTexture, null);
+});
+
+test("renderPaletteProgram computes and binds source analysis only when requested", () => {
+  const sourceTexture = {id: "source"};
+  const analysisTexture = {id: "analysis"};
+  const state = makeState({
+    sourceAnalysis: {texture: analysisTexture, framebuffer: "analysisFb", program: null, programKey: "", width: 0, height: 0, sourceTexture: null, gl: null, dirty: true},
+    gl: {canvas: {width: 10, height: 10}, createFramebuffer: () => "analysisFb"}
+  });
+  const {session, calls} = makeSession({
+    state,
+    vertexSource: "vertex",
+    sourceAnalysisFragmentSource: "analysis",
+    buildStaticProgramFn: (_gl, _cache, options) => {
+      calls.push(["buildStatic", options.linkErrorMessage]);
+      return "analysisProgram";
+    }
+  });
+
+  session.renderPaletteProgram(state.gl, "program", {
+    texture: sourceTexture,
+    sourceAnalysisRequired: true,
+    viewport: {x: 0, y: 0, w: 10, h: 10},
+    resolution: [10, 10],
+    viewportOrigin: [0, 0],
+    viewCenter: [0.5, 0.5],
+    viewSpan: [1, 1],
+    sourceImageSize: [10, 10]
+  });
+
+  assert.deepEqual(calls.find(call => Array.isArray(call) && call[0] === "buildStatic"), ["buildStatic", "source analysis shader failed"]);
+  const analysisCall = calls.find(call => Array.isArray(call) && call[0] === "sourceAnalysis");
+  assert.equal(analysisCall[1].sourceTexture, sourceTexture);
+  assert.equal(analysisCall[1].targetTexture, analysisTexture);
+  assert.deepEqual(analysisCall[1].sourceSize, [10, 10]);
+  const renderCall = calls.find(call => Array.isArray(call) && call[0] === "render");
+  assert.equal(renderCall[1].sourceAnalysisTexture, analysisTexture);
+  assert.equal(state.sourceAnalysis.dirty, false);
 });
 
 test("renderPaletteProgram keeps cycle-within mask active for manual cycle tags", () => {
@@ -601,6 +679,42 @@ test("draw forwards histogram diagnostic overlay uniforms", () => {
   assert.equal(directRender[1].diagnosticOverlayHistogramChannel, "chroma");
   assert.equal(directRender[1].diagnosticOverlayHistogramMin, 11.2);
   assert.equal(directRender[1].diagnosticOverlayHistogramMax, 12.8);
+});
+
+test("draw enables source analysis for active source texture dither guard", () => {
+  const state = makeState({
+    gl: {
+      canvas: {width: 10, height: 10},
+      bindFramebuffer: () => {},
+      createFramebuffer: () => "sourceAnalysisFb"
+    },
+    sourceAnalysis: {texture: null, framebuffer: null, program: null, programKey: "", width: 0, height: 0, sourceTexture: null, gl: null, dirty: true}
+  });
+  const config = makeConfig({
+    assignMode: "dither",
+    ditherSourceGuardEnabled: true,
+    ditherSourceGuardAmount: 0.5
+  });
+  const {session, calls} = makeSession({
+    state,
+    config,
+    vertexSource: "vertex",
+    sourceAnalysisFragmentSource: "analysis",
+    buildProgram: overrides => {
+      calls.push(["buildProgram", overrides]);
+      return "program";
+    },
+    buildStaticProgramFn: () => "analysisProgram"
+  });
+
+  session.draw();
+
+  const buildCall = calls.find(call => Array.isArray(call) && call[0] === "buildProgram");
+  assert.equal(buildCall[1].sourceAnalysisEnabled, true);
+  assert.ok(calls.some(call => Array.isArray(call) && call[0] === "sourceAnalysis"));
+  const renderCall = calls.find(call => Array.isArray(call) && call[0] === "render");
+  assert.equal(renderCall[1].sourceAnalysisRequired, true);
+  assert.ok(renderCall[1].sourceAnalysisTexture);
 });
 
 test("draw builds a shader variant for the active diagnostic overlay", () => {

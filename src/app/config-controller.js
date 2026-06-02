@@ -4,6 +4,8 @@ import { syncColorPickerInput } from "../ui/color-picker.js";
 import { syncPaletteSwatchScaleUi } from "../ui/palette-swatch-scale.js";
 import {
   cloneConfigSnapshot as cloneConfigSnapshotFrom,
+  ditherSourceGuardFlatThresholdSliderValue,
+  formatDitherSourceGuardFlatThreshold,
   preserveMissingTransientConfigState,
   sanitizeConfigSnapshot as sanitizeConfigSnapshotBase
 } from "../state/config.js";
@@ -93,6 +95,7 @@ export function createConfigController({
     if (key === "cyclePreviewSpeed") out.textContent = `${Number(value).toFixed(1)} steps/s`;
     else if (key === "harmonyRampSteepness") out.textContent = `${Number(value).toFixed(2)}×`;
     else if (key === "pixelBlockSize") out.textContent = pixelBlockSizeOutputText(config, value);
+    else if (key === "ditherSourceGuardFlatThreshold") out.textContent = formatDitherSourceGuardFlatThreshold(value);
     else out.textContent = String(value);
   }
 
@@ -101,6 +104,7 @@ export function createConfigController({
       const el = byId(key);
       if (!el) continue;
       if (el.type === "checkbox") el.checked = !!config[key];
+      else if (key === "ditherSourceGuardFlatThreshold") el.value = ditherSourceGuardFlatThresholdSliderValue(config[key]);
       else if (!Array.isArray(config[key])) el.value = config[key];
       syncColorPickerInput(el);
       setOutputText(key, byId(`${key}Value`), Array.isArray(config[key]) ? el.value : config[key]);

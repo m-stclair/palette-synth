@@ -69,6 +69,10 @@ function loupeOutputConfigSignature(config = {}) {
     signatureNumber(config.ditherLumaAmount),
     signatureNumber(config.ditherScale),
     signatureNumber(config.ditherAngle),
+    signatureBool(config.ditherSourceGuardEnabled),
+    signatureNumber(config.ditherSourceGuardAmount),
+    signatureNumber(config.ditherSourceGuardMinGain),
+    signatureNumber(config.ditherSourceGuardFlatThreshold),
     isPixelArtEnabled(config) ? effectivePixelBlockSize(config) : 0,
     config.pixelBlockSampleMode ?? "center"
   ].join("~");

@@ -7,6 +7,7 @@ const SHADER_URLS = {
   CLARITY_SHARP_BLUR_FRAGMENT_SHADER: new URL("./clarity-sharp-blur.frag", import.meta.url),
   CLARITY_FRAGMENT_SHADER: new URL("./clarity.frag", import.meta.url),
   BLOCK_SAMPLE_FRAGMENT_SHADER: new URL("./block-sample.frag", import.meta.url),
+  SOURCE_ANALYSIS_FRAGMENT_SHADER: new URL("./source-analysis.frag", import.meta.url),
   PALETTE_POST_FRAGMENT_SHADER: new URL("./palette-post.frag", import.meta.url),
   PALETTE_EDGE_TIGHTEN_FRAGMENT_SHADER: new URL("./palette-edge-tighten.frag", import.meta.url),
   VIEW_COMPOSITE_FRAGMENT_SHADER: new URL("./view-composite.frag", import.meta.url)
@@ -28,6 +29,7 @@ export async function loadShaders() {
     CLARITY_SHARP_BLUR_FRAGMENT_SHADER,
     CLARITY_FRAGMENT_SHADER,
     BLOCK_SAMPLE_FRAGMENT_SHADER,
+    SOURCE_ANALYSIS_FRAGMENT_SHADER,
     PALETTE_POST_FRAGMENT_SHADER,
     PALETTE_EDGE_TIGHTEN_FRAGMENT_SHADER,
     VIEW_COMPOSITE_FRAGMENT_SHADER
@@ -40,6 +42,7 @@ export async function loadShaders() {
     fetchText("Clarity sharp blur fragment", SHADER_URLS.CLARITY_SHARP_BLUR_FRAGMENT_SHADER),
     fetchText("Clarity fragment", SHADER_URLS.CLARITY_FRAGMENT_SHADER),
     fetchText("Block sample fragment", SHADER_URLS.BLOCK_SAMPLE_FRAGMENT_SHADER),
+    fetchText("Source analysis fragment", SHADER_URLS.SOURCE_ANALYSIS_FRAGMENT_SHADER),
     fetchText("Palette post-process fragment", SHADER_URLS.PALETTE_POST_FRAGMENT_SHADER),
     fetchText("Palette edge-tighten fragment", SHADER_URLS.PALETTE_EDGE_TIGHTEN_FRAGMENT_SHADER),
     fetchText("View composite fragment", SHADER_URLS.VIEW_COMPOSITE_FRAGMENT_SHADER)
@@ -53,6 +56,7 @@ export async function loadShaders() {
     CLARITY_SHARP_BLUR_FRAGMENT_SHADER,
     CLARITY_FRAGMENT_SHADER,
     BLOCK_SAMPLE_FRAGMENT_SHADER,
+    SOURCE_ANALYSIS_FRAGMENT_SHADER,
     PALETTE_POST_FRAGMENT_SHADER,
     PALETTE_EDGE_TIGHTEN_FRAGMENT_SHADER,
     VIEW_COMPOSITE_FRAGMENT_SHADER

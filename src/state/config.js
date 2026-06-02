@@ -26,6 +26,34 @@ export const DEFAULT_COSINE_CUSTOM_VECTORS = {
 export const COSINE_VECTOR_KEYS = ["a", "b", "c", "d"];
 export const PALETTE_SWATCH_SCALES = [1, 2, 3];
 
+export const DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MIN = 0.003;
+export const DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MAX = 0.3;
+export const DITHER_SOURCE_GUARD_FLAT_THRESHOLD_DEFAULT = 0.05;
+
+function finiteNumberOr(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+export function ditherSourceGuardFlatThresholdFromSlider(value) {
+  const t = clamp01(finiteNumberOr(value, 0));
+  const min = DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MIN;
+  const max = DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MAX;
+  return min * Math.pow(max / min, t);
+}
+
+export function ditherSourceGuardFlatThresholdSliderValue(value) {
+  const min = DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MIN;
+  const max = DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MAX;
+  const threshold = clamp(finiteNumberOr(value, DITHER_SOURCE_GUARD_FLAT_THRESHOLD_DEFAULT), min, max);
+  return Math.log(threshold / min) / Math.log(max / min);
+}
+
+export function formatDitherSourceGuardFlatThreshold(value) {
+  const threshold = clamp(finiteNumberOr(value, DITHER_SOURCE_GUARD_FLAT_THRESHOLD_DEFAULT), DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MIN, DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MAX);
+  return threshold < 0.1 ? threshold.toFixed(3) : threshold.toFixed(2);
+}
+
 export function isPixelArtEnabled(config = {}) {
   return config?.pixelArtEnabled === true;
 }
@@ -37,6 +65,12 @@ export function effectivePixelBlockSize(config = {}) {
 
 export function pixelBlockSliderValue(config = {}) {
   return isPixelArtEnabled(config) ? effectivePixelBlockSize(config) : 0;
+}
+
+export function ditherSourceGuardActive(config = {}) {
+  return config?.assignMode === "dither"
+    && config?.ditherSourceGuardEnabled === true
+    && (Number(config?.ditherSourceGuardAmount) || 0) > 0;
 }
 
 export function normalizePaletteSwatchScale(value) {
@@ -112,6 +146,10 @@ export const DEFAULT_CONFIG = {
   ditherAngle: 45,
   ditherLumaAmount: 1,
   ditherScale: 1,
+  ditherSourceGuardEnabled: false,
+  ditherSourceGuardAmount: 0.75,
+  ditherSourceGuardMinGain: 2.5,
+  ditherSourceGuardFlatThreshold: DITHER_SOURCE_GUARD_FLAT_THRESHOLD_DEFAULT,
   generatedAssist: 0,
   generatedTintShadeFamilies: false,
   cosineCustomTintShadeFamilies: true,
@@ -431,6 +469,19 @@ export function sanitizeConfigSnapshot(raw = {}, options = {}) {
   base.ditherAngle = clamp(Number(base.ditherAngle) || 0, -180, 180);
   base.ditherLumaAmount = clamp(Number(base.ditherLumaAmount) || 0, 0, 1);
   base.ditherScale = clamp(Math.round(Number(base.ditherScale) || DEFAULT_CONFIG.ditherScale), 1, 12);
+  base.ditherSourceGuardEnabled = !!base.ditherSourceGuardEnabled;
+  {
+    const guardAmount = Number(base.ditherSourceGuardAmount);
+    const guardMinGain = Number(base.ditherSourceGuardMinGain);
+    const guardFlatThreshold = Number(base.ditherSourceGuardFlatThreshold);
+    base.ditherSourceGuardAmount = clamp(Number.isFinite(guardAmount) ? guardAmount : DEFAULT_CONFIG.ditherSourceGuardAmount, 0, 1);
+    base.ditherSourceGuardMinGain = clamp(Number.isFinite(guardMinGain) ? guardMinGain : DEFAULT_CONFIG.ditherSourceGuardMinGain, 0, 20);
+    base.ditherSourceGuardFlatThreshold = clamp(
+      Number.isFinite(guardFlatThreshold) ? guardFlatThreshold : DEFAULT_CONFIG.ditherSourceGuardFlatThreshold,
+      DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MIN,
+      DITHER_SOURCE_GUARD_FLAT_THRESHOLD_MAX
+    );
+  }
   base.generatedAssist = clamp(Math.round(Number(base.generatedAssist) || 0), 0, 100);
   {
     const exposure = Number(base.levelsExposure);

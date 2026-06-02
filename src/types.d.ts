@@ -156,6 +156,10 @@ export interface AppConfig {
   ditherAngle: number;
   ditherLumaAmount: number;
   ditherScale: number;
+  ditherSourceGuardEnabled: boolean;
+  ditherSourceGuardAmount: number;
+  ditherSourceGuardMinGain: number;
+  ditherSourceGuardFlatThreshold: number;
   generatedAssist: number;
   generatedTintShadeFamilies: boolean;
   cosineCustomTintShadeFamilies: boolean;
@@ -257,6 +261,9 @@ export interface RenderSettings {
   ditherScale: number;
   ditherAngle: number;
   ditherLumaAmount: number;
+  ditherSourceGuardAmount: number;
+  ditherSourceGuardMinGain: number;
+  ditherSourceGuardFlatThreshold: number;
   pixelArtEnabled: boolean;
   pixelBlockSize: number;
   pixelBlockSampleMode: string;
@@ -289,6 +296,10 @@ export interface PaletteRenderPassOptions {
   viewSpan: Vec2;
   sourceImageSize?: Vec2;
   maskTexture?: WebGLTexture | null;
+  sourceAnalysisTexture?: WebGLTexture | null;
+  sourceAnalysisRequired?: boolean;
+  sourceAnalysisCache?: RuntimeSourceAnalysisState;
+  blockSampleCache?: RuntimeBlockSampleState;
   maskEnabled?: boolean;
   maskBehavior?: number;
   maskForbiddenSourceFlags?: number;
@@ -866,6 +877,18 @@ export interface RuntimeBlockSampleState {
   sourceTexture?: WebGLTexture | null;
 }
 
+export interface RuntimeSourceAnalysisState {
+  texture: WebGLTexture | null;
+  framebuffer: WebGLFramebuffer | null;
+  program: WebGLProgram | null;
+  programKey: string;
+  width: number;
+  height: number;
+  sourceTexture: WebGLTexture | null;
+  gl: WebGL2RenderingContext | null;
+  dirty: boolean;
+}
+
 /**
  * The mutable runtime bag. Unlike AppConfig, this contains DOM, canvas, GL,
  * cache, and dirty-flag state. It must not be persisted as a recipe/config snapshot.
@@ -897,6 +920,7 @@ export interface RuntimeState {
   referenceLevelsDirty: boolean;
   levels: RuntimeLevelsState;
   blockSample: RuntimeBlockSampleState;
+  sourceAnalysis: RuntimeSourceAnalysisState;
   paletteRegion: PaletteRegionState;
   mask: MaskState;
   paletteRecords: PaletteRecord[];
@@ -950,6 +974,7 @@ export interface ShaderSources {
   CLARITY_SHARP_BLUR_FRAGMENT_SHADER: string;
   CLARITY_FRAGMENT_SHADER: string;
   BLOCK_SAMPLE_FRAGMENT_SHADER: string;
+  SOURCE_ANALYSIS_FRAGMENT_SHADER: string;
   PALETTE_POST_FRAGMENT_SHADER: string;
   PALETTE_EDGE_TIGHTEN_FRAGMENT_SHADER: string;
   VIEW_COMPOSITE_FRAGMENT_SHADER: string;
@@ -992,6 +1017,11 @@ export interface RenderActions {
   markEverythingDirty(): void;
   ensureTexture(): void;
   ensurePalette(options?: { captureTrace?: boolean }): void;
+  ensureSourceAnalysisTexture(
+    gl: WebGL2RenderingContext,
+    sourceTexture: WebGLTexture,
+    options: { sourceSize: Vec2 | {width: number; height: number}; cache?: RuntimeSourceAnalysisState },
+  ): {texture: WebGLTexture | null; width: number; height: number};
   ensureLevelAdjustedPreviewSource(): HTMLCanvasElement | null;
   ensureLevelAdjustedSources(): ImageDataSource | null;
   currentRenderSettings(): RenderSettings;

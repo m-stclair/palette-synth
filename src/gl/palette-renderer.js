@@ -4,6 +4,7 @@ import { uniformArrayLocation, uniformLocation } from "./uniforms.js";
 export function renderPalettePass(gl, program, {
   texture,
   maskTexture = null,
+  sourceAnalysisTexture = null,
   maskEnabled = false,
   maskBehavior = 1,
   maskForbiddenSourceFlags = null,
@@ -41,6 +42,12 @@ export function renderPalettePass(gl, program, {
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, maskTexture);
   gl.uniform1i(uniformLocation(gl, program, "u_mask"), 1);
+  if (sourceAnalysisTexture) {
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, sourceAnalysisTexture);
+    gl.uniform1i(uniformLocation(gl, program, "u_sourceAnalysis"), 2);
+    gl.activeTexture(gl.TEXTURE0);
+  }
   gl.uniform1i(uniformLocation(gl, program, "u_maskEnabled"), maskEnabled && maskTexture ? 1 : 0);
   gl.uniform1i(uniformLocation(gl, program, "u_maskBehavior"), Math.max(0, Math.round(Number(maskBehavior) || 0)));
   gl.uniform1iv(uniformArrayLocation(gl, program, "u_maskForbiddenSourceFlags"), forbiddenFlags);
@@ -75,6 +82,9 @@ export function renderPalettePass(gl, program, {
   gl.uniform1f(uniformLocation(gl, program, "u_ditherScale"), Number(settings.ditherScale));
   gl.uniform1f(uniformLocation(gl, program, "u_ditherAngle"), Number(settings.ditherAngle));
   gl.uniform1f(uniformLocation(gl, program, "u_ditherLumaAmount"), Number(settings.ditherLumaAmount));
+  gl.uniform1f(uniformLocation(gl, program, "u_ditherSourceGuardAmount"), Math.max(0, Math.min(1, Number(settings.ditherSourceGuardAmount) || 0)));
+  gl.uniform1f(uniformLocation(gl, program, "u_ditherSourceGuardMinGain"), Math.max(0, Number(settings.ditherSourceGuardMinGain) || 0));
+  gl.uniform1f(uniformLocation(gl, program, "u_ditherSourceGuardFlatThreshold"), Math.max(0.001, Number(settings.ditherSourceGuardFlatThreshold) || 0.001));
   gl.uniform1i(uniformLocation(gl, program, "u_pixelArtEnabled"), settings.pixelArtEnabled ? 1 : 0);
   gl.uniform1f(uniformLocation(gl, program, "u_pixelBlockSize"), Math.max(1, Number(settings.pixelBlockSize) || 1));
   const overlaySwatch = Number(diagnosticOverlaySwatch);

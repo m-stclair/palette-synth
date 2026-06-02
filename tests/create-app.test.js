@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createPaletteSynthApp } from "../src/app/create-app.js";
+import { createAppCore } from "../src/app/core.js";
 
 function makeDocumentStub() {
   const created = [];
@@ -46,4 +47,15 @@ test("createPaletteSynthApp creates an isolated runtime graph", () => {
   assert.notEqual(second.config.paletteSize, 7);
   assert.deepEqual(second.state.paletteRecords, []);
   assert.equal(second.els.canvas, undefined);
+});
+
+
+test("createAppCore preserves source-analysis shader source", () => {
+  const core = createAppCore({
+    shaders: {SOURCE_ANALYSIS_FRAGMENT_SHADER: "source-analysis"},
+    document: makeDocumentStub(),
+    window: {}
+  });
+
+  assert.equal(core.shaders.SOURCE_ANALYSIS_FRAGMENT_SHADER, "source-analysis");
 });

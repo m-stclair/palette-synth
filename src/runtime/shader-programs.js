@@ -41,7 +41,8 @@ export function shaderDefineLinesForConfig(config, {
   manualCycleModeEnabled = () => false,
   diagnosticOverlayMode = "none",
   diagnosticOverlayHistogramScope = "source",
-  diagnosticOverlayHistogramChannel = "luma"
+  diagnosticOverlayHistogramChannel = "luma",
+  sourceAnalysisEnabled = false
 } = {}) {
   return [
     `#define ASSIGNMODE ${ASSIGN_MODE[config?.assignMode] ?? 1}`,
@@ -51,6 +52,7 @@ export function shaderDefineLinesForConfig(config, {
     `#define NEUTRAL_IS_CATEGORY ${config?.neutralIsCategory ? 1 : 0}`,
     `#define FIDELITY_GUARD ${config?.monotoneBlendDither && config?.assignMode !== "nearest" ? 1 : 0}`,
     `#define BLEND_PAIR_RESCUE ${config?.monotoneBlendDither && config?.blendPairRescue && config?.assignMode === "blend" ? 1 : 0}`,
+    `#define SOURCE_ANALYSIS_ENABLED ${sourceAnalysisEnabled ? 1 : 0}`,
     ...diagnosticShaderDefineLines({
       diagnosticOverlayMode,
       diagnosticOverlayHistogramScope,
@@ -80,7 +82,8 @@ export function createShaderProgramController({
       manualCycleModeEnabled,
       diagnosticOverlayMode: overrides.diagnosticOverlayMode,
       diagnosticOverlayHistogramScope: overrides.diagnosticOverlayHistogramScope,
-      diagnosticOverlayHistogramChannel: overrides.diagnosticOverlayHistogramChannel
+      diagnosticOverlayHistogramChannel: overrides.diagnosticOverlayHistogramChannel,
+      sourceAnalysisEnabled: overrides.sourceAnalysisEnabled === true
     });
   }
 

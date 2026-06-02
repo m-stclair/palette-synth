@@ -1,10 +1,15 @@
 import { paletteLabs } from "../color-utils.js";
-import { effectivePixelBlockSize, isPixelArtEnabled } from "../state/config.js";
+import { ditherSourceGuardActive, effectivePixelBlockSize, isPixelArtEnabled } from "../state/config.js";
 import { MAX_PALETTE_SIZE } from "../constants.js";
 import { maskBehaviorCode, maskForbiddenSourceFlags } from "../ui/cycle-mask.js";
 import { clearFramebuffer, resizeDrawingBuffer } from "../gl/context.js";
 import { renderPalettePass } from "../gl/palette-renderer.js";
 import { blockSamplePassNeeded, blockSampleTextureSize, renderBlockSamplePass } from "../gl/block-sampler.js";
+import {
+  disposeSourceAnalysisCache,
+  renderSourceAnalysisPass,
+  sourceAnalysisTextureSize
+} from "../gl/source-analysis-renderer.js";
 import { buildStaticProgram } from "../gl/programs.js";
 import { configureTexture, createTexture, uploadCanvasTexture } from "../gl/textures.js";
 import {
@@ -51,6 +56,10 @@ function fallbackPaletteSourceIndices(entries = []) {
  * @param {AppConfig} config
  * @returns {RenderSettings}
  */
+export function paletteRenderNeedsSourceAnalysis(config = {}) {
+  return ditherSourceGuardActive(config);
+}
+
 export function renderSettingsFromConfig(config) {
   return {
     blendK: config.blendK,
@@ -67,6 +76,9 @@ export function renderSettingsFromConfig(config) {
     ditherScale: config.ditherScale,
     ditherAngle: config.ditherAngle,
     ditherLumaAmount: config.ditherLumaAmount,
+    ditherSourceGuardAmount: config.ditherSourceGuardAmount,
+    ditherSourceGuardMinGain: config.ditherSourceGuardMinGain,
+    ditherSourceGuardFlatThreshold: config.ditherSourceGuardFlatThreshold,
     pixelArtEnabled: isPixelArtEnabled(config),
     pixelBlockSize: effectivePixelBlockSize(config),
     pixelBlockSampleMode: config.pixelBlockSampleMode ?? "center"
@@ -100,6 +112,7 @@ export function createRenderSession({
   buildProgram,
   vertexSource = "",
   blockSampleFragmentSource = "",
+  sourceAnalysisFragmentSource = "",
   postProcessFragmentSource = "",
   edgeTightenFragmentSource = "",
   viewCompositeFragmentSource = "",
@@ -115,6 +128,7 @@ export function createRenderSession({
   clearFramebufferFn = clearFramebuffer,
   renderPalettePassFn = renderPalettePass,
   renderBlockSamplePassFn = renderBlockSamplePass,
+  renderSourceAnalysisPassFn = renderSourceAnalysisPass,
   buildStaticProgramFn = buildStaticProgram,
   ensureOffscreenPaletteTargetFn = ensureOffscreenPaletteTarget,
   renderPostProcessPassesFn = renderPostProcessPasses,
@@ -135,6 +149,7 @@ export function createRenderSession({
       state.diagnostics.pixel = null;
     }
     if (state.blockSample) state.blockSample.dirty = true;
+    if (state.sourceAnalysis) state.sourceAnalysis.dirty = true;
   }
 
   function markPaletteDirty({swatches = true} = {}) {
@@ -184,6 +199,7 @@ export function createRenderSession({
     const sourceCanvas = ensureLevelAdjustedPreviewSource() || state.previewSourceCanvas || state.sourceCanvas || state.originalCanvas;
     uploadCanvasTextureFn(gl, state.texture, sourceCanvas, {pixelPerfect: config.pixelPerfect});
     if (state.blockSample) state.blockSample.dirty = true;
+    if (state.sourceAnalysis) state.sourceAnalysis.dirty = true;
     state.textureVersion = (Number(state.textureVersion) || 0) + 1;
     markCompositeCachesDirty();
     state.textureDirty = false;
@@ -247,7 +263,9 @@ export function createRenderSession({
 
   function ensureBlockSampleTexture(gl, sourceTexture, {sourceImageSize, settings, cache = state.blockSample} = {}) {
     if (!blockSamplePassNeeded(settings)) {
-      return {texture: sourceTexture, blockSampledInput: false};
+      const width = Math.max(1, Math.round(Number(sourceImageSize?.[0]) || state.sourceCanvas.width || 1));
+      const height = Math.max(1, Math.round(Number(sourceImageSize?.[1]) || state.sourceCanvas.height || 1));
+      return {texture: sourceTexture, blockSampledInput: false, textureSize: [width, height]};
     }
     if (!blockSampleFragmentSource || !vertexSource) {
       throw new Error("Block sampling shader source is missing.");
@@ -295,7 +313,50 @@ export function createRenderSession({
       sampleCache.dirty = false;
     }
 
-    return {texture: sampleCache.texture, blockSampledInput: true};
+    return {texture: sampleCache.texture, blockSampledInput: true, textureSize: [targetSize.width, targetSize.height]};
+  }
+
+  function ensureSourceAnalysisTexture(gl, sourceTexture, {sourceSize, cache = state.sourceAnalysis} = {}) {
+    const size = sourceAnalysisTextureSize(sourceSize?.[0] ?? sourceSize?.width, sourceSize?.[1] ?? sourceSize?.height);
+    const analysisCache = cache || {};
+
+    if (analysisCache.gl && analysisCache.gl !== gl) {
+      disposeSourceAnalysisCache(analysisCache.gl, analysisCache);
+    }
+    analysisCache.gl = gl;
+
+    if (!sourceAnalysisFragmentSource || !vertexSource) {
+      throw new Error("Source analysis shader source is missing.");
+    }
+    if (!analysisCache.texture) analysisCache.texture = createTextureFn(gl);
+    if (!analysisCache.framebuffer) analysisCache.framebuffer = gl.createFramebuffer();
+    if (!analysisCache.program) {
+      analysisCache.program = buildStaticProgramFn(gl, analysisCache, {
+        vertexSource,
+        fragmentSource: sourceAnalysisFragmentSource,
+        linkErrorMessage: "source analysis shader failed"
+      });
+    }
+
+    const dirty = analysisCache.dirty
+      || analysisCache.width !== size.width
+      || analysisCache.height !== size.height
+      || analysisCache.sourceTexture !== sourceTexture;
+
+    if (dirty) {
+      renderSourceAnalysisPassFn(gl, analysisCache.program, {
+        sourceTexture,
+        targetTexture: analysisCache.texture,
+        framebuffer: analysisCache.framebuffer,
+        sourceSize: [size.width, size.height]
+      });
+      analysisCache.width = size.width;
+      analysisCache.height = size.height;
+      analysisCache.sourceTexture = sourceTexture;
+      analysisCache.dirty = false;
+    }
+
+    return {texture: analysisCache.texture, width: size.width, height: size.height};
   }
 
   function renderPaletteProgram(gl, program, options) {
@@ -306,6 +367,19 @@ export function createRenderSession({
       settings,
       cache: options.blockSampleCache ?? state.blockSample
     });
+
+    let sourceAnalysisTexture = options.sourceAnalysisTexture ?? null;
+    if (!sourceAnalysisTexture && options.sourceAnalysisRequired === true) {
+      const canUseStateAnalysisCache = gl === state.gl;
+      const sourceAnalysisCache = options.sourceAnalysisCache ?? (canUseStateAnalysisCache ? state.sourceAnalysis : null);
+      if (!sourceAnalysisCache) {
+        throw new Error("A source analysis cache is required for this WebGL context.");
+      }
+      sourceAnalysisTexture = ensureSourceAnalysisTexture(gl, input.texture, {
+        sourceSize: input.textureSize,
+        cache: sourceAnalysisCache
+      }).texture;
+    }
 
     const canUseStateMaskTexture = gl === state.gl;
     const optionHasMaskTexture = Object.prototype.hasOwnProperty.call(options, "maskTexture");
@@ -324,6 +398,7 @@ export function createRenderSession({
       ...options,
       texture: input.texture,
       maskTexture,
+      sourceAnalysisTexture,
       maskEnabled,
       maskBehavior,
       maskForbiddenSourceFlags: maskForbiddenFlags,
@@ -365,7 +440,7 @@ export function createRenderSession({
     return state.postProcess;
   }
 
-  function drawWithCompositePass(gl, program, {canvas, viewRect, runPostProcess}) {
+  function drawWithCompositePass(gl, program, {canvas, viewRect, runPostProcess, sourceAnalysisRequired = false}) {
     const postSettings = postProcessSettingsFromConfig(config);
     const needsDespeckleShader = runPostProcess && postSettings.despeckleStrength > 0;
     const needsEdgeTightenShader = runPostProcess && postSettings.edgeTightenStrength > 0;
@@ -389,6 +464,7 @@ export function createRenderSession({
       viewCenter: [0.5, 0.5],
       viewSpan: [1, 1],
       sourceImageSize: [sourceWidth, sourceHeight],
+      sourceAnalysisRequired,
       diagnosticOverlayMode: "none",
       diagnosticOverlaySwatch: -1
     });
@@ -444,10 +520,13 @@ export function createRenderSession({
     ensurePalette();
 
     const overlay = state.diagnostics?.overlay || {mode: "none"};
+    const sourceAnalysisRequired = paletteRenderNeedsSourceAnalysis(config);
 
     let program;
     try {
-      program = buildProgram(diagnosticShaderOverridesForOverlay(overlay));
+      const shaderOverrides = diagnosticShaderOverridesForOverlay(overlay);
+      if (sourceAnalysisRequired) shaderOverrides.sourceAnalysisEnabled = true;
+      program = buildProgram(shaderOverrides);
       els.error.hidden = true;
     } catch (err) {
       els.error.textContent = `Shader failed: ${err.message}`;
@@ -459,7 +538,7 @@ export function createRenderSession({
     const runCompositePass = runPostProcess;
     if (runCompositePass) {
       try {
-        drawWithCompositePass(gl, program, {canvas, viewRect, runPostProcess});
+        drawWithCompositePass(gl, program, {canvas, viewRect, runPostProcess, sourceAnalysisRequired});
         if (state.postProcessFailureMessage) {
           state.postProcessFailureMessage = "";
           if (els.error) els.error.hidden = true;
@@ -491,6 +570,7 @@ export function createRenderSession({
       viewCenter: [state.view.centerX, state.view.centerY],
       viewSpan: [viewSpanX, viewSpanY],
       sourceImageSize: [state.sourceCanvas.width || 1, state.sourceCanvas.height || 1],
+      sourceAnalysisRequired,
       compareEnabled: !!config.compareEnabled && (!overlay.mode || overlay.mode === "none"),
       compareSplit: config.compareEnabled ? config.compareSplit : -1
     });
@@ -527,6 +607,7 @@ export function createRenderSession({
     ensureLevelAdjustedSources,
     ensureTexture,
     ensurePalette,
+    ensureSourceAnalysisTexture,
     currentRenderSettings,
     renderPaletteProgram,
     draw,
