@@ -11,12 +11,15 @@ Behavior should live in domain modules or lower-level controllers, not grow back
 ├── index.html              # Application shell and controls
 ├── style.css               # Full application styling
 ├── app.js                  # Browser entry point
-├── palette-presets.js      # Built-in preset palette table on globalThis
-├── package.json            # Module mode plus scripts
+├── assets/                 # Public documentation/demo assets
 ├── docs/                   # User and maintainer documentation
+├── e2e/                    # Playwright browser smoke tests
 ├── src/                    # Application modules, shaders, and helpers
 ├── tests/                  # Node test suite
-└── tools/                  # Repository maintenance scripts
+├── tools/                  # Repository maintenance scripts
+├── package.json            # Module mode plus scripts
+├── package-lock.json       # Locked development-tool dependency graph
+└── playwright.config.js    # E2E test server and browser configuration
 ```
 
 ## Runtime graph
@@ -46,23 +49,44 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 
 | Path | Purpose |
 |---|---|
-| `index.html` | Declares the app shell, canvas, toolbar, palette controls, diagnostics panels, recipe panel, and animation export panel. |
-| `style.css` | Defines the responsive workbench, dockable controls pane, preview canvas, swatch UI, diagnostics, and panel styling. |
+| `README.md` | Project overview, quick start, workflows, feature summary, and documentation index. |
+| `index.html` | Declares the app shell, canvas, toolbar, palette controls, diagnostics panels, recipe panel, pixel loupe, and animation export panel. |
+| `style.css` | Defines the responsive workbench, dockable controls pane, preview canvas, swatch UI, diagnostics, pixel loupe, and panel styling. |
 | `app.js` | Starts the app and reports startup errors into the page. |
-| `palette-presets.js` | Owns the built-in palette preset catalog, including categories and colors, and derives the legacy `globalThis.PALETTE_PRESETS` color lookup. |
-| `package.json` | Enables ES modules and exposes start/test/check scripts. |
+| `package.json` | Enables ES modules and exposes start/check/test/e2e scripts. |
+| `package-lock.json` | Locks development dependencies used by the test tooling. |
+| `playwright.config.js` | Starts a local static server and configures the Chromium E2E smoke test. |
+| `favicon.ico` | Browser tab icon. |
+| `.gitignore` | Local/generated file ignore rules. |
 | `LICENSE` | Project license. |
+
+### `assets/`
+
+| Path | Purpose |
+|---|---|
+| `assets/screenshot.png` | README screenshot asset. |
+
+### `docs/`
+
+| Path | Purpose |
+|---|---|
+| `docs/architecture.md` | Maintainer architecture overview and source map. |
+| `docs/contributing.md` | Development setup, testing, and contribution notes. |
+| `docs/control-reference.md` | Detailed visible-control reference. |
+| `docs/user-guide.md` | End-user workflow guide. |
+| `docs/x-ray-editing.md` | X-Ray editing model, gestures, and caveats. |
 
 ### `src/` top-level modules
 
 | Path | Purpose |
 |---|---|
 | `src/app-runtime.js` | Loads shaders, creates the app, and waits for `DOMContentLoaded` before initialization. |
-| `src/constants.js` | App-wide constants, harmony metadata, cosine presets, and the built-in preset bridge. |
+| `src/constants.js` | App-wide constants, harmony metadata, cosine presets, and imports for the built-in preset catalog. |
 | `src/color-utils.js` | Shared color math, OKLab/OKLCh conversion, seeded randomness, palette records, sorting, and hex helpers. |
 | `src/demo-image.js` | Inline demo SVG used when no image has been loaded yet. |
 | `src/palette-export.js` | Serializes palettes to text-oriented export formats. |
 | `src/zip-store.js` | Minimal stored-ZIP writer used by animation export. |
+| `src/types.d.ts` | Documentation-first TypeScript declarations for the large runtime/config/palette object shapes. |
 | `src/README.md` | Source directory module map and object-shape notes. |
 
 ### `src/app/`
@@ -78,7 +102,7 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 | `src/app/domains/manual-domain.js` | Wires manual swatch model, swatch list, and manual swatch editor. |
 | `src/app/domains/palette-domain.js` | Wires palette cycling, active palette runtime, preview swatches, locks, aliases, and cycle tags. |
 | `src/app/domains/view-domain.js` | Wires viewport, compare split, palette region selection, and mask painting. |
-| `src/app/domains/diagnostics-domain.js` | Wires diagnostics metrics, panels, overlay state, and pixel inspection controller. |
+| `src/app/domains/diagnostics-domain.js` | Wires diagnostics metrics, panels, overlay state, pixel inspection, and loupe state. |
 | `src/app/domains/render-domain.js` | Wires shader programs, level sources, and render session scheduling/dirty flags. |
 | `src/app/domains/export-domain.js` | Wires full-image rendering, animation export, and image/palette download actions. |
 | `src/app/domains/image-domain.js` | Wires main/reference image loading, object URL management, and demo image loading. |
@@ -103,15 +127,28 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 | `src/ui/palette-region.js` | Palette sampling-region selection, overlay geometry, drag lifecycle, and region reset. |
 | `src/ui/cycle-mask.js` | Cycle-mask drawing and interaction state. |
 | `src/ui/palette-preview.js` | Renders palette swatches, generated locks, manual aliases, and cycle tagging affordances. |
+| `src/ui/palette-swatch-scale.js` | Cycles and syncs palette swatch chip scale, including its `Shift+P` affordance. |
 | `src/ui/manual-palette-editor.js` | Popover/editor for manual swatch source colors, aliases, duplication, removal, and copy actions. |
 | `src/ui/manual-swatches-list.js` | Renders and mutates the manual swatch list in the controls pane. |
 | `src/ui/diagnostics-panel.js` | Formats and renders assignment summaries, X-Ray plots, collision warnings, selection traces, and pixel diagnostics. |
 | `src/ui/floating-pixel-inspector.js` | Floating inspector behavior and pixel diagnostic display. |
+| `src/ui/pixel-loupe.js` | Renders source/final/delta pixel-neighborhood loupe views for live pixel inspection. |
 | `src/ui/color-picker.js` | Color picker interactions and normalization. |
 | `src/ui/dynamic-skin.js` | UI skin updates derived from current palette state. |
 | `src/ui/dismissible-menus.js` | Dismissible menu/panel interactions. |
 | `src/ui/range-scrub-skin-hold.js` | Range input scrubbing affordances. |
 | `src/ui/shortcuts.js` | Keyboard shortcut binding. |
+
+### `src/curve-preview/`
+
+| Path | Purpose |
+|---|---|
+| `src/curve-preview/canvas.js` | Shared canvas frame, axis, histogram, curve, and legend drawing helpers for preview cards. |
+| `src/curve-preview/shared.js` | Shared tone/chroma curve math, histogram transforms, handle geometry helpers, and control definitions. |
+| `src/curve-preview/dom-controls.js` | Docked range-control construction for curve preview controls. |
+| `src/curve-preview/tone-map.js` | Luma tone-map preview drawing, tone-shape handles, tonal-balance handles, and bound controls. |
+| `src/curve-preview/chroma-map.js` | Chroma-map preview drawing, chroma handles, fade-lane controls, metrics caching, and bound controls. |
+| `src/curve-preview/tint.js` | Tint preview drawing, tint hue/strength handles, crossover control, and link controls. |
 
 ### `src/palette/`
 
@@ -121,7 +158,9 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 | `src/palette/generation.js` | Builds generated, preset, harmony, cosine, and manual-assisted palettes. |
 | `src/palette/sampling.js` | Normalizes sample regions, creates patch origins, and samples image blocks into OKLab candidates. |
 | `src/palette/selection.js` | Scores and selects generated-palette candidates. |
+| `src/palette/kmeans.js` | Runs constrained OKLab k-means for generated-palette center refinement with fixed and movable centers. |
 | `src/palette/cycle.js` | Sorts and cycles palette records globally, in bands, or by manual cycle tags. |
+| `src/palette/preset-catalog.js` | Owns the built-in preset catalog, category order, and derived flat `PALETTE_PRESETS` lookup. |
 
 ### `src/manual/`
 
@@ -182,7 +221,7 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 | `src/diagnostics/metrics.js` | Computes CPU-side assignment weights, palette usage, collision checks, signatures, and diagnostic summaries. |
 | `src/diagnostics/pixel-inspector.js` | Mirrors output-mode math on the CPU for click-to-inspect pixel diagnostics. |
 | `src/diagnostics/output-color.js` | CPU-side output color helpers used by diagnostics. |
-| `src/diagnostics/controller.js` | Refreshes diagnostics panels and connects canvas clicks to pixel inspection. |
+| `src/diagnostics/controller.js` | Refreshes diagnostics panels and connects canvas clicks, hover probes, and loupe refreshes to pixel inspection. |
 
 ### `src/export/`
 
@@ -200,7 +239,7 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 
 | Path | Purpose |
 |---|---|
-| `src/state/config.js` | Default config, reset config, enum maps, snapshot cloning, sanitization, and import normalization. |
+| `src/state/config.js` | Default config, reset config, enum maps, snapshot cloning, sanitization, transient UI settings, and import normalization. |
 | `src/state/history.js` | Undo/redo stacks, history snapshots, shortcuts, and history button state. |
 
 ### `src/storage/`
@@ -218,9 +257,21 @@ The CPU side builds palette records, config snapshots, diagnostics, and UI state
 |---|---|
 | `src/recipes/controller.js` | Saves, updates, loads, deletes, imports, and exports recipes through the UI. |
 
+### `src/vendor/`
+
+| Path | Purpose |
+|---|---|
+| `src/vendor/gifenc.js` | Vendored GIF encoder used by GIF animation export. |
+
+### `e2e/`
+
+| Path | Purpose |
+|---|---|
+| `e2e/startup.spec.js` | Browser smoke test proving async startup, shader fetch, WebGL creation, demo image loading, and first palette render. |
+
 ### `tests/`
 
-The test suite mirrors the module boundaries. Tests are grouped by controller or helper name, for example `palette-runtime.test.js`, `render-session.test.js`, `manual-palette-actions.test.js`, `diagnostics-panel.test.js`, and `viewport.test.js`.
+The test suite mirrors the module boundaries. Tests are grouped by controller or helper name, for example `palette-runtime.test.js`, `kmeans.test.js`, `render-session.test.js`, `manual-palette-actions.test.js`, `diagnostics-panel.test.js`, `pixel-loupe.test.js`, and `viewport.test.js`.
 
 This is the practical maintenance map: when a module moves, its matching test usually tells you what behavior must stay nailed down.
 
