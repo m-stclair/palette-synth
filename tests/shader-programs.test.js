@@ -227,8 +227,8 @@ test("shaderDefineLinesForConfig maps categorical neutral mode", () => {
 
 test("palette shader gates hue pressure for near-neutral colors", () => {
   const source = readFileSync(new URL("../src/shaders/palette.frag", import.meta.url), "utf8");
-  assert.match(source, /NEUTRAL_CHROMA_EPSILON = 2\.0/);
-  assert.match(source, /ENDPOINT_NEUTRAL_CHROMA_EPSILON = 6\.0/);
+  assert.match(source, /NEUTRAL_CHROMA_EPSILON = 1\.2/);
+  assert.match(source, /ENDPOINT_NEUTRAL_CHROMA_EPSILON = 5\.0/);
   assert.match(source, /bool labHasReliableHue\(float L, float chroma\)/);
   assert.match(source, /bool labHasHue = labHasReliableHue\(labL, labC\)/);
   assert.match(source, /#if NEUTRAL_IS_CATEGORY/);

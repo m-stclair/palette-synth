@@ -32,14 +32,14 @@ test("applyOutputModeCpu mirrors preserve luma/chroma/hue-wash modes", () => {
 
 test("categorical neutral hue-wash turns neutral palette matches into neutral output", () => {
   const sourceLab = [42, 8, 6];
-  const grayPaletteLab = [60, 1, 1];
+  const grayPaletteLab = [60, 0.6, 0.6];
 
   assertLabApproximatelyEqual(applyOutputModeCpu(sourceLab, grayPaletteLab, {outputMode: "hueWash"}), [42, 8, 6]);
   assert.deepEqual(applyOutputModeCpu(sourceLab, grayPaletteLab, {outputMode: "hueWash", neutralIsCategory: true}), [42, 0, 0]);
 });
 
 test("applyOutputModeCpu keeps neutral source chroma neutral in chroma-preserving modes", () => {
-  const nearGraySourceLab = [50, 1.1, 1.1];
+  const nearGraySourceLab = [50, 0.6, 0.6];
   const yellowPaletteLab = [70, 0, 40];
 
   assert.deepEqual(applyOutputModeCpu(nearGraySourceLab, yellowPaletteLab, {outputMode: "preserveChroma"}), [70, 0, 0]);

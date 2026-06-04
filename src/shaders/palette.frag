@@ -65,7 +65,7 @@ out vec4 outColor;
 
 
 const float OKLAB_SCALE = 100.0;
-const float NEUTRAL_CHROMA_EPSILON = 1.0;
+const float NEUTRAL_CHROMA_EPSILON = 1.2;
 const float CLEAR_HUE_CHROMA = 6.0;
 const float ENDPOINT_NEUTRAL_CHROMA_EPSILON = 5.0;
 const float ENDPOINT_CLEAR_HUE_CHROMA = 11.0;

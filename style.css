@@ -2367,6 +2367,17 @@ canvas {
   width: min(100%, 620px);
   margin-inline: auto;
 }
+.diagnostics-xray .xray-cloud {
+  width: min(100%, 640px);
+}
+.diagnostics-xray .xray-cloud-dot {
+  opacity: .34;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.diagnostics-xray .xray-cloud-dots {
+  filter: saturate(.95);
+}
 .diagnostics-xray .xray-tonal {
   width: min(100%, 540px);
   margin-inline: auto;
@@ -2477,20 +2488,35 @@ canvas {
   letter-spacing: .08em;
   text-transform: uppercase;
 }
-.diagnostics-xray-modes {
+.diagnostics-xray-modes,
+.diagnostics-xray-cloud-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 4px;
 }
-.diagnostics-xray-modes .mini-control {
+.diagnostics-xray-cloud-controls {
+  align-items: center;
+  margin-top: -1px;
+}
+.diagnostics-xray-modes .mini-control,
+.diagnostics-xray-cloud-controls .mini-control {
   min-height: 20px;
   padding: 2px 7px;
 }
-.diagnostics-xray-modes .mini-control.is-active {
+.diagnostics-xray-modes .mini-control.is-active,
+.diagnostics-xray-cloud-controls .mini-control.is-active {
   color: var(--text);
   border-color: var(--accent);
   background: rgba(143,180,223,.14);
+}
+.diagnostics-xray-cloud-readout {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
 }
 
 @container pixel-inspector (min-width: 700px) {
@@ -4152,4 +4178,10 @@ input.app-color-picker-input {
   .palette-preview {
     --palette-chip-base-size: 14px;
   }
+}
+.diagnostics-xray .xray-cloud-raster {
+  pointer-events: none;
+}
+.diagnostics-xray .xray-cloud-dots-fallback {
+  pointer-events: none;
 }

@@ -33,8 +33,7 @@ export const DIAGNOSTIC = {
   matchLimit: 5,
   // Source/output distribution views: deliberately computed only when the
   // top-level Histogram inspector tab is selected. Contribution diagnostics
-  // stay focused on
-  // palette assignment instead of also paying a histogram tax.
+  // stay focused on palette assignment instead of also paying a histogram tax.
   histogramBins: 80,
   histogramBinMin: 4,
   histogramBinMax: 160,
@@ -801,7 +800,7 @@ function histogramSampleFromLab(lab) {
   const lightness = clamp(parts.lightness, 0, 100);
   const chroma = Math.max(0, parts.chroma || 0);
   const hue = hasReliableHue(lightness, chroma) ? paletteHue(lab) * 180 / Math.PI : null;
-  return {lightness, chroma, hue, lab};
+  return {lightness, chroma, hue, a: Number(lab?.[1]) || 0, b: Number(lab?.[2]) || 0, lab};
 }
 
 function withCachedImageSample(imageData, cacheKey, producer) {
@@ -814,6 +813,16 @@ function withCachedImageSample(imageData, cacheKey, producer) {
 function sourceHistogramSampleCacheKey(imageData) {
   return [
     "source-histogram-samples-v1",
+    imageData?.width || 0,
+    imageData?.height || 0,
+    imageData?.version ?? "",
+    DIAGNOSTIC.targetSamples
+  ].join(":");
+}
+
+function sourceCloudSignatureForImage(imageData) {
+  return [
+    "source-pixel-cloud-v1",
     imageData?.width || 0,
     imageData?.height || 0,
     imageData?.version ?? "",
@@ -841,7 +850,7 @@ function collectSourceHistogramSamples(imageData) {
         if (data[px + 3] <= 4) continue;
         const sourceRgb = [data[px], data[px + 1], data[px + 2]];
         const lab = rgb8ToLab(sourceRgb[0], sourceRgb[1], sourceRgb[2]);
-        samples.push({...histogramSampleFromLab(lab), x, y, sourceRgb});
+        samples.push({...histogramSampleFromLab(lab), x, y, sourceRgb, hex: byteRgbToHex(sourceRgb[0], sourceRgb[1], sourceRgb[2])});
       }
     }
 
@@ -1019,6 +1028,29 @@ export function computeSourceHistogramDiagnostics(options = {}) {
   return computeImageHistogramDiagnostics({...options, scope: "source"});
 }
 
+export function computeSourcePixelCloudDiagnostics({imageData, signature = "", now = () => Date.now()} = {}) {
+  const collected = collectSourceHistogramSamples(imageData);
+  const samples = collected?.samples || [];
+  let maxChroma = 0;
+  let reliableHueCount = 0;
+  for (const sample of samples) {
+    const chroma = Math.max(0, Number(sample?.chroma) || 0);
+    if (chroma > maxChroma) maxChroma = chroma;
+    if (sample?.hue !== null && sample?.hue !== undefined) reliableHueCount += 1;
+  }
+  return {
+    kind: "sourcePixelCloud",
+    signature: signature || sourceCloudSignatureForImage(imageData),
+    samples,
+    sampleCount: samples.length,
+    reliableHueCount,
+    neutralHueCount: Math.max(0, samples.length - reliableHueCount),
+    step: collected?.step || 1,
+    maxChroma: Math.max(1, Math.ceil(maxChroma / 4) * 4),
+    generatedAt: now()
+  };
+}
+
 function collectOutputHistogramSamples({imageData, records = [], entries = [], config = {}} = {}) {
   const collected = collectSourceHistogramSamples(imageData);
   if (!collected) return null;
@@ -1147,6 +1179,7 @@ export function createDiagnosticMetrics({getConfig, getImageData, getRecords, ge
   const records = fallback => fallback === undefined ? (getRecords?.() ?? []) : fallback;
   const entriesFor = inputRecords => getEntries?.(inputRecords) ?? [];
   const histogramPairCache = new Map();
+  const sourceCloudCache = new Map();
 
   function histogramBaseSignature({inputRecords, entries, scope, safeConfig, binCount}) {
     return `${diagnosticsSignature({
@@ -1161,6 +1194,10 @@ export function createDiagnosticMetrics({getConfig, getImageData, getRecords, ge
   function currentHistogramBinCount() {
     const value = getHistogramBinCount?.();
     return Number.isFinite(Number(value)) ? normalizeHistogramBinCount(value) : undefined;
+  }
+
+  function currentSourceCloudSignature() {
+    return sourceCloudSignatureForImage(imageData());
   }
 
   function pairedHistogramFor({inputRecords, entries, channel, safeConfig}) {
@@ -1199,6 +1236,15 @@ export function createDiagnosticMetrics({getConfig, getImageData, getRecords, ge
     }),
     assignmentWeights: (matches, lab) => assignmentWeights(matches, lab, config()),
     assignmentMapping: (matches, lab) => assignmentMapping(matches, lab, config()),
+    sourceCloudSignature: () => currentSourceCloudSignature(),
+    computeSourcePixelCloudDiagnostics: () => {
+      const signature = currentSourceCloudSignature();
+      if (!sourceCloudCache.has(signature)) {
+        sourceCloudCache.clear();
+        sourceCloudCache.set(signature, computeSourcePixelCloudDiagnostics({imageData: imageData(), signature, now}));
+      }
+      return sourceCloudCache.get(signature) || null;
+    },
     computeDiagnostics: (inputRecords = records()) => {
       const safeRecords = Array.isArray(inputRecords) ? inputRecords : [];
       const entries = entriesFor(safeRecords);

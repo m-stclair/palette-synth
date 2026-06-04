@@ -1270,19 +1270,31 @@ export function createDiagnosticsPanel({
   }
 
   // The X-Ray supports several legitimately different views over the same
-  // palette records: a 2D scatter (Hue×L), a polar OKLCh wheel (Hue×Chroma),
-  // a 1D Lightness ramp, an N×N proximity matrix, and a rotatable 3D LCH
-  // cylinder. Each surfaces a different property — geometry, hue/gamut reach,
-  // tonal coverage, pairwise relationships, and full L/C/H volume respectively
-  // — so they complement each other rather than just restyling the same data.
+  // palette records and, in Cloud mode, over the sampled input image itself.
+  // Each surfaces a different property — palette geometry, source distribution,
+  // hue/gamut reach, tonal coverage, pairwise relationships, and full L/C/H
+  // volume — so they complement each other rather than restyling the same data.
   const XRAY_MODES = [
     {id: "scatter",   label: "Scatter",   title: "Hue × Lightness scatter"},
+    {id: "cloud",     label: "Cloud",     title: "Sampled input pixel cloud with palette markers"},
     {id: "wheel",     label: "Wheel",     title: "Polar OKLCh: hue around the rim, chroma as radius"},
     {id: "ramp",      label: "Tonal",     title: "Lightness ramp — surfaces tonal coverage gaps"},
     {id: "proximity", label: "Proximity", title: "Pairwise weighted distance — surfaces collisions"},
     {id: "cylinder",  label: "Cylinder",  title: "Rotatable 3D LCH cylinder — drag to orbit hue/chroma around lightness"}
   ];
+  const XRAY_CLOUD_AXES = [
+    {id: "hl", label: "H × L", title: "Hue by lightness"},
+    {id: "cl", label: "C × L", title: "Chroma by lightness"},
+    {id: "hc", label: "H × C", title: "Hue by chroma"},
+    {id: "ab", label: "a × b", title: "OKLab opponent axes"}
+  ];
   let xrayMode = "scatter";
+  let xrayCloudAxes = "hl";
+  let xrayCloudShowPalette = true;
+  let lastXrayRenderKey = "";
+  const XRAY_CLOUD_RASTER_SCALE = 2;
+  const XRAY_CLOUD_RASTER_CACHE_LIMIT = 12;
+  const xrayCloudRasterCache = new Map();
   const XRAY_CYLINDER_MAX_PITCH = Math.PI / 2;
   let xrayCylinderYaw = -0.62;
   let xrayCylinderPitch = 0.28;
@@ -1319,6 +1331,21 @@ export function createDiagnosticsPanel({
         event.stopPropagation?.();
         return;
       }
+      const cloudAxesButton = event.target?.closest?.("[data-xray-cloud-axes]");
+      if (cloudAxesButton) {
+        const nextAxes = cloudAxesButton.dataset?.xrayCloudAxes;
+        if (XRAY_CLOUD_AXES.some(item => item.id === nextAxes) && nextAxes !== xrayCloudAxes) {
+          xrayCloudAxes = nextAxes;
+          rerenderXrayFromState();
+        }
+        return;
+      }
+      const cloudPaletteButton = event.target?.closest?.("[data-xray-cloud-palette-toggle]");
+      if (cloudPaletteButton) {
+        xrayCloudShowPalette = !xrayCloudShowPalette;
+        rerenderXrayFromState();
+        return;
+      }
       if (activateGraphSwatch(event)) return;
       const button = event.target?.closest?.("[data-xray-mode]");
       if (!button) return;
@@ -1326,6 +1353,7 @@ export function createDiagnosticsPanel({
       if (!XRAY_MODES.some(mode => mode.id === next) || next === xrayMode) return;
       xrayMode = next;
       rerenderXrayFromState();
+      onDiagnosticsTabChange(next);
     });
     container.addEventListener("dblclick", event => {
       if (!event.altKey || !event.shiftKey) return;
@@ -1526,6 +1554,303 @@ export function createDiagnosticsPanel({
         return `<button type="button" class="ghost mini-control${active ? " is-active" : ""}" data-xray-mode="${mode.id}" role="tab" aria-selected="${active}" title="${mode.title}">${mode.label}</button>`;
       }).join("")
     }</div>`;
+  }
+
+  function xrayCloudAxisBarHtml(sourceCloud = null) {
+    const count = Number(sourceCloud?.sampleCount ?? sourceCloud?.samples?.length) || 0;
+    const sampleText = count ? `${count.toLocaleString()} source pixels` : "waiting for source pixels";
+    return `<div class="diagnostics-xray-cloud-controls" role="tablist" aria-label="Pixel cloud axes">
+      ${XRAY_CLOUD_AXES.map(mode => {
+        const active = mode.id === xrayCloudAxes;
+        return `<button type="button" class="ghost mini-control${active ? " is-active" : ""}" data-xray-cloud-axes="${mode.id}" role="tab" aria-selected="${active}" title="${mode.title}">${mode.label}</button>`;
+      }).join("")}
+      <button type="button" class="ghost mini-control${xrayCloudShowPalette ? " is-active" : ""}" data-xray-cloud-palette-toggle="true" aria-pressed="${xrayCloudShowPalette ? "true" : "false"}" title="Toggle palette swatch and alias overlays">Palette</button>
+      <span class="diagnostics-xray-cloud-readout">${sampleText}</span>
+    </div>`;
+  }
+
+  function xrayCloudLab(sample) {
+    return Array.isArray(sample?.lab)
+      ? sample.lab
+      : [Number(sample?.lightness) || 0, Number(sample?.a) || 0, Number(sample?.b) || 0];
+  }
+
+  function xrayCloudMaxChroma(stats, samples = []) {
+    let maxChroma = Math.max(0, Number(stats?.sourceCloud?.maxChroma) || 0);
+    for (const sample of samples) maxChroma = Math.max(maxChroma, Number(sample?.chroma) || 0);
+    for (const record of stats?.records || []) {
+      const lab = visibleSwatchLab(record) || record.lab;
+      const [, C] = labToOklch(lab);
+      maxChroma = Math.max(maxChroma, C);
+    }
+    for (const entry of xrayMatchAliasEntries(stats)) {
+      const [, C] = labToOklch(entry.featureLab);
+      maxChroma = Math.max(maxChroma, C);
+    }
+    if (maxChroma <= 1) return 1;
+    if (maxChroma <= 4) return Math.ceil(maxChroma);
+    if (maxChroma <= 12) return Math.ceil(maxChroma / 2) * 2;
+    return Math.max(1, Math.ceil(maxChroma / 4) * 4);
+  }
+
+  function xrayCloudAbExtent(stats, samples = []) {
+    let extent = 12;
+    const addLab = lab => {
+      if (!Array.isArray(lab)) return;
+      extent = Math.max(extent, Math.abs(Number(lab[1]) || 0), Math.abs(Number(lab[2]) || 0));
+    };
+    for (const sample of samples) addLab(xrayCloudLab(sample));
+    for (const record of stats?.records || []) addLab(visibleSwatchLab(record) || record.lab);
+    for (const entry of xrayMatchAliasEntries(stats)) addLab(entry.featureLab);
+    return Math.max(4, Math.ceil(extent / 4) * 4);
+  }
+
+  function xrayCloudHueX({hue, L, C}, plotLeft, plotRight, neutralX, {useNeutralRail = true} = {}) {
+    if (hue === null || hue === undefined) return useNeutralRail ? neutralX : plotLeft;
+    if (!useNeutralRail || hasReliableHue(L, C)) return plotLeft + (clamp(Number(hue) || 0, 0, 360) / 360) * (plotRight - plotLeft);
+    return neutralX;
+  }
+
+  function xrayCloudPointForLab(lab, axisMode, dims, {hueDegrees = null} = {}) {
+    const {height, pad, plotLeft, plotRight, plotBottom, maxChroma, abExtent, neutralX} = dims;
+    const [L, C, h] = labToOklch(lab);
+    const hue = hueDegrees === null || hueDegrees === undefined ? h * 180 / Math.PI : hueDegrees;
+    if (axisMode === "cl") {
+      return {
+        x: plotLeft + clamp(C / maxChroma, 0, 1) * (plotRight - plotLeft),
+        y: lightnessY(lab, height, pad)
+      };
+    }
+    if (axisMode === "hc") {
+      return {
+        x: xrayCloudHueX({hue, L, C}, plotLeft, plotRight, neutralX, {useNeutralRail: false}),
+        y: pad + (1 - clamp(C / maxChroma, 0, 1)) * (plotBottom - pad)
+      };
+    }
+    if (axisMode === "ab") {
+      return {
+        x: plotLeft + clamp(((Number(lab[1]) || 0) + abExtent) / (abExtent * 2), 0, 1) * (plotRight - plotLeft),
+        y: pad + (1 - clamp(((Number(lab[2]) || 0) + abExtent) / (abExtent * 2), 0, 1)) * (plotBottom - pad)
+      };
+    }
+    return {
+      x: xrayCloudHueX({hue, L, C}, plotLeft, plotRight, neutralX),
+      y: lightnessY(lab, height, pad)
+    };
+  }
+
+  function xrayCloudGrid(axisMode, dims) {
+    const {width, height, pad, plotLeft, plotRight, plotBottom, maxChroma, abExtent, neutralX} = dims;
+    const plotW = plotRight - plotLeft;
+    const plotH = plotBottom - pad;
+    const background = `<rect x="0" y="0" width="${width}" height="${height}" rx="4" fill="rgba(255,255,255,.015)"/>`;
+    const frame = `<rect x="${plotLeft.toFixed(1)}" y="${pad.toFixed(1)}" width="${plotW.toFixed(1)}" height="${plotH.toFixed(1)}" fill="rgba(184,196,214,.025)" stroke="rgba(184,196,214,.16)" stroke-width="0.55"/>`;
+    if (axisMode === "ab") {
+      const midX = plotLeft + plotW / 2;
+      const midY = pad + plotH / 2;
+      return `${background}${frame}
+        <line x1="${midX.toFixed(1)}" y1="${pad.toFixed(1)}" x2="${midX.toFixed(1)}" y2="${plotBottom.toFixed(1)}" stroke="rgba(184,196,214,.18)"/>
+        <line x1="${plotLeft.toFixed(1)}" y1="${midY.toFixed(1)}" x2="${plotRight.toFixed(1)}" y2="${midY.toFixed(1)}" stroke="rgba(184,196,214,.18)"/>
+        <text x="${plotLeft.toFixed(1)}" y="${(plotBottom + 11).toFixed(1)}" text-anchor="start" class="xray-axis">−a</text>
+        <text x="${plotRight.toFixed(1)}" y="${(plotBottom + 11).toFixed(1)}" text-anchor="end" class="xray-axis">+a</text>
+        <text x="${(plotLeft - 5).toFixed(1)}" y="${(pad + 4).toFixed(1)}" text-anchor="end" class="xray-axis">+b</text>
+        <text x="${(plotLeft - 5).toFixed(1)}" y="${(plotBottom + 2).toFixed(1)}" text-anchor="end" class="xray-axis">−b</text>
+        <text x="${(plotRight - 2).toFixed(1)}" y="${(pad - 5).toFixed(1)}" text-anchor="end" class="xray-axis">±${abExtent.toFixed(0)}</text>`;
+    }
+
+    const yTicks = [];
+    const yIsChroma = axisMode === "hc";
+    const tickValues = yIsChroma ? [0, maxChroma / 2, maxChroma] : [0, 50, 100];
+    for (const value of tickValues) {
+      const y = yIsChroma
+        ? pad + (1 - clamp(value / maxChroma, 0, 1)) * plotH
+        : lightnessY([value, 0, 0], height, pad);
+      yTicks.push(`<line x1="${plotLeft.toFixed(1)}" y1="${y.toFixed(1)}" x2="${plotRight.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(184,196,214,${value === tickValues[1] ? 0.16 : 0.22})"/>
+        <text x="${(plotLeft - 5).toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="end" class="xray-axis">${yIsChroma ? value.toFixed(0) : value}</text>`);
+    }
+
+    if (axisMode === "cl") {
+      const xTicks = [0, maxChroma / 2, maxChroma].map(value => {
+        const x = plotLeft + clamp(value / maxChroma, 0, 1) * plotW;
+        return `<line x1="${x.toFixed(1)}" y1="${pad.toFixed(1)}" x2="${x.toFixed(1)}" y2="${plotBottom.toFixed(1)}" stroke="rgba(184,196,214,.10)"/>
+          <text x="${x.toFixed(1)}" y="${(plotBottom + 11).toFixed(1)}" text-anchor="middle" class="xray-axis">${value.toFixed(0)}</text>`;
+      }).join("");
+      return `${background}${frame}${yTicks.join("")}${xTicks}
+        <text x="${plotLeft.toFixed(1)}" y="${(pad - 5).toFixed(1)}" text-anchor="start" class="xray-axis">L</text>
+        <text x="${plotRight.toFixed(1)}" y="${(pad - 5).toFixed(1)}" text-anchor="end" class="xray-axis">C max ${maxChroma.toFixed(0)}</text>`;
+    }
+
+    const neutralBand = axisMode === "hl"
+      ? `<rect x="${pad.toFixed(1)}" y="${pad.toFixed(1)}" width="${(plotLeft - pad).toFixed(1)}" height="${plotH.toFixed(1)}" fill="rgba(184,196,214,.05)"/>
+      <text x="${neutralX.toFixed(1)}" y="${(plotBottom + 11).toFixed(1)}" text-anchor="middle" class="xray-axis">neutral</text>`
+      : "";
+    const hueStops = [
+      {h: 0,                 name: "R"},
+      {h: TAU * (60 / 360),  name: "Y"},
+      {h: TAU * (140 / 360), name: "G"},
+      {h: TAU * (190 / 360), name: "C"},
+      {h: TAU * (260 / 360), name: "B"},
+      {h: TAU * (330 / 360), name: "M"}
+    ];
+    const hueMarks = hueStops.map(stop => {
+      const x = plotLeft + (stop.h / TAU) * plotW;
+      const hueLab = fitLabToSrgb(oklchToLab([62, 26, stop.h]));
+      const hex = labToHex(hueLab);
+      return `<circle cx="${x.toFixed(1)}" cy="${(pad - 6).toFixed(1)}" r="2.2" fill="${hex}" stroke="rgba(8,10,13,.6)" stroke-width="0.6"/>
+        <text x="${x.toFixed(1)}" y="${(pad - 9).toFixed(1)}" text-anchor="middle" class="xray-axis">${stop.name}</text>`;
+    }).join("");
+    const yLabel = yIsChroma ? `C max ${maxChroma.toFixed(0)}` : "L";
+    return `${background}${frame}${neutralBand}${yTicks.join("")}${hueMarks}
+      <text x="${plotLeft.toFixed(1)}" y="${(pad - 5).toFixed(1)}" text-anchor="start" class="xray-axis">${yLabel}</text>`;
+  }
+
+  function htmlAttr(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function xrayCloudRasterCacheKey(sourceCloud, axisMode, dims) {
+    const dimensionKey = [
+      dims.width,
+      dims.height,
+      dims.plotLeft.toFixed(1),
+      dims.plotRight.toFixed(1),
+      dims.plotBottom.toFixed(1),
+      dims.maxChroma.toFixed(2),
+      dims.abExtent.toFixed(2)
+    ].join(",");
+    const sampleKey = sourceCloud?.signature || `${sourceCloud?.sampleCount || 0}:${sourceCloud?.generatedAt || ""}`;
+    return `${sampleKey}|${axisMode}|${dimensionKey}`;
+  }
+
+  function trimXrayCloudRasterCache() {
+    while (xrayCloudRasterCache.size > XRAY_CLOUD_RASTER_CACHE_LIMIT) {
+      const firstKey = xrayCloudRasterCache.keys().next().value;
+      if (firstKey === undefined) break;
+      xrayCloudRasterCache.delete(firstKey);
+    }
+  }
+
+  function fallbackXrayCloudDots(samples, axisMode, dims) {
+    // Test and low-capability DOM environments may not expose a real canvas.
+    // Keep a bounded SVG fallback for correctness, but browsers take the raster
+    // path below so the production UI does not carry thousands of live nodes.
+    const maxChroma = Math.max(1, Number(dims.maxChroma) || 1);
+    return `<g class="xray-cloud-dots xray-cloud-dots-fallback">${samples.slice(0, 1400).map(sample => {
+      const lab = xrayCloudLab(sample);
+      const p = xrayCloudPointForLab(lab, axisMode, dims, {hueDegrees: sample?.hue});
+      const hex = sample?.hex || labToHex(lab);
+      const chroma = Math.max(0, Number(sample?.chroma) || 0);
+      const radius = axisMode === "ab" ? 0.82 : 0.76 + clamp(chroma / maxChroma, 0, 1) * 0.48;
+      return `<circle class="xray-cloud-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius.toFixed(2)}" fill="${htmlAttr(hex)}"/>`;
+    }).join("")}</g>`;
+  }
+
+  function renderXrayCloudRaster(samples, axisMode, dims, sourceCloud) {
+    const cacheKey = xrayCloudRasterCacheKey(sourceCloud, axisMode, dims);
+    const cached = xrayCloudRasterCache.get(cacheKey);
+    if (cached) return cached;
+
+    const doc = globalThis.document;
+    const canvas = doc?.createElement?.("canvas");
+    const ctx = canvas?.getContext?.("2d");
+    if (!ctx || typeof canvas.toDataURL !== "function") {
+      const fallback = fallbackXrayCloudDots(samples, axisMode, dims);
+      xrayCloudRasterCache.set(cacheKey, fallback);
+      trimXrayCloudRasterCache();
+      return fallback;
+    }
+
+    const width = Math.max(1, Math.round(dims.width));
+    const height = Math.max(1, Math.round(dims.height));
+    const scale = XRAY_CLOUD_RASTER_SCALE;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.globalAlpha = 0.36;
+    try { ctx.globalCompositeOperation = "screen"; } catch (_) { ctx.globalCompositeOperation = "source-over"; }
+
+    const maxChroma = Math.max(1, Number(dims.maxChroma) || 1);
+    for (const sample of samples) {
+      const lab = xrayCloudLab(sample);
+      const p = xrayCloudPointForLab(lab, axisMode, dims, {hueDegrees: sample?.hue});
+      const chroma = Math.max(0, Number(sample?.chroma) || 0);
+      const radius = axisMode === "ab" ? 0.82 : 0.76 + clamp(chroma / maxChroma, 0, 1) * 0.48;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius, 0, TAU);
+      ctx.fillStyle = sample?.hex || labToHex(lab);
+      ctx.fill();
+    }
+
+    const url = canvas.toDataURL("image/png");
+    const markup = `<image class="xray-cloud-raster" x="0" y="0" width="${width}" height="${height}" href="${htmlAttr(url)}"/>`;
+    xrayCloudRasterCache.set(cacheKey, markup);
+    trimXrayCloudRasterCache();
+    return markup;
+  }
+
+  function renderXrayCloud(stats) {
+    const sourceCloud = stats?.sourceCloud || null;
+    const samples = Array.isArray(sourceCloud?.samples) ? sourceCloud.samples : [];
+    const axisMode = XRAY_CLOUD_AXES.some(item => item.id === xrayCloudAxes) ? xrayCloudAxes : "hl";
+    const width = 360;
+    const height = 230;
+    const pad = 18;
+    const plotLeft = axisMode === "ab" || axisMode === "cl" ? 26 : pad + 11;
+    const plotRight = width - 12;
+    const plotBottom = height - 20;
+    const maxChroma = xrayCloudMaxChroma(stats, samples);
+    const abExtent = xrayCloudAbExtent(stats, samples);
+    const neutralX = (pad + plotLeft) / 2;
+    const dims = {width, height, pad, plotLeft, plotRight, plotBottom, maxChroma, abExtent, neutralX};
+    const controls = xrayCloudAxisBarHtml(sourceCloud);
+    if (!samples.length) {
+      return `${controls}<svg class="xray-plot xray-scatter xray-cloud" viewBox="0 0 ${width} ${height}" role="img" aria-label="Input pixel cloud waiting for source samples">
+        ${xrayCloudGrid(axisMode, dims)}
+        <text x="${(width / 2).toFixed(1)}" y="${(height / 2).toFixed(1)}" text-anchor="middle" class="xray-axis" fill="rgba(184,196,214,.62)">Waiting for source pixel samples…</text>
+      </svg>`;
+    }
+
+    const cloudRaster = renderXrayCloudRaster(samples, axisMode, dims, sourceCloud);
+
+    const aliasMarks = xrayCloudShowPalette ? xrayMatchAliasEntries(stats).map((entry, anchorIndex) => {
+      const record = entry.sourceRecord;
+      const sourceLab = visibleSwatchLab(record) || record.lab || entry.renderLab || entry.featureLab;
+      const sourcePoint = xrayCloudPointForLab(sourceLab, axisMode, dims);
+      const aliasPoint = xrayCloudPointForLab(entry.featureLab, axisMode, dims);
+      const hex = labToHex(entry.featureLab);
+      const attrs = xrayMatchAnchorAttrs(entry, anchorIndex, stats?.records || []);
+      return `<g class="xray-match-anchor" ${attrs}><title>${xrayMatchAliasTitle(entry, stats?.records || [])}</title><line x1="${sourcePoint.x.toFixed(1)}" y1="${sourcePoint.y.toFixed(1)}" x2="${aliasPoint.x.toFixed(1)}" y2="${aliasPoint.y.toFixed(1)}" stroke="rgba(255,255,255,.24)" stroke-dasharray="2 2"/><rect class="xray-match-anchor-hit" x="${(aliasPoint.x-7).toFixed(1)}" y="${(aliasPoint.y-7).toFixed(1)}" width="14" height="14" fill="transparent"/><rect x="${(aliasPoint.x-3.2).toFixed(1)}" y="${(aliasPoint.y-3.2).toFixed(1)}" width="6.4" height="6.4" fill="${hex}" stroke="rgba(255,255,255,.62)" stroke-width="0.8" transform="rotate(45 ${aliasPoint.x.toFixed(1)} ${aliasPoint.y.toFixed(1)})"/></g>`;
+    }).join("") : "";
+
+    const swatches = xrayCloudShowPalette ? (stats?.records || []).map((record, index) => {
+      const swatchLab = visibleSwatchLab(record) || record.lab;
+      const p = xrayCloudPointForLab(swatchLab, axisMode, dims);
+      const [, C] = labToOklch(swatchLab);
+      const hex = record.hex || labToHex(swatchLab);
+      const radius = clamp(4.2 + C / 18, 4.8, 8.8);
+      const stroke = record.locked ? "#ffffff" : "rgba(3,5,7,.88)";
+      const dash = cycleTagged(record) ? " stroke-dasharray=\"2 1\"" : "";
+      const slash = record.muted ? mutedCircleSlash(p.x, p.y, radius) : "";
+      return `<g class="${graphSwatchClass(record, index)}" ${swatchGraphAttrs(index, record.displayIndex ?? index)}><title>${graphSwatchTitle(record, index, swatchLab)}</title><circle class="xray-swatch-fill" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius.toFixed(1)}" fill="${hex}" stroke="${stroke}" stroke-width="1.25"${dash}></circle>${slash}</g>`;
+    }).join("") : "";
+
+    const readout = axisMode === "ab"
+      ? `input pixels · a/b extent ±${abExtent.toFixed(0)}`
+      : `input pixels · C max ${maxChroma.toFixed(0)}`;
+    return `${controls}<svg class="xray-plot xray-scatter xray-cloud" viewBox="0 0 ${width} ${height}" data-xray-plot-mode="cloud" data-xray-view-box="0 0 ${width} ${height}" role="group" aria-label="Sampled input pixel cloud with clickable palette swatches">
+      ${xrayCloudGrid(axisMode, dims)}
+      ${cloudRaster}
+      ${aliasMarks}
+      ${swatches}
+      <text x="${(width - 10).toFixed(1)}" y="${(height - 7).toFixed(1)}" text-anchor="end" class="xray-axis">${readout}</text>
+    </svg>`;
   }
 
   function renderXrayScatter(stats) {
@@ -2225,6 +2550,40 @@ export function createDiagnosticsPanel({
     </svg>`;
   }
 
+  function xrayLabKey(lab) {
+    return Array.isArray(lab) ? lab.map(value => (Number(value) || 0).toFixed(3)).join(",") : "";
+  }
+
+  function xrayRenderKey(stats) {
+    const records = stats?.records || [];
+    const recordKey = records.map((record, index) => [
+      record.hex || "",
+      record.displayIndex ?? index,
+      record.locked ? 1 : 0,
+      record.muted ? 1 : 0,
+      record.aliasOf ?? "",
+      xrayLabKey(visibleSwatchLab(record) || record.lab)
+    ].join(":" )).join(";");
+    const aliasKey = xrayMatchAliasEntries(stats).map((entry, index) => [
+      index,
+      entry?.sourceRecord?.displayIndex ?? "",
+      xrayLabKey(entry?.featureLab),
+      xrayLabKey(entry?.renderLab)
+    ].join(":" )).join(";");
+    return [
+      xrayMode,
+      xrayCloudAxes,
+      xrayCloudShowPalette ? 1 : 0,
+      xrayCylinderYaw.toFixed(4),
+      xrayCylinderPitch.toFixed(4),
+      stats?.sourceCloud?.signature || "",
+      stats?.sourceCloud?.sampleCount || stats?.sourceCloud?.samples?.length || 0,
+      records.length,
+      recordKey,
+      aliasKey
+    ].join("|");
+  }
+
   function renderDiagnosticsXray(stats) {
     if (!els.diagnosticsXray) return;
     const diagnostic = getState().diagnostics || {};
@@ -2232,6 +2591,9 @@ export function createDiagnosticsPanel({
     else if (Object.prototype.hasOwnProperty.call(diagnostic, "xrayStats")) diagnostic.xrayStats = null;
     bindXrayModeEvents();
     const records = stats?.records || [];
+    const nextRenderKey = xrayRenderKey(stats);
+    if (nextRenderKey === lastXrayRenderKey) return;
+    lastXrayRenderKey = nextRenderKey;
     if (!records.length) {
       // Preserve the original empty-state behavior: when there are no
       // records, the panel collapses entirely rather than showing inert
@@ -2241,7 +2603,8 @@ export function createDiagnosticsPanel({
       return;
     }
     let svg;
-    if (xrayMode === "wheel") svg = renderXrayWheel(stats);
+    if (xrayMode === "cloud") svg = renderXrayCloud(stats);
+    else if (xrayMode === "wheel") svg = renderXrayWheel(stats);
     else if (xrayMode === "ramp") svg = renderXrayTonalRamp(stats);
     else if (xrayMode === "proximity") svg = renderXrayProximity(stats);
     else if (xrayMode === "cylinder") svg = renderXrayCylinder(stats);
@@ -2503,6 +2866,7 @@ export function createDiagnosticsPanel({
     renderDiagnosticsXray,
     renderDiagnosticsPanel,
     activeHistogramTab,
+    activeXrayMode: () => xrayMode,
     updateDiagnosticsPixel
   };
 }

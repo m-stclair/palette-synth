@@ -213,6 +213,45 @@ test("diagnostics controller renders X-Ray tab from palette records without imag
   assert.equal(state.diagnostics.signature, "");
 });
 
+test("diagnostics controller samples source pixels only for X-Ray Cloud mode", () => {
+  let ensured = 0;
+  let cloudComputed = 0;
+  let xrayRendered = 0;
+  const pane = makePanel();
+  const xrayPanel = makePanel();
+  const records = [{lab: [45, 10, 0]}];
+  const cloud = {signature: "cloud-v1", sampleCount: 1, samples: [{lab: [45, 10, 0], hex: "#777777"}]};
+  const state = {
+    imageData: {width: 1, height: 1, data: new Uint8ClampedArray([128, 128, 128, 255])},
+    diagnostics: {stats: null, signature: "old", pixelInspectorOpen: true, inspectorTab: "xray"},
+    paletteRecords: records,
+    paletteDirty: false
+  };
+  const controller = createDiagnosticsController({
+    els: {pixelInspectorPane: pane, inspectorPanelXray: xrayPanel},
+    state,
+    config: {},
+    ensureLevelAdjustedSources: () => { ensured++; return state.imageData; },
+    renderPaletteLabs: () => [[45, 10, 0]],
+    paletteUniformEntries: () => [{renderLab: [45, 10, 0], featureLab: [45, 10, 0]}],
+    diagnosticsActiveXrayMode: () => "cloud",
+    sourceCloudSignature: () => "cloud-v1",
+    computeSourcePixelCloudDiagnostics: () => { cloudComputed++; return cloud; },
+    renderDiagnosticsXray: value => {
+      xrayRendered++;
+      assert.equal(value.records, records);
+      assert.equal(value.sourceCloud, cloud);
+    }
+  });
+
+  controller.updateDiagnostics();
+
+  assert.ok(ensured >= 1);
+  assert.equal(cloudComputed, 1);
+  assert.equal(xrayRendered, 1);
+  assert.equal(state.diagnostics.sourceCloud, cloud);
+});
+
 test("diagnostics controller runs full diagnostics when the palette diagnostics panel is open", () => {
   let computed = 0;
   let rendered = 0;

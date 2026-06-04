@@ -40,7 +40,10 @@ export function createDiagnosticsController({
   outputHistogramSignature = null,
   computeSourceHistogramDiagnostics = null,
   computeOutputHistogramDiagnostics = null,
+  sourceCloudSignature = null,
+  computeSourcePixelCloudDiagnostics = null,
   diagnosticsActiveTab = () => "contribution",
+  diagnosticsActiveXrayMode = () => "scatter",
   renderDiagnosticsPanel,
   renderDiagnosticsXray = () => {},
   renderHistogramPanel = () => {},
@@ -476,6 +479,7 @@ export function createDiagnosticsController({
     const fullDiagnosticsOpen = diagnosticsPanelIsOpen();
     const histogramOpen = histogramPanelIsOpen();
     const xrayOpen = xrayPanelIsOpen();
+    const xrayCloudOpen = xrayOpen && diagnosticsActiveXrayMode?.() === "cloud";
     const selectionDiagnosticsOpen = selectionDiagnosticsPanelIsOpen();
     if (selectionDiagnosticsOpen) {
       const traceableMode = config.paletteMode === "generated" || config.paletteMode === "generatedReference" || config.paletteMode === "harmony" || config.paletteMode === "cosine";
@@ -487,14 +491,18 @@ export function createDiagnosticsController({
     // tied to the palette diagnostics panel only; the pixel inspector has
     // its own single-pixel path above. Selection diagnostics asks palette
     // generation for its trace only while the families/selection tab is open.
-    // The X-Ray is a palette-structure view and does not need image sampling.
+    // The X-Ray is mostly a palette-structure view and does not need image
+    // sampling. Cloud is the deliberate exception: it visualizes the input
+    // pixels, so only that mode pays the source-sampling cost.
     if (!fullDiagnosticsOpen && !histogramOpen && !xrayOpen) return;
-    if (fullDiagnosticsOpen || histogramOpen) ensureImageData();
+    if (fullDiagnosticsOpen || histogramOpen || xrayCloudOpen) ensureImageData();
     if (state.paletteDirty || !state.paletteRecords.length) ensurePalette();
     if (!state.paletteRecords.length) {
       state.diagnostics.stats = null;
       state.diagnostics.xrayStats = null;
       state.diagnostics.signature = "";
+      state.diagnostics.sourceCloud = null;
+      state.diagnostics.sourceCloudSignature = "";
       resetHistogramDiagnostics(state.diagnostics);
       if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
       if (histogramOpen) renderHistogramPanel(null);
@@ -505,6 +513,14 @@ export function createDiagnosticsController({
     const renderLabs = renderPaletteLabs(records);
     const entries = paletteUniformEntries(records, renderLabs);
     const xrayStats = {records, entries, collisions: state.diagnostics.stats?.collisions || null};
+    if (xrayCloudOpen && state.imageData) {
+      const signature = sourceCloudSignature?.() || "";
+      if (state.diagnostics.sourceCloudSignature !== signature) {
+        state.diagnostics.sourceCloud = computeSourcePixelCloudDiagnostics?.() || null;
+        state.diagnostics.sourceCloudSignature = state.diagnostics.sourceCloud?.signature || signature;
+      }
+      xrayStats.sourceCloud = state.diagnostics.sourceCloud || null;
+    }
     state.diagnostics.xrayStats = xrayStats;
     if (xrayOpen && !fullDiagnosticsOpen) renderDiagnosticsXray(xrayStats);
 
@@ -512,6 +528,8 @@ export function createDiagnosticsController({
       state.diagnostics.stats = null;
       state.diagnostics.xrayStats = xrayStats;
       state.diagnostics.signature = "";
+      state.diagnostics.sourceCloud = null;
+      state.diagnostics.sourceCloudSignature = "";
       resetHistogramDiagnostics(state.diagnostics);
       if (fullDiagnosticsOpen) renderDiagnosticsPanel(null);
       if (histogramOpen) renderHistogramPanel(null);
@@ -550,7 +568,10 @@ export function createDiagnosticsController({
       state.diagnostics.signature = stats?.signature || signature;
     }
     renderDiagnosticsPanel(state.diagnostics.stats);
-    if (state.diagnostics.stats) state.diagnostics.xrayStats = state.diagnostics.stats;
+    if (state.diagnostics.stats) {
+      state.diagnostics.xrayStats = state.diagnostics.stats;
+      if (xrayStats.sourceCloud) state.diagnostics.xrayStats.sourceCloud = xrayStats.sourceCloud;
+    }
     if (xrayOpen) renderDiagnosticsXray(state.diagnostics.xrayStats || xrayStats);
   }
 

@@ -453,7 +453,7 @@ test("histogram inspector tab renders paired source and output charts from its a
 });
 
 
-test("X-Ray renders five distinct modes and switches between them on click", () => {
+test("X-Ray renders six distinct modes and switches between them on click", () => {
   const xray = element();
   const els = {diagnosticsXray: xray};
   const records = [
@@ -477,6 +477,7 @@ test("X-Ray renders five distinct modes and switches between them on click", () 
   // Default: scatter. Mode bar must include every mode so it's discoverable.
   panel.renderDiagnosticsXray(stats);
   assert.match(xray.innerHTML, /data-xray-mode="scatter"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /data-xray-mode="cloud"/);
   assert.match(xray.innerHTML, /data-xray-mode="wheel"/);
   assert.match(xray.innerHTML, /data-xray-mode="ramp"/);
   assert.match(xray.innerHTML, /data-xray-mode="proximity"/);
@@ -489,6 +490,41 @@ test("X-Ray renders five distinct modes and switches between them on click", () 
   // Drive the click handler that the panel binds on first render. Each mode
   // should produce visibly different markup, not just a relabelled scatter.
   const clickMode = mode => xray.dispatch("click", {target: {closest: sel => sel === `[data-xray-mode]` ? {dataset: {xrayMode: mode}} : null}});
+
+  stats.sourceCloud = {
+    sampleCount: 3,
+    maxChroma: 24,
+    samples: [
+      {lab: [18, 0, 0], lightness: 18, chroma: 0, hue: null, hex: "#202020"},
+      {lab: [55, 16, 12], lightness: 55, chroma: 20, hue: 37, hex: "#9b6654"},
+      {lab: [80, -8, 10], lightness: 80, chroma: 12, hue: 128, hex: "#c4d29b"}
+    ]
+  };
+  clickMode("cloud");
+  assert.match(xray.innerHTML, /data-xray-mode="cloud"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /class="xray-plot xray-scatter xray-cloud"/);
+  assert.match(xray.innerHTML, /xray-cloud-dot/);
+  assert.match(xray.innerHTML, /3 source pixels/);
+  assert.match(xray.innerHTML, /data-xray-cloud-axes="hl"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /data-xray-cloud-palette-toggle="true"[^>]*aria-pressed="true"/);
+  assert.match(xray.innerHTML, /xray-swatch-fill/);
+
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-cloud-palette-toggle]" ? {dataset: {xrayCloudPaletteToggle: "true"}} : null}});
+  assert.match(xray.innerHTML, /data-xray-cloud-palette-toggle="true"[^>]*aria-pressed="false"/);
+  assert.doesNotMatch(xray.innerHTML, /xray-swatch-fill/);
+  assert.doesNotMatch(xray.innerHTML, /xray-match-anchor/);
+
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-cloud-palette-toggle]" ? {dataset: {xrayCloudPaletteToggle: "true"}} : null}});
+  assert.match(xray.innerHTML, /data-xray-cloud-palette-toggle="true"[^>]*aria-pressed="true"/);
+  assert.match(xray.innerHTML, /xray-swatch-fill/);
+
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-cloud-axes]" ? {dataset: {xrayCloudAxes: "cl"}} : null}});
+  assert.match(xray.innerHTML, /data-xray-cloud-axes="cl"[^>]*aria-selected="true"/);
+  assert.match(xray.innerHTML, /C max/);
+
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-cloud-axes]" ? {dataset: {xrayCloudAxes: "hc"}} : null}});
+  assert.match(xray.innerHTML, /data-xray-cloud-axes="hc"[^>]*aria-selected="true"/);
+  assert.doesNotMatch(xray.innerHTML, />neutral</);
 
   clickMode("wheel");
   assert.match(xray.innerHTML, /data-xray-mode="wheel"[^>]*aria-selected="true"/);
@@ -517,6 +553,43 @@ test("X-Ray renders five distinct modes and switches between them on click", () 
 
   clickMode("scatter");
   assert.match(xray.innerHTML, /data-xray-mode="scatter"[^>]*aria-selected="true"/);
+});
+
+
+test("X-Ray Cloud scales chroma axes to the actual source range instead of a fixed 16 floor", () => {
+  const xray = element();
+  const els = {diagnosticsXray: xray};
+  const stats = {
+    records: [
+      {lab: [42, 1.2, -0.8], hex: "#67696c", displayIndex: 0},
+      {lab: [68, -1.6, 1.1], hex: "#a8aba6", displayIndex: 1}
+    ],
+    entries: [],
+    sourceCloud: {
+      sampleCount: 2,
+      maxChroma: 2.6,
+      samples: [
+        {lab: [44, 0.9, -0.3], lightness: 44, chroma: 1.0, hue: 342, hex: "#6b6c6e"},
+        {lab: [70, -1.3, 0.7], lightness: 70, chroma: 1.5, hue: 152, hex: "#afb2ac"}
+      ]
+    }
+  };
+  const state = {imageData: null, diagnostics: {stats}};
+  const panel = createDiagnosticsPanel({
+    els,
+    getConfig: () => ({lumaWeight: 1, chromaWeight: 1, hueWeight: 1, minDistance: 18}),
+    getState: () => state
+  });
+
+  panel.renderDiagnosticsXray(stats);
+  xray.dispatch("click", {target: {closest: sel => sel === `[data-xray-mode]` ? {dataset: {xrayMode: "cloud"}} : null}});
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-cloud-axes]" ? {dataset: {xrayCloudAxes: "cl"}} : null}});
+  assert.match(xray.innerHTML, /C max 3/);
+  assert.doesNotMatch(xray.innerHTML, /C max 16/);
+
+  xray.dispatch("click", {target: {closest: sel => sel === "[data-xray-cloud-axes]" ? {dataset: {xrayCloudAxes: "hc"}} : null}});
+  assert.match(xray.innerHTML, /C max 3/);
+  assert.doesNotMatch(xray.innerHTML, /C max 16/);
 });
 
 test("graph swatch markers show muted state with slash indicators", () => {
