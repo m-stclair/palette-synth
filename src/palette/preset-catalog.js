@@ -362,6 +362,46 @@ export const PALETTE_PRESET_CATALOG = {
         ]
     },
 
+    // extracted from NES Metroid Brinstar screenshots. Shadowed walls, rock,
+    // metal, gleaming suit, toxic alien highlights.
+    metroidBrinstar: {
+        category: "Game worlds",
+        colors: [
+          "#000000", "#6c1d1e", "#273cea", "#147f86",
+          "#737373", "#d63006", "#c54e17", "#129308",
+          "#e21159", "#5e93fa", "#fa7561", "#fa983e",
+          "#51db4c", "#bbbbbb", "#eebb42", "#fcfcfc"
+        ]
+    },
+
+    // extracted from SNES Earthbound screenshots. Haunted purple town
+    // nostalgia with circus highlights.
+    threedDark: {
+        category: "Game worlds",
+        colors: [
+          "#382058", "#303030", "#503070", "#505870",
+          "#783898", "#6838d0", "#6848e0", "#805898",
+          "#6068a8", "#9050b8", "#289060", "#a06888",
+          "#8878a8", "#7088d0", "#90a8e0", "#a8a8e0",
+          "#d090f8", "#f89070", "#58d878", "#e898f8",
+          "#f8d0a0", "#e8e0f8", "#d8f0e0", "#e0f8f8"
+        ]
+    },
+
+    // extracted from SNES Earthbound screenshots. Warped American
+    // small-town summer daylight.
+    onettDay: {
+        category: "Game worlds",
+        colors: [
+          "#303030", "#984848", "#985868", "#507870",
+          "#c06068", "#808850", "#b07848", "#f80858",
+          "#8870f8", "#d07870", "#d058f8", "#28b860",
+          "#a0a068", "#b8a8c0", "#d0b858", "#c0c098",
+          "#f8b068", "#c0d098", "#10f868", "#f0f0d0",
+          "#f8f870", "#f8f8c8"
+        ]
+    },
+
     // Original Game Boy DMG. The iconic 4-shade "pea soup" green.
     gameBoyDmg: {
         category: "Consoles + handhelds",
@@ -484,6 +524,42 @@ export const PALETTE_PRESET_CATALOG = {
           "#1a1035", "#3d1a68", "#6e3a8a", "#b078c0",
           "#8a2050", "#c43060", "#c45c50", "#e05030",
           "#e8875a", "#f0a830", "#f5d868", "#c45c28",
+        ]
+    },
+
+    // Color vector arcade — Atari QuadraScan lineage (Tempest, Star Wars '83).
+    // Additive beam light on true void: each hue is a hot body + a decay trail,
+    // blooming toward white at the core. No midtones, no shadow — lit or nothing.
+    vectorArcade: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#080810", "#ffffff", "#bfe6ff",
+            "#36f0ff", "#0e7c92", "#2f6bff", "#142e74",
+            "#ff3b3b", "#8c1212", "#46ff5a", "#127a2c",
+            "#ffd21e", "#9a6800", "#ff48c4", "#7a1262"
+        ]
+    },
+
+    // Monochrome vector — Asteroids / Vectrex white-on-void.
+    // Cool phosphor bloom: a single beam fading from afterglow trail to white-hot.
+    vectorMono: {
+        category: "Computer hardware",
+        colors: [
+            "#000000", "#0a0c12", "#1c2630", "#5a7488",
+            "#a8c4d8", "#e8f4ff", "#ffffff"
+        ]
+    },
+
+    // Nintendo Game & Watch — reflective segment LCD with screen-print overlay..
+    // Silver-khaki field, slate "ink" segments, faint ghost outlines, flat screen-printed
+    // playfield color, and a champagne-gold case. Matte, low-contrast, quietly melancholy.
+    gameAndWatch: {
+        category: "Consoles + handhelds",
+        colors: [
+            "#dfe2d4", "#c8ccba", "#b0b5a2", "#9aa08e",
+            "#5c6358", "#2c3138", "#191c20", "#bf3a2e",
+            "#d98a3d", "#e6c34c", "#5d8a4f", "#43699e",
+            "#2c416b", "#ece6cf", "#bda063", "#a9aeac"
         ]
     },
 
