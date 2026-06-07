@@ -388,6 +388,20 @@ export const PALETTE_PRESET_CATALOG = {
         ]
     },
 
+    // extracted from SNES Earthbound screenshots. Weird lakeside city park
+    // blocks, no sky, little shadow.
+    fourside: {
+        category: "Game worlds",
+        colors: [
+          "#303030", "#603030", "#585858", "#884060",
+          "#985038", "#806868", "#508060", "#687880",
+          "#b85078", "#0088f8", "#c07080", "#30a868",
+          "#b09878", "#a0a880", "#00c858", "#58c868",
+          "#a0c080", "#88c890", "#f898a0", "#f0a0b8",
+          "#c8d8a0", "#b0e880", "#80f860", "#b8f8b0"
+        ]
+    },
+
     // extracted from SNES Earthbound screenshots. Warped American
     // small-town summer daylight.
     onettDay: {
@@ -550,7 +564,7 @@ export const PALETTE_PRESET_CATALOG = {
         ]
     },
 
-    // Nintendo Game & Watch — reflective segment LCD with screen-print overlay..
+    // Nintendo Game & Watch — reflective segment LCD with screen-print overlay.
     // Silver-khaki field, slate "ink" segments, faint ghost outlines, flat screen-printed
     // playfield color, and a champagne-gold case. Matte, low-contrast, quietly melancholy.
     gameAndWatch: {
